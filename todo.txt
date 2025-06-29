@@ -1,0 +1,17 @@
+// ask advisor for class
+// [ ] what if developed polymorphic thing to do multiple elementwise transforms at once?
+// [ ] (q,q)_i transform
+// [ ] poly
+// [ ] link-cut tree
+// [ ] li-chao tree
+// [ ] edge coloring
+// [ ] euler tour tree
+// [ ] disjoint sparse table
+// [ ] knuth opt
+// [ ] d&q dp
+// [ ] sparse set
+// [ ] wavelet tree
+// [ ] interval cover
+// [ ] dominator tree
+// [ ] min-cost max flow (look at the multiple ways to do it)
+// [ ] algorithm for frobenius form
