@@ -1,3 +1,4 @@
+use bit_vec::BitVec;
 use std::ops::{Bound, RangeBounds};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,20 +19,31 @@ where
     pub push: Push,
     pub pull: Pull,
     pub rt: usize,
+    pub nxt: usize,
+    pub removed: usize,
+    pub open: BitVec,
 }
 
-impl<T: Clone, Push, Pull> Splay<T, Push, Pull>
+impl<T, Push, Pull> Splay<T, Push, Pull>
 where
     Push: FnMut(usize, usize, usize, &mut [Node<T>]),
     Pull: FnMut(usize, usize, usize, &mut [Node<T>]),
 {
     #[inline]
-    pub fn new(push: Push, pull: Pull) -> Self {
+    pub fn new(init: T, push: Push, pull: Pull) -> Self {
         Self {
-            ns: vec![],
+            ns: vec![Node {
+                v: init,
+                l: 0,
+                r: 0,
+                size: 0,
+            }],
             push,
             pull,
             rt: 0,
+            nxt: 1,
+            removed: 0,
+            open: BitVec::from_elem(1, false),
         }
     }
 
@@ -139,14 +151,25 @@ where
     }
 
     pub fn insert(&mut self, k: usize, v: T) -> &mut Self {
-        let nxt = self.ns.len();
+        let len = self.ns.len();
+        while self.nxt < self.ns.len() && !self.open[self.nxt] {
+            self.nxt += 1;
+        }
+        let nxt = self.nxt;
         if self.len() <= k {
-            self.ns.push(Node {
+            let n = Node {
                 v,
                 l: self.rt,
                 r: 0,
                 size: 0,
-            });
+            };
+            if nxt < len {
+                self.ns[nxt] = n;
+                self.open.set(nxt, false);
+            } else {
+                self.ns.push(n);
+                self.open.push(false);
+            }
         } else {
             self.rt = self.splay(self.rt, k);
             self.pull(self.rt);
@@ -154,32 +177,46 @@ where
             let l = self.ns[self.rt].l;
             self.ns[self.rt].l = 0;
             self.pull(self.rt);
-            self.ns.push(Node {
+            let n = Node {
                 v,
                 l,
                 r: self.rt,
                 size: 0,
-            });
+            };
+            if nxt < len {
+                self.ns[nxt] = n;
+                self.open.set(nxt, false);
+            } else {
+                self.ns.push(n);
+                self.open.push(false);
+            }
         }
         self.pull(nxt);
         self.push(nxt);
         self.rt = nxt;
+        self.nxt += 1;
         self
     }
 
-    pub fn erase(&mut self, k: usize) -> &mut Self {
+    pub fn remove(&mut self, k: usize) -> &mut Self {
         if k < self.len() && self.rt != 0 {
             self.rt = self.splay(self.rt, k);
-            self.pull(self.rt);
+            self.open.set(self.rt, true);
             self.push(self.rt);
             let r = self.ns[self.rt].r;
             if r != 0 {
                 let r = self.splay(r, 0);
                 (self.ns[r].l, self.ns[self.rt].l, self.rt) = (self.ns[self.rt].l, 0, r);
                 self.pull(r);
-                return self;
+            } else {
+                (self.rt, self.ns[self.rt].l) = (self.ns[self.rt].l, 0);
             }
-            (self.rt, self.ns[self.rt].l) = (self.ns[self.rt].l, 0);
+        }
+        self.removed += 1;
+        let len = self.ns.len();
+        if self.removed << 1 > len {
+            self.nxt = self.open.iter().position(|v| v == true).unwrap_or(len);
+            self.removed = 0;
         }
         self
     }
@@ -317,26 +354,26 @@ where
         push: Push,
         pull: Pull,
     ) -> Splay<T, Push, Pull> {
+        let len = v.len();
         let mut s = Splay {
             ns: vec![
                 Node {
-                    v: init.clone(),
+                    v: init,
                     l: 0,
                     r: 0,
                     size: 0
                 };
-                v.len() + 1
+                len + 1
             ],
             push,
             pull,
             rt: 0,
+            nxt: len,
+            removed: 0,
+            open: BitVec::from_elem(len + 1, false),
         };
-        s.rt = s.build(v, &mut elem, 1, v.len() + 1);
+        s.rt = s.build(v, &mut elem, 1, len + 1);
         s
-    }
-
-    fn rebuild(&mut self) {
-        unimplemented!()
     }
 }
 
@@ -370,7 +407,7 @@ mod tests {
         assert_eq!(tree.get(1), Some(&100));
 
         // Test erasure
-        tree.erase(1);
+        tree.remove(1);
         assert_eq!(tree.len(), 3);
         assert_eq!(tree.get(0), Some(&10));
         assert_eq!(tree.get(1), Some(&15));
@@ -395,7 +432,7 @@ mod tests {
         // Single element
         tree.insert(0, 42);
         assert_eq!(tree.get(0), Some(&42));
-        tree.erase(0);
+        tree.remove(0);
         assert!(tree.is_empty());
 
         // Insert at various positions
@@ -420,7 +457,7 @@ mod tests {
 
         // Remove every other element
         for i in (0..10).step_by(2).rev() {
-            tree.erase(i);
+            tree.remove(i);
         }
 
         assert_eq!(tree.len(), 5);
@@ -445,10 +482,10 @@ mod tests {
         let mut tree = Splay::from_slice(&[1, 2], 0, |&x| x, |_, _, _, _| {}, |_, _, _, _| {});
 
         // Erase beyond bounds should do nothing
-        tree.erase(10);
+        tree.remove(10);
         assert_eq!(tree.len(), 2);
 
-        tree.erase(2);
+        tree.remove(2);
         assert_eq!(tree.len(), 2);
     }
 
@@ -589,7 +626,7 @@ mod tests {
         assert_eq!(tree.get(1), Some(&10));
         assert_eq!(tree.get(2), Some(&20));
 
-        tree.erase(1);
+        tree.remove(1);
         assert_eq!(tree.len(), 2);
         assert_eq!(tree.get(0), Some(&5));
         assert_eq!(tree.get(1), Some(&20));
@@ -740,8 +777,8 @@ mod tests {
         }
 
         // Test deletions
-        tree.erase(3); // Remove 25: [5, 10, 20, 30, 40, 50, 60]
-        tree.erase(0); // Remove 5:  [10, 20, 30, 40, 50, 60]
+        tree.remove(3); // Remove 25: [5, 10, 20, 30, 40, 50, 60]
+        tree.remove(0); // Remove 5:  [10, 20, 30, 40, 50, 60]
 
         assert_eq!(tree.len(), 6);
 
@@ -924,7 +961,7 @@ mod tests {
 
         // Random deletions
         for i in (10..90).step_by(5).rev() {
-            tree.erase(i);
+            tree.remove(i);
         }
 
         // Verify remaining elements

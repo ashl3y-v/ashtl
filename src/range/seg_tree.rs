@@ -1,4 +1,3 @@
-use bit_vec::BitVec;
 use std::{
     mem::MaybeUninit,
     ops::{Bound, RangeBounds},
@@ -19,7 +18,6 @@ impl<T, Pull, Push> SegTree<T, Pull, Push>
 where
     Pull: FnMut(usize, usize, &mut [T]),
     Push: FnMut(usize, usize, &mut [T]),
-    T: std::fmt::Debug,
 {
     pub fn new<Init: FnMut(usize, usize, &mut [T])>(
         a: Vec<T>,
@@ -84,10 +82,12 @@ where
         self
     }
 
-    pub fn update(
+    pub fn update<R>(
         &mut self,
         range: impl RangeBounds<usize>,
-        mut update: impl FnMut(usize, usize, &mut [T]),
+        mut left: impl FnMut(usize, usize, &mut [T], &mut R),
+        mut right: impl FnMut(usize, usize, &mut [T], &mut R),
+        data: &mut R,
     ) -> &mut Self {
         let mut l = match range.start_bound() {
             Bound::Included(l) => *l,
@@ -113,13 +113,13 @@ where
                 (self.pull)(r, k, &mut self.t)
             };
             if l & 1 != 0 {
-                update(l, k, &mut self.t);
+                left(l, k, &mut self.t, data);
                 cl = true;
                 l += 1;
             }
             if r & 1 != 0 {
                 r -= 1;
-                update(r, k, &mut self.t);
+                right(r, k, &mut self.t, data);
                 cr = true;
             }
             l >>= 1;
@@ -141,15 +141,13 @@ where
         self
     }
 
-    pub fn query<S>(
+    pub fn query<R>(
         &mut self,
         range: impl RangeBounds<usize>,
-        init_l: S,
-        init_r: S,
-        mut op_l: impl FnMut(S, &T) -> S,
-        mut op_r: impl FnMut(&T, S) -> S,
-        mut op_s: impl FnMut(S, S) -> S,
-    ) -> S {
+        data: &mut R,
+        mut left: impl FnMut(usize, usize, &mut [T], &mut R),
+        mut right: impl FnMut(usize, usize, &mut [T], &mut R),
+    ) {
         let mut l = match range.start_bound() {
             Bound::Included(l) => *l,
             Bound::Excluded(l) => *l + 1,
@@ -164,33 +162,74 @@ where
         if r > 0 {
             self.push(r - 1, r);
         }
-        let mut res_l = init_l;
-        let mut res_r = init_r;
+        let mut k = 1;
         l += self.n;
         r += self.n;
         while l < r {
             if l & 1 != 0 {
-                res_l = (op_l)(res_l, &self.t[l]);
+                left(l, k, &mut self.t, data);
                 l += 1;
             }
             if r & 1 != 0 {
                 r -= 1;
-                res_r = (op_r)(&self.t[r], res_r);
+                right(r, k, &mut self.t, data);
             }
             l >>= 1;
             r >>= 1;
+            k <<= 1;
         }
-        op_s(res_l, res_r)
     }
 
-    // O(log n)
-    // array must be length 2^k
+    pub fn descend<S>(
+        &mut self,
+        mut right: impl FnMut(usize, usize, &mut [T]) -> bool,
+        mut leaf: impl FnMut(usize, &mut [T]) -> S,
+    ) -> S {
+        let mut i = 1;
+        let mut k = self.n;
+        while i < self.n {
+            (self.push)(i, k, &mut self.t);
+            i = (i >> 1) | right(i, k, &mut self.t) as usize;
+            k >>= 1;
+        }
+        leaf(i, &mut self.t)
+    }
+
+    pub fn traverse<S: ?Sized, R>(
+        &mut self,
+        data: &S,
+        mut quit: impl FnMut(usize, usize, usize, usize, &S, &mut [T]) -> Option<R>,
+        mut rec: impl FnMut(usize, usize, &S, &mut [T], R, R, &mut Push) -> R,
+    ) -> R {
+        self.traverse_descend(1, self.n, 0, self.n, data, &mut quit, &mut rec)
+    }
+
+    fn traverse_descend<S: ?Sized, R>(
+        &mut self,
+        i: usize,
+        k: usize,
+        il: usize,
+        ir: usize,
+        data: &S,
+        quit: &mut impl FnMut(usize, usize, usize, usize, &S, &mut [T]) -> Option<R>,
+        rec: &mut impl FnMut(usize, usize, &S, &mut [T], R, R, &mut Push) -> R,
+    ) -> R {
+        if let Some(v) = quit(i, k, il, ir, data, &mut self.t) {
+            return v;
+        }
+        (self.push)(i, k, &mut self.t);
+        let im = il + (ir - il >> 1);
+        let v = self.traverse_descend(i << 1, k >> 1, il, im, data, quit, rec);
+        let w = self.traverse_descend(i << 1 | 1, k >> 1, im, ir, data, quit, rec);
+        rec(i, k, data, &mut self.t, v, w, &mut self.push)
+    }
+
     pub fn max_right<S, P>(
         &mut self,
         l: usize,
         mut p: P,
         init: S,
-        mut op: impl FnMut(S, &T) -> S,
+        mut op: impl FnMut(&S, &T) -> S,
     ) -> usize
     where
         S: Clone,
@@ -208,37 +247,34 @@ where
                 i >>= 1;
                 k += 1;
             }
-            let combined = (op)(acc.clone(), &self.t[i]);
+            let combined = (op)(&acc, &self.t[i]);
             if !p(&combined) {
                 while i < self.n {
                     (self.push)(i, 1 << k, &mut self.t);
                     i <<= 1;
                     k -= 1;
-                    let cand = (op)(acc.clone(), &self.t[i]);
+                    let cand = (op)(&acc, &self.t[i]);
                     if p(&cand) {
                         acc = cand;
                         i += 1;
                     }
                 }
-                return i - self.n;
+                break i - self.n;
             }
             acc = combined;
             i += 1;
             if i.is_power_of_two() {
-                break;
+                break self.n;
             }
         }
-        self.n
     }
 
-    // O(log n)
-    // array must be length 2^k
     pub fn min_left<S, P>(
         &mut self,
         r: usize,
         mut p: P,
         init: S,
-        mut op: impl FnMut(&T, S) -> S,
+        mut op: impl FnMut(&T, &S) -> S,
     ) -> usize
     where
         S: Clone,
@@ -247,7 +283,7 @@ where
         if r == 0 {
             return 0;
         }
-        self.push(r, r + 1);
+        self.push(r - 1, r);
         let mut acc = init;
         let mut i = r + self.n;
         let mut k = 0;
@@ -257,76 +293,28 @@ where
                 i >>= 1;
                 k += 1;
             }
-            let combined = (op)(&self.t[i], acc.clone());
+            let combined = (op)(&self.t[i], &acc);
             if !p(&combined) {
                 while i < self.n {
                     (self.push)(i, k, &mut self.t);
                     i = i << 1 | 1;
                     k -= 1;
-                    let cand = (op)(&self.t[i], acc.clone());
+                    let cand = (op)(&self.t[i], &acc);
                     if p(&cand) {
                         acc = cand;
                         i -= 1;
                     }
                 }
-                return i + 1 - self.n;
+                break i + 1 - self.n;
             }
             acc = combined;
             if i.is_power_of_two() {
-                break;
+                break 0;
             }
         }
-        0
-    }
-}
-
-pub struct BitSegTree<F: FnMut(bool, bool) -> bool> {
-    pub n: usize,
-    pub st: BitVec,
-    pub op: F,
-}
-
-impl<F: FnMut(bool, bool) -> bool> BitSegTree<F> {
-    /// preconditions: n = 2^k
-    pub fn new(n: usize, init: bool, op: F) -> Self {
-        Self {
-            n,
-            st: BitVec::from_elem(n << 1, init),
-            op,
-        }
     }
 
-    /// preconditions: op == &&
-    pub fn first_zero(&self) -> Option<usize> {
-        if !self.st[1] {
-            return None;
-        }
-        let mut i = 1;
-        while i < self.n {
-            i = (i << 1) | self.st[i << 1] as usize;
-        }
-        Some(i - self.n)
-    }
-
-    /// preconditions: op == ||
-    pub fn first_one(&self) -> Option<usize> {
-        if !self.st[1] {
-            return None;
-        }
-        let mut i = 1;
-        while i < self.n {
-            i = (i << 1) | !self.st[i << 1] as usize;
-        }
-        Some(i - self.n)
-    }
-
-    pub fn update(&mut self, mut i: usize, v: bool) {
-        i += self.n;
-        self.st.set(i, v);
-        while i > 1 {
-            i >>= 1;
-            self.st
-                .set(i, (self.op)(self.st[i << 1], self.st[i << 1 | 1]));
-        }
+    pub fn n(&self) -> usize {
+        self.n
     }
 }

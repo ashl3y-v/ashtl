@@ -196,6 +196,7 @@ impl<const M: E> Mat<M> {
         self
     }
 
+    #[inline]
     pub fn pow(self, mut rhs: u32) -> Mat<M> {
         let mut res = Mat::eye(self.n, self.m);
         let mut a = self;
@@ -208,6 +209,24 @@ impl<const M: E> Mat<M> {
         }
 
         res
+    }
+
+    /// Does not normalize, if matrices have been normalized will be wrong
+    #[inline]
+    pub fn diamond(&self, rhs: &Self) -> Self {
+        let mut c = Mat::from_elem(self.n, rhs.m, 0);
+        for i in 0..self.n {
+            let row_a = &self[i];
+            let row_c = &mut c[i];
+            for k in 0..self.m {
+                let a_ik = row_a[k];
+                row_c
+                    .iter_mut()
+                    .zip(rhs[k].iter().map(|j| a_ik + j))
+                    .for_each(|(i, j)| *i = (*i).max(j));
+            }
+        }
+        c
     }
 
     pub fn gauss<const MODE: u8>(&mut self) -> &mut Self {
