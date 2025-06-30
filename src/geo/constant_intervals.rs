@@ -25,7 +25,6 @@ where
         return;
     }
     if from == to {
-        // Report [i, to) with value *p
         g(*i, to, *p);
         *i = to;
         *p = q;
