@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 
-// TODO: implement monotone queue and stack
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct MonotoneStack<T, F: FnMut(&T, &T) -> bool> {
     pub stk: Vec<(T, T)>,

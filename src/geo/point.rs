@@ -21,21 +21,21 @@ impl<T: Display> Debug for Point<T> {
     }
 }
 
-impl<S, R: Add<Output = S>, T: Mul<Output = R>> Point<T> {
-    pub fn dot(self, rhs: Point<T>) -> S {
-        self.x * rhs.x + self.y * rhs.y
-    }
-}
-
-impl<S, R: Sub<Output = S>, T: Mul<Output = R> + Sub<Output = T>> Point<T> {
-    pub fn cross(self, rhs: Point<T>) -> S {
-        self.x * rhs.y - self.y * rhs.x
+impl<S, R: Add<Output = S>, T: Clone + Mul<Output = R>> Point<T> {
+    pub fn dot(&self, rhs: &Point<T>) -> S {
+        self.x.clone() * rhs.x.clone() + self.y.clone() * rhs.y.clone()
     }
 }
 
 impl<S, R: Sub<Output = S>, T: Clone + Mul<Output = R> + Sub<Output = T>> Point<T> {
-    pub fn area(self, a: Point<T>, b: Point<T>) -> S {
-        (a - self.clone()).cross(b - self)
+    pub fn cross(&self, rhs: &Point<T>) -> S {
+        self.x.clone() * rhs.y.clone() - self.y.clone() * rhs.x.clone()
+    }
+}
+
+impl<S, R: Sub<Output = S>, T: Clone + Mul<Output = R> + Sub<Output = T>> Point<T> {
+    pub fn area(&self, a: &Point<T>, b: &Point<T>) -> S {
+        (a.clone() - self.clone()).cross(&(b.clone() - self.clone()))
     }
 }
 

@@ -1,5 +1,4 @@
 use super::{gcd::gcd, poly::AffPoly};
-use rand::Rng;
 
 pub fn mod_fact<const M: u64>(n: u64) -> u64 {
     (1..=n).fold(1, |acc, x| acc * x % M)
@@ -206,17 +205,4 @@ pub fn mod_sqrt<const M: u64>(b: u64) -> Option<u64> {
             }
         }
     }
-}
-
-/// Only works if k coprime to M-1
-pub fn mod_kth_root<const M: u64>(a: u64, k: u64) -> Option<u64> {
-    let d = gcd(k, M - 1);
-    let m = (M - 1) / d;
-    if mod_pow::<M>(a, m) != 1 {
-        return None;
-    }
-    let kprime = k / d;
-    let inv_kprime = inverse_euclidean_non_const(kprime, m);
-    let x0 = mod_pow::<M>(a, inv_kprime);
-    if d == 1 { Some(x0) } else { None }
 }

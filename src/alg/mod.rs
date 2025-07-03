@@ -1,3 +1,4 @@
+pub mod crt;
 pub mod fft;
 pub mod fst;
 pub mod gcd;

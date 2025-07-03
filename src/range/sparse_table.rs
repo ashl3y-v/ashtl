@@ -13,28 +13,28 @@ pub struct SparseTable<T, F: FnMut(&T, &T) -> T> {
 impl<T: Clone, F: FnMut(&T, &T) -> T> SparseTable<T, F> {
     pub fn new(a: Vec<T>, mut f: F) -> Self {
         let n = a.len();
-        let lvls = if n == 0 { 0 } else { n.ilog2() as usize + 1 };
-        let mut buf: Vec<MaybeUninit<T>> = Vec::with_capacity(n * lvls);
+        let l = if n == 0 { 0 } else { n.ilog2() as usize + 1 };
+        let mut t: Vec<MaybeUninit<T>> = Vec::with_capacity(n * l);
         unsafe {
-            buf.set_len(n * lvls);
+            t.set_len(n * l);
         }
         for (i, v) in a.into_iter().enumerate() {
-            buf[i].write(v);
+            t[i].write(v);
         }
         let mut i = 1;
         let mut p = 2;
         while p <= n {
             let off = i * n;
             for j in 0..=n - p {
-                let result = f(unsafe { buf[(i - 1) * n + j].assume_init_ref() }, unsafe {
-                    buf[(i - 1) * n + j + (p >> 1)].assume_init_ref()
+                let r = f(unsafe { t[(i - 1) * n + j].assume_init_ref() }, unsafe {
+                    t[(i - 1) * n + j + (p >> 1)].assume_init_ref()
                 });
-                buf[off + j].write(result);
+                t[off + j].write(r);
             }
             i += 1;
             p <<= 1;
         }
-        let t = unsafe { std::mem::transmute::<_, Vec<T>>(buf) };
+        let t = unsafe { std::mem::transmute::<_, Vec<T>>(t) };
         Self { n, t, f }
     }
 
@@ -49,6 +49,8 @@ impl<T: Clone, F: FnMut(&T, &T) -> T> SparseTable<T, F> {
             Bound::Excluded(r) => *r,
             Bound::Unbounded => self.n,
         };
+        debug_assert!(l < r);
+        debug_assert!(r <= self.n);
         let n = self.n;
         let i = (r - l).ilog2() as usize;
         (self.f)(&self.t[i * n + l], &self.t[i * n + r - (1 << i)])
@@ -68,13 +70,13 @@ where
 {
     pub fn new(a: Vec<T>, mut f: F) -> Self {
         let n = a.len();
-        let lc = if n == 0 { 0 } else { n.ilog2() as usize + 1 };
-        let total = n * lc;
+        let l = if n == 0 { 0 } else { n.ilog2() as usize + 1 };
+        let total = n * l;
         let mut buf: Vec<MaybeUninit<T>> = Vec::with_capacity(total);
         unsafe {
             buf.set_len(total);
         }
-        for h in 0..lc {
+        for h in 0..l {
             let l = 1 << h;
             let mut c = l;
             while c < n + l {

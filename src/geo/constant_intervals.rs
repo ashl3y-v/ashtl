@@ -1,39 +1,37 @@
-/// O(k log(n/k)), where k is number of constant intervals
-pub fn constant_intervals<F, G, T>(from: usize, to: usize, f: F, mut g: G)
+/// O(k log(n/k))
+pub fn constant_intervals<F, G, T>(l: usize, r: usize, f: F, mut g: G)
 where
     F: Fn(usize) -> T,
     G: FnMut(usize, usize, T),
     T: PartialEq + Copy,
 {
-    if to <= from {
+    fn rec<F, G, T>(l: usize, r: usize, f: &F, g: &mut G, i: &mut usize, p: &mut T, q: T)
+    where
+        F: Fn(usize) -> T,
+        G: FnMut(usize, usize, T),
+        T: PartialEq + Copy,
+    {
+        if *p == q {
+            return;
+        } else if l == r {
+            g(*i, r, *p);
+            *i = r;
+            *p = q;
+        } else {
+            let mid = (l + r) >> 1;
+            let fm = f(mid);
+            rec(l, mid, f, g, i, p, fm);
+            rec(mid + 1, r, f, g, i, p, q);
+        }
+    }
+    if r <= l {
         return;
     }
-    let mut i = from;
+    let mut i = l;
     let mut p = f(i);
-    let q = f(to - 1);
-    rec(from, to - 1, &f, &mut g, &mut i, &mut p, q);
-    g(i, to, q);
-}
-
-fn rec<F, G, T>(from: usize, to: usize, f: &F, g: &mut G, i: &mut usize, p: &mut T, q: T)
-where
-    F: Fn(usize) -> T,
-    G: FnMut(usize, usize, T),
-    T: PartialEq + Copy,
-{
-    if *p == q {
-        return;
-    }
-    if from == to {
-        g(*i, to, *p);
-        *i = to;
-        *p = q;
-    } else {
-        let mid = (from + to) >> 1;
-        let fm = f(mid);
-        rec(from, mid, f, g, i, p, fm);
-        rec(mid + 1, to, f, g, i, p, q);
-    }
+    let q = f(r - 1);
+    rec(l, r - 1, &f, &mut g, &mut i, &mut p, q);
+    g(i, r, q);
 }
 
 #[cfg(test)]

@@ -1,12 +1,22 @@
 // ask advisor for class
-// [ ] constant intervals
-// [ ] link-cut tree
-// [ ] li-chao tree
-// [ ] edge coloring
+// hoi4 subscription thing?
 // [ ] euler tour tree
+// [ ] li-chao tree
+// [ ] hungarian https://judge.yosupo.jp/submission/219195
+// [ ] ham cycle heuristic
+// [ ] CDQ convolution
+// [ ] improve link-cut tree
+// [ ] gaussian int operations https://judge.yosupo.jp/submission/173484 https://judge.yosupo.jp/submission/235398
+// [ ] 2ECCs https://judge.yosupo.jp/submission/106412
+// [ ] 3ECCs https://judge.yosupo.jp/submission/248134
+// [ ] weighted blossom https://judge.yosupo.jp/submission/295392
+// [ ] edge coloring https://judge.yosupo.jp/submission/97319
 // [ ] knuth opt
 // [ ] d&q dp
 // [ ] wavelet tree
-// [ ] dominator tree
+// [ ] dominator tree https://judge.yosupo.jp/submission/87379
+// [ ] chromatic poly https://judge.yosupo.jp/submission/214976
+// [ ] component queries https://judge.yosupo.jp/submission/214503
+// [ ] better two cc
 // [ ] min-cost max flow (look at the multiple ways to do it)
-// [ ] algorithm for frobenius form
+// [ ] algorithm for frobenius form (plus charpoly)

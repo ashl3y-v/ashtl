@@ -1,6 +1,6 @@
 use std::{
     fmt::Debug,
-    ops::{AddAssign, BitAnd, Div, Index, IndexMut, Neg, Range, Rem},
+    ops::{Add, AddAssign, BitAnd, BitAndAssign, Div, Index, IndexMut, Range, Rem},
 };
 
 type E = u128;
@@ -135,23 +135,6 @@ impl IndexMut<Range<usize>> for XorBasis {
     }
 }
 
-impl Neg for XorBasis {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        let mut cmpl = XorBasis {
-            basis: [0; E::BITS as usize],
-            mask: !self.mask,
-        };
-        for i in 0..E::BITS as usize {
-            if self.mask & 1 << i == 0 {
-                cmpl.basis[i] = 1 << i;
-            }
-        }
-        cmpl
-    }
-}
-
 impl AddAssign<E> for XorBasis {
     fn add_assign(&mut self, mut m: E) {
         for i in (0..E::BITS as usize).rev() {
@@ -164,6 +147,44 @@ impl AddAssign<E> for XorBasis {
             }
             m ^= self.basis[i];
         }
+    }
+}
+
+impl AddAssign<Self> for XorBasis {
+    fn add_assign(&mut self, rhs: Self) {
+        for i in 0..E::BITS as usize {
+            if rhs.mask & (1 << i) != 0 {
+                *self += rhs.basis[i];
+            }
+        }
+    }
+}
+
+impl AddAssign<&Self> for XorBasis {
+    fn add_assign(&mut self, rhs: &Self) {
+        for i in 0..E::BITS as usize {
+            if rhs.mask & (1 << i) != 0 {
+                *self += rhs.basis[i];
+            }
+        }
+    }
+}
+
+impl Add<Self> for XorBasis {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl Add<&Self> for XorBasis {
+    type Output = Self;
+
+    fn add(mut self, rhs: &Self) -> Self::Output {
+        self += rhs;
+        self
     }
 }
 
@@ -190,6 +211,64 @@ impl BitAnd<&XorBasis> for E {
 
     fn bitand(self, rhs: &XorBasis) -> Self::Output {
         rhs & self
+    }
+}
+
+impl BitAnd<Self> for &XorBasis {
+    type Output = XorBasis;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        let mut extended = XorBasis::new();
+        let hlf = (E::BITS >> 1) as usize;
+        for i in 0..hlf {
+            if self.mask & (1 << i) != 0 {
+                extended += self.basis[i] | (self.basis[i] << hlf);
+            }
+        }
+        for i in 0..hlf {
+            if rhs.mask & (1 << i) != 0 {
+                extended += rhs.basis[i] << hlf;
+            }
+        }
+        extended.eliminate();
+        let mut result = XorBasis::new();
+        for i in 0..E::BITS as usize {
+            if extended.mask & (1 << i) != 0 {
+                let val = extended.basis[i];
+                if val < (1 << hlf) {
+                    result += val;
+                }
+            }
+        }
+        result
+    }
+}
+
+impl BitAnd<&Self> for XorBasis {
+    type Output = Self;
+
+    fn bitand(self, rhs: &Self) -> Self::Output {
+        &self & rhs
+    }
+}
+
+impl BitAnd<Self> for XorBasis {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        &self & &rhs
+    }
+}
+
+impl BitAndAssign<&Self> for XorBasis {
+    fn bitand_assign(&mut self, rhs: &Self) {
+        *self = &*self & rhs;
+    }
+}
+
+impl BitAndAssign<Self> for XorBasis {
+    fn bitand_assign(&mut self, rhs: Self) {
+        *self = &*self & &rhs;
     }
 }
 
@@ -231,7 +310,6 @@ impl Rem<&XorBasis> for E {
 mod tests {
     use super::*;
     use std::collections::HashSet;
-    use std::ops::Range;
 
     #[test]
     fn test_new_and_basic_properties() {
@@ -422,24 +500,5 @@ mod tests {
             slice_mut[2] = 44;
         }
         assert_eq!(&b.basis[6..9], &[42, 43, 44]);
-    }
-
-    #[test]
-    fn test_neg_complement() {
-        let mut b = XorBasis::new();
-        b += 1;
-        b += 8; // pivots at bits 0 and 3
-        let c = -b.clone(); // should be complement
-        // c.mask must have bits 0 and 3 *unset*, all others *set*
-        for i in 0..128 {
-            let in_b = ((b.mask >> i) & 1) == 1;
-            let in_c = ((c.mask >> i) & 1) == 1;
-            assert_eq!(in_c, !in_b, "neg failed at bit {}", i);
-            if in_b {
-                assert_eq!(c.basis[i], 0, "neg basis[{}] should be 0", i);
-            } else {
-                assert_eq!(c.basis[i], 1 << i, "neg basis[{}] bad", i);
-            }
-        }
     }
 }

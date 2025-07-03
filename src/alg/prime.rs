@@ -67,3 +67,8 @@ pub fn factor_dedup(n: usize) -> Vec<usize> {
     counting_sort_dedup(&mut fs, n + 1);
     fs
 }
+
+// https://codeforces.com/blog/entry/91632
+pub fn pi(n: usize) -> usize {
+    1
+}

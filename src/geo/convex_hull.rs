@@ -15,7 +15,7 @@ pub fn convex_hull<T: Clone + Ord + Default + Mul<T, Output = T> + Sub<T, Output
         while hull.len() > 1
             && hull[hull.len() - 2]
                 .clone()
-                .area(hull[hull.len() - 1].clone(), pts[i].clone())
+                .area(&hull[hull.len() - 1], &pts[i])
                 <= T::default()
         {
             hull.pop();
@@ -27,7 +27,7 @@ pub fn convex_hull<T: Clone + Ord + Default + Mul<T, Output = T> + Sub<T, Output
         while hull.len() > lower_len
             && hull[hull.len() - 2]
                 .clone()
-                .area(hull[hull.len() - 1].clone(), pts[i].clone())
+                .area(&hull[hull.len() - 1], &pts[i])
                 <= T::default()
         {
             hull.pop();

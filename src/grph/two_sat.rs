@@ -1,4 +1,6 @@
-use crate::grph::scc::scc;
+// https://judge.yosupo.jp/submission/230491
+
+use crate::grph::cc::scc;
 
 /// 2SAT O(n + m)
 pub struct TwoSat {
