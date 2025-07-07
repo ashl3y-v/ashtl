@@ -68,6 +68,8 @@ pub fn factor_dedup(n: usize) -> Vec<usize> {
     fs
 }
 
+// TODO: fast prime counting
+// prob just do O(n^{3/4}) fast one
 // https://codeforces.com/blog/entry/91632
 pub fn pi(n: usize) -> usize {
     1

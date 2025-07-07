@@ -127,6 +127,7 @@ impl<F: Copy + Default + Ord + AddAssign + SubAssign> PushRelabel<F> {
         return self.h[u];
     }
 
+    /// O(V^2 √E)
     pub fn calc(&mut self, s: usize, t: usize) -> F {
         if s == t {
             return F::default();
@@ -182,6 +183,9 @@ impl<F: Copy + Default + Ord + AddAssign + SubAssign> PushRelabel<F> {
             .collect()
     }
 }
+
+// TODO: min-cost max flow
+// https://codeforces.com/blog/entry/95823
 
 #[cfg(test)]
 mod tests {

@@ -1,3 +1,10 @@
+// TODO: improve
+// https://codeforces.com/blog/entry/80145
+// https://codeforces.com/blog/entry/75885
+// https://codeforces.com/blog/entry/67637
+// https://judge.yosupo.jp/submission/270678
+// https://judge.yosupo.jp/submission/278245
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Node<T> {
     pub v: T,
@@ -261,6 +268,13 @@ where
         self.n.len()
     }
 }
+
+// TODO: euler tour tree
+// https://codeforces.com/blog/entry/128556
+
+// TODO: top tree
+// https://codeforces.com/blog/entry/103726
+// https://codeforces.com/blog/entry/128556
 
 #[cfg(test)]
 mod tests {

@@ -453,6 +453,18 @@ impl<const M: E> Mat<M> {
         }
         Some([x_t, ker])
     }
+
+    // https://codeforces.com/blog/entry/124815
+    // TOOD: frobenius form algorithm
+    pub fn frobenius() {}
+
+    // https://judge.yosupo.jp/submission/285790
+    // TOOD: characteristic polynomial
+    pub fn charpoly() {}
+
+    // https://judge.yosupo.jp/submission/285768
+    // TOOD: fast pow
+    pub fn fast_pow() {}
 }
 
 impl<const M: E> Debug for Mat<M> {

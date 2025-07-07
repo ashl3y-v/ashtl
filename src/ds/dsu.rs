@@ -50,3 +50,7 @@ impl DSU {
         (-self.dsu[r]) as usize
     }
 }
+
+// TODO: DSU with potential
+// https://judge.yosupo.jp/submission/214503
+// https://judge.yosupo.jp/submission/236404

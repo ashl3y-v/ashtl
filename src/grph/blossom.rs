@@ -95,6 +95,9 @@ pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
     (n_matches, mate)
 }
 
+// TODO: weighted blossom
+// https://judge.yosupo.jp/submission/295392
+
 #[cfg(test)]
 mod tests {
     use super::blossom;

@@ -80,6 +80,17 @@ pub fn dsatur(adj: &[Vec<usize>]) -> (HashMap<usize, usize>, usize) {
     (cols, max_col + 1)
 }
 
+// TODO: chromatic poly
+// https://judge.yosupo.jp/submission/214976
+pub fn chromatic_poly() {}
+
+// TODO: edge coloring
+// https://judge.yosupo.jp/submission/97319
+// https://judge.yosupo.jp/submission/228343
+// https://codeforces.com/blog/entry/75431
+// https://github.com/kth-competitive-programming/kactl/blob/eab6492ce9c8549832484f47276739ff120477b3/content/graph/EdgeColoring.h#L16
+pub fn edge_color() {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

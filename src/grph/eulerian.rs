@@ -45,6 +45,10 @@ pub fn ett(n: usize, dfs: &[usize], pos: &[usize], ss: &[usize]) -> Vec<usize> {
     et
 }
 
+// TODO: counting eulerian circuits
+// https://judge.yosupo.jp/submission/287846
+pub fn eulerian_circuit_count() {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

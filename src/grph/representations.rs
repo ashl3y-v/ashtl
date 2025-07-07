@@ -1,3 +1,5 @@
+use std::ops::BitXorAssign;
+
 #[inline]
 pub fn edges_to_csr_undir(n: usize, es: &[[usize; 2]]) -> (Vec<usize>, Vec<usize>) {
     let mut g = vec![0; es.len()];
@@ -34,4 +36,23 @@ pub fn edges_to_csr_undir_one_based(n: usize, es: &[[usize; 2]]) -> (Vec<usize>,
     }
 
     (g, d)
+}
+
+pub fn es_to_xor<T: Copy + Default + BitXorAssign, E>(
+    n: usize,
+    es: impl Iterator<Item = E>,
+    mut to: impl FnMut(&E) -> (usize, usize, T),
+) -> (Vec<usize>, Vec<usize>, Vec<T>) {
+    let (mut d, mut p, mut w) = (vec![0; n], vec![0; n], vec![T::default(); n]);
+    for e in es {
+        let (u, v, c) = to(&e);
+        d[u] += 1;
+        d[v] += 1;
+        p[u] ^= v;
+        p[v] ^= u;
+        w[u] ^= c;
+        w[v] ^= c;
+    }
+    d[0] = usize::MAX;
+    (p, d, w)
 }

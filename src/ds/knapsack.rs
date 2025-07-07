@@ -92,6 +92,9 @@ pub fn multiple_knapsack(v: &[u64], w: &[u64], k: &[usize], c: u64) -> Vec<u64> 
     dp.into_iter().map(|v| v as u64).collect()
 }
 
+// TODO: knapsack optimizations
+// https://codeforces.com/blog/entry/98663
+
 #[cfg(test)]
 mod tests {
     use super::*;

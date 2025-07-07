@@ -1,8 +1,6 @@
-use crate::grph::push_relabel::PushRelabel;
+use crate::grph::flow::PushRelabel;
 use std::ops::{AddAssign, SubAssign};
 
-// TODO: implement Gomory-Hu tree
-// https://github.com/kth-competitive-programming/kactl/blob/main/content/graph/GomoryHu.h
 pub fn gomory_hu<F: Copy + Default + Ord + AddAssign + SubAssign>(
     n: usize,
     es: &[(usize, usize, F)],

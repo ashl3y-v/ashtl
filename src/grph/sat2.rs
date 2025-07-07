@@ -1,18 +1,19 @@
-// https://judge.yosupo.jp/submission/230491
-
 use crate::grph::cc::scc;
 
+// TODO: speed up two sat
+// https://judge.yosupo.jp/submission/230491
+
 /// 2SAT O(n + m)
-pub struct TwoSat {
+pub struct SAT2 {
     n: usize,
     adj: Vec<Vec<usize>>,
     pub values: Vec<bool>,
 }
 
-impl TwoSat {
+impl SAT2 {
     #[inline]
     pub fn new(n: usize) -> Self {
-        TwoSat {
+        SAT2 {
             n,
             adj: vec![Vec::new(); n << 1],
             values: Vec::new(),
@@ -92,7 +93,7 @@ mod tests {
     /// (x0 ∨ x1) is obviously satisfiable.
     #[test]
     fn test_simple_sat() {
-        let mut ts = TwoSat::new(2);
+        let mut ts = SAT2::new(2);
         assert!(ts.either(0, 1).solve(), "should be satisfiable");
         // check that the returned assignment actually satisfies (x0 || x1)
         let vals = &ts.values;
@@ -102,7 +103,7 @@ mod tests {
     /// x0 = true, then adding (¬x0 ∨ ¬x0) makes it unsatisfiable.
     #[test]
     fn test_simple_unsat() {
-        let mut ts = TwoSat::new(1);
+        let mut ts = SAT2::new(1);
         ts.set_value(0); // force x0 = true
         ts.either(!0, !0); // clause (¬x0 ∨ ¬x0) → x0 must be false
         assert!(!ts.solve(), "should be unsatisfiable");
@@ -111,7 +112,7 @@ mod tests {
     /// at_most_one on {x0,x1,x2}: setting two of them true is impossible.
     #[test]
     fn test_at_most_one_unsat() {
-        let mut ts = TwoSat::new(3);
+        let mut ts = SAT2::new(3);
         ts.at_most_one(&[0, 1, 2]).set_value(0).set_value(1);
         assert!(!ts.solve(), "at most one of three but set two");
     }
@@ -119,7 +120,7 @@ mod tests {
     /// at_most_one on {x0,x1,x2}: setting exactly one is fine.
     #[test]
     fn test_at_most_one_sat() {
-        let mut ts = TwoSat::new(3);
+        let mut ts = SAT2::new(3);
         ts.at_most_one(&[0, 1, 2]);
         ts.set_value(1);
         assert!(ts.solve(), "should be satisfiable with exactly one true");
@@ -131,7 +132,7 @@ mod tests {
     /// dynamically adding a variable with add_var(), then forcing it true.
     #[test]
     fn test_add_var_and_set() {
-        let mut ts = TwoSat::new(0);
+        let mut ts = SAT2::new(0);
         let v = ts.add_var(); // first new var has index 0
         ts.set_value(v);
         assert!(ts.solve(), "new var forced true is obviously satisfiable");
@@ -144,7 +145,7 @@ mod tests {
     /// one can satisfy this by x0 = false, x1 = false, x2 = false.
     #[test]
     fn test_implication_chain() {
-        let mut ts = TwoSat::new(3);
+        let mut ts = SAT2::new(3);
         ts.either(!0, 1);
         ts.either(!1, 2);
         ts.either(!2, !0);

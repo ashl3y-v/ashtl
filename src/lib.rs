@@ -1,5 +1,3 @@
-// TODO: use super::whatever everywhere possible
-
 pub mod alg;
 pub mod arr;
 pub mod ds;

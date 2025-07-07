@@ -1,6 +1,7 @@
 pub mod crt;
 pub mod fft;
 pub mod fst;
+pub mod gaussian;
 pub mod gcd;
 pub mod gray;
 pub mod lattice;

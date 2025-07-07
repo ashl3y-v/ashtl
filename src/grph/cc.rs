@@ -73,9 +73,9 @@ pub fn scc<F: FnMut(Vec<usize>)>(g: &[Vec<usize>], mut f: F) -> Vec<usize> {
     root_idx
 }
 
+// TODO: improve two cc
 // https://judge.yosupo.jp/submission/287412
-
-pub fn two_cc<F>(n: usize, adj: &[Vec<usize>], mut f: F)
+pub fn cc2<F>(n: usize, adj: &[Vec<usize>], mut f: F)
 where
     F: FnMut(&[(usize, usize)]),
 {
@@ -254,6 +254,14 @@ pub fn comp_cc(adj: &[Vec<usize>], mut f: impl FnMut(Vec<usize>)) {
     }
 }
 
+// TODO: two ecc
+// https://judge.yosupo.jp/submission/106412
+pub fn ecc2() {}
+
+// TODO: three ecc
+// https://judge.yosupo.jp/submission/248134
+pub fn ecc3() {}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -309,7 +317,7 @@ mod tests {
     #[test]
     fn test_two_disjoint_cycles() {
         let g = vec![vec![1], vec![0], vec![3], vec![2]];
-        let mut comps = collect_scc(&g);
+        let comps = collect_scc(&g);
         assert_eq!(comps.len(), 2);
         assert!(comps.contains(&vec![0, 1]));
         assert!(comps.contains(&vec![2, 3]));
@@ -416,7 +424,7 @@ mod tests {
     /// Run the algorithm and collect all biconnected components as sets of undirected edges.
     fn collect_components(n: usize, adj: &[Vec<usize>]) -> Vec<HashSet<(usize, usize)>> {
         let mut comps = Vec::new();
-        two_cc(n, adj, |comp| {
+        cc2(n, adj, |comp| {
             comps.push(normalize(comp));
         });
         comps

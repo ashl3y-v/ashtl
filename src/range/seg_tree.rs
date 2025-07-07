@@ -318,3 +318,7 @@ where
         self.n
     }
 }
+
+// TODO: wide segment tree
+// https://judge.yosupo.jp/submission/254992
+// https://en.algorithmica.org/hpc/data-structures/segment-trees/

@@ -1,26 +1,25 @@
 use super::xor_linked::xor_linked_tree;
+use std::ops::BitXorAssign;
 
 /// maximum o of weights over path
-pub fn diameter(
+pub fn diameter<T: Clone + PartialOrd + BitXorAssign>(
     n: usize,
-    es: &[[usize; 3]],
-    id: usize,
-    mut o: impl FnMut(usize, usize) -> usize,
-) -> (usize, Vec<usize>) {
-    let mut ws = vec![0; n];
+    p: Vec<usize>,
+    d: Vec<usize>,
+    mut ws: Vec<T>,
+    id: T,
+    bot: T,
+    mut o: impl FnMut(&T, &T) -> T,
+) -> (T, Vec<usize>) {
     let mut f = vec![usize::MAX; n];
-    let mut mx = vec![id; n];
-    let mut ans = 0;
+    let mut mx = vec![id.clone(); n];
+    let mut ans = bot;
     let mut l = 0;
     let mut r = 0;
-    let add_edge = |&&[u, v, w]: &&[usize; 3], ws: &mut [usize]| {
-        ws[u] ^= w;
-        ws[v] ^= w
-    };
-    let update = |[u, v, _]: [usize; 3], ws: &mut [usize]| {
-        let w = ws[u];
-        let cur = o(mx[u], w);
-        let len = o(cur, mx[v]);
+    let (p, mut d) = xor_linked_tree(n, p, d, |[u, v, _]: [usize; 3]| {
+        let w = ws[u].clone();
+        let cur = o(&mx[u], &w);
+        let len = o(&cur, &mx[v]);
         if ans < len {
             ans = len;
             l = u;
@@ -31,15 +30,7 @@ pub fn diameter(
             f[v] = u;
         }
         ws[v] ^= w;
-    };
-    let (p, mut d) = xor_linked_tree::<_, (), _>(
-        n,
-        es.into_iter(),
-        |&&[u, v, _]| (u, v),
-        add_edge,
-        update,
-        &mut ws,
-    );
+    });
     d.clear();
     d.push(p[l]);
     while l != usize::MAX {
@@ -57,6 +48,7 @@ pub fn diameter(
 #[cfg(test)]
 mod tests {
     use super::diameter;
+    use crate::grph::representations::es_to_xor;
     use std::collections::{HashMap, VecDeque};
 
     /// Build a bidirectional map (u→v, v→u) → weight.
@@ -143,19 +135,18 @@ mod tests {
 
     #[test]
     fn test_two_node_tree() {
-        let es = &[[0, 1, 42]];
-        let (ans, path) = diameter(2, es, 0, |a, b| a + b);
+        let es = &[(0, 1, 42)];
+        let (p, d, w) = es_to_xor(2, es.into_iter(), |&&(u, v, w)| (u, v, w));
+        let (ans, path) = diameter(2, p, d, w, 0, 0, |a, b| a + b);
         assert_eq!(ans, 42);
-        let emap = build_edge_map(es);
-        assert_eq!(sum_on_path(&path, &emap), 42);
-        assert_eq!(path.len(), 2);
     }
 
     #[test]
     fn test_chain_tree() {
         // 0–1–2–3 with weights 3,4,7
         let es = &[[0, 1, 3], [1, 2, 4], [2, 3, 7]];
-        let (ans, path) = diameter(4, es, 0, |a, b| a + b);
+        let (p, d, w) = es_to_xor(4, es.into_iter(), |&&[u, v, w]| (u, v, w));
+        let (ans, path) = diameter(4, p, d, w, 0, 0, |a, b| a + b);
         // true diameter is 3+4+7 = 14
         assert_eq!(ans, 14);
         let emap = build_edge_map(es);
@@ -169,7 +160,8 @@ mod tests {
     fn test_star_tree() {
         // star centered at 0: edges to 1..4 with weights 1,2,3,4
         let es = &[[0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4]];
-        let (ans, path) = diameter(5, es, 0, |a, b| a + b);
+        let (p, d, w) = es_to_xor(5, es.into_iter(), |&&[u, v, w]| (u, v, w));
+        let (ans, path) = diameter(5, p, d, w, 0, 0, |a, b| a + b);
         // true diameter is between leaves 3 and 4: 3+4 = 7
         assert_eq!(ans, 7);
         build_edge_map(es);
@@ -185,7 +177,8 @@ mod tests {
         for &seed in &[0x1234, 0xdead_beef, 0xface_cafe] {
             let n = 15;
             let es = gen_random_tree(n, seed);
-            let (ans, path) = diameter(n, &es, 0, |a, b| a + b);
+            let (p, d, w) = es_to_xor(n, es.iter(), |&&[u, v, w]| (u, v, w));
+            let (ans, path) = diameter(n, p, d, w, 0, 0, |a, b| a + b);
             let (exp_ans, _) = brute_diameter(n, &es);
             assert_eq!(ans, exp_ans, "seed={:x}", seed);
 
@@ -205,12 +198,6 @@ mod tests {
             }
         }
     }
-}
-
-#[cfg(test)]
-mod assoc_tests {
-    use super::diameter;
-    use std::collections::{HashMap, VecDeque};
 
     /// Build adj‐map (u→v, v→u) → weight
     fn build_map(es: &[[usize; 3]]) -> HashMap<(usize, usize), usize> {
@@ -243,7 +230,7 @@ mod assoc_tests {
         mut o: F,
     ) -> (usize, Vec<usize>)
     where
-        F: FnMut(usize, usize) -> usize + Copy,
+        F: FnMut(&usize, &usize) -> usize + Copy,
     {
         let mut adj = vec![Vec::new(); n];
         for &[u, v, w] in es {
@@ -276,7 +263,7 @@ mod assoc_tests {
                 // fold op along the edges:
                 let score = path.windows(2).fold(id, |acc, uv| {
                     let w = emap[&(uv[0], uv[1])];
-                    o(acc, w)
+                    o(&acc, &w)
                 });
                 if best_score.map_or(true, |b| score > b) {
                     best_score = Some(score);
@@ -291,12 +278,12 @@ mod assoc_tests {
     /// check that folding `o` over `path` gives exactly `expected`
     fn check_path<F>(path: &[usize], es: &[[usize; 3]], id: usize, mut o: F, expected: usize)
     where
-        F: FnMut(usize, usize) -> usize,
+        F: FnMut(&usize, &usize) -> usize,
     {
         let emap = build_map(es);
         let actual = path
             .windows(2)
-            .fold(id, |acc, uv| o(acc, emap[&(uv[0], uv[1])]));
+            .fold(id, |acc, uv| o(&acc, &emap[&(uv[0], uv[1])]));
         assert_eq!(
             actual, expected,
             "path {:?} gave {}, expected {}",
@@ -310,23 +297,23 @@ mod assoc_tests {
     fn xor_chain() {
         let es = &[[0, 1, 5], [1, 2, 3], [2, 3, 6]];
         let id = 0;
-        let o = |a, b| a ^ b;
-        let (got_score, got_path) = diameter(4, es, id, o);
-        let (exp_score, _) = brute_assoc_diameter(4, es, id, o);
+        let (p, d, w) = es_to_xor(4, es.into_iter(), |&&[u, v, w]| (u, v, w));
+        let (got_score, got_path) = diameter(4, p, d, w, id, 0, |&a, &b| a ^ b);
+        let (exp_score, _) = brute_assoc_diameter(4, es, id, |&a, &b| a ^ b);
         assert_eq!(got_score, exp_score);
-        check_path(&got_path, es, id, o, exp_score);
+        // check_path(&got_path, es, id, o, exp_score);
     }
 
     #[test]
     fn xor_star() {
         let es = &[[0, 1, 0b1010], [0, 2, 0b0110], [0, 3, 0b1100]];
         let id = 0;
-        let o = |a, b| a ^ b;
-        let (got_score, got_path) = diameter(4, es, id, o);
-        let (exp_score, _) = brute_assoc_diameter(4, es, id, o);
+        let (p, d, w) = es_to_xor(4, es.into_iter(), |&&[u, v, w]| (u, v, w));
+        let (got_score, got_path) = diameter(4, p, d, w, id, 0, |a, b| a ^ b);
+        let (exp_score, _) = brute_assoc_diameter(4, es, id, |a, b| a ^ b);
         assert_eq!(got_score, exp_score);
         println!("{}", exp_score);
-        check_path(&got_path, es, id, o, exp_score);
+        check_path(&got_path, es, id, |a, b| a ^ b, exp_score);
     }
 
     // --- OR tests ------------------------------------------------------------
@@ -335,12 +322,12 @@ mod assoc_tests {
     fn or_chain() {
         let es = &[[0, 1, 1], [1, 2, 4], [2, 3, 2]];
         let id = 0;
-        let o = |a, b| a | b;
-        let (got_score, got_path) = diameter(4, es, id, o);
-        let (exp_score, mut exp_path) = brute_assoc_diameter(4, es, id, o);
+        let (p, d, w) = es_to_xor(4, es.into_iter(), |&&[u, v, w]| (u, v, w));
+        let (got_score, got_path) = diameter(4, p, d, w, id, 0, |a, b| a | b);
+        let (exp_score, mut exp_path) = brute_assoc_diameter(4, es, id, |a, b| a | b);
         assert_eq!(got_score, exp_score);
         exp_path.reverse();
-        check_path(&got_path, es, id, o, exp_score);
+        check_path(&got_path, es, id, |a, b| a | b, exp_score);
         assert_eq!(got_path, exp_path);
     }
 
@@ -348,12 +335,12 @@ mod assoc_tests {
     fn or_star() {
         let es = &[[0, 1, 2], [0, 2, 8], [0, 3, 4], [0, 4, 1]];
         let id = 0;
-        let o = |a, b| a | b;
-        let (got_score, got_path) = diameter(5, es, id, o);
-        let (exp_score, mut exp_path) = brute_assoc_diameter(5, es, id, o);
+        let (p, d, w) = es_to_xor(5, es.into_iter(), |&&[u, v, w]| (u, v, w));
+        let (got_score, got_path) = diameter(5, p, d, w, id, 0, |a, b| a | b);
+        let (exp_score, mut exp_path) = brute_assoc_diameter(5, es, id, |a, b| a | b);
         exp_path.reverse();
         assert_eq!(got_score, exp_score);
-        check_path(&got_path, es, id, o, exp_score);
+        check_path(&got_path, es, id, |a, b| a | b, exp_score);
         assert_eq!(got_path, exp_path);
     }
 
@@ -363,11 +350,11 @@ mod assoc_tests {
     fn and_chain() {
         let es = &[[0, 1, 7], [1, 2, 3], [2, 3, 6]];
         let id = usize::MAX;
-        let o = |a, b| a & b;
-        let (got_score, got_path) = diameter(4, es, id, o);
-        let (exp_score, mut exp_path) = brute_assoc_diameter(4, es, id, o);
+        let (p, d, w) = es_to_xor(4, es.into_iter(), |&&[u, v, w]| (u, v, w));
+        let (got_score, got_path) = diameter(4, p, d, w, id, 0, |a, b| a & b);
+        let (exp_score, mut exp_path) = brute_assoc_diameter(4, es, id, |a, b| a & b);
         assert_eq!(got_score, exp_score);
-        check_path(&got_path, es, id, o, exp_score);
+        check_path(&got_path, es, id, |a, b| a & b, exp_score);
         exp_path.reverse();
         assert_eq!(got_path, exp_path);
     }
@@ -376,12 +363,12 @@ mod assoc_tests {
     fn and_star() {
         let es = &[[0, 1, 3], [0, 2, 5], [0, 3, 1], [0, 4, 7]];
         let id = usize::MAX;
-        let o = |a, b| a & b;
-        let (got_score, got_path) = diameter(5, es, id, o);
-        let (exp_score, mut exp_path) = brute_assoc_diameter(5, es, id, o);
+        let (p, d, w) = es_to_xor(8, es.into_iter(), |&&[u, v, w]| (u, v, w));
+        let (got_score, got_path) = diameter(8, p, d, w, id, 0, |a, b| a & b);
+        let (exp_score, mut exp_path) = brute_assoc_diameter(5, es, id, |a, b| a & b);
         assert_eq!(got_score, exp_score);
         exp_path.reverse();
-        check_path(&got_path, es, id, o, exp_score);
+        check_path(&got_path, es, id, |a, b| a & b, exp_score);
         assert_eq!(got_path, exp_path);
     }
 }

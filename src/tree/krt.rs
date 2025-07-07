@@ -108,6 +108,9 @@ impl<F: FnMut(usize, usize, usize)> KRT<F> {
     }
 }
 
+// TODO: line tree
+// https://codeforces.com/blog/entry/71568
+
 #[cfg(test)]
 mod tests {
     use super::KRT;

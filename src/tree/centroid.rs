@@ -3,7 +3,7 @@ use bit_vec::BitVec;
 /// O(n log n + sum_{cd} F(cd)) where F(cd) is the cost of calling F on that centroid
 pub fn centroid_decomp(
     adj: &[Vec<usize>],
-    mut f: impl FnMut(usize, usize, &mut BitVec, &mut [usize]),
+    mut f: impl FnMut([usize; 3], &mut BitVec, &mut [usize]),
 ) {
     let n = adj.len();
     let mut is_removed = BitVec::from_elem(n, false);
@@ -31,8 +31,8 @@ pub fn centroid_decomp(
         ss[u]
     };
     let mut stk = Vec::with_capacity(n);
-    stk.push((0, usize::MAX));
-    while let Some((u, pcd)) = stk.pop() {
+    stk.push((0, usize::MAX, 0));
+    while let Some((u, pcd, d)) = stk.pop() {
         let mut v = u;
         let mut p = usize::MAX;
         let tree_size = get_ss(u, usize::MAX, &is_removed, &mut ss);
@@ -45,15 +45,22 @@ pub fn centroid_decomp(
             }
             break v;
         };
-        f(cd, pcd, &mut is_removed, &mut ss);
+        f([cd, pcd, d], &mut is_removed, &mut ss);
         is_removed.set(cd, true);
         for &v in &adj[cd] {
             if !is_removed[v] {
-                stk.push((v, cd));
+                stk.push((v, cd, d + 1));
             }
         }
     }
 }
+
+// TODO: shallowest decomposition tree
+// https://codeforces.com/blog/entry/125018
+
+// TODO: contour
+// https://judge.yosupo.jp/submission/260870
+// https://judge.yosupo.jp/submission/260575
 
 #[cfg(test)]
 mod tests {
@@ -66,7 +73,7 @@ mod tests {
         let n = adj.len();
         let mut parent_cd = vec![usize::MAX; n];
         // Closure f: record parent as the removed neighbor
-        let mut f = |cd: usize, pcd, _: &mut BitVec, _: &mut [usize]| {
+        let mut f = |[cd, pcd, _]: [usize; 3], _: &mut BitVec, _: &mut [usize]| {
             parent_cd[cd] = pcd;
         };
         centroid_decomp(adj, &mut f);

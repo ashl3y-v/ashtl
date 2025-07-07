@@ -13,6 +13,9 @@ pub fn find_ntt_prime(n: u64, b: u64) -> u64 {
     0
 }
 
+// TODO: improve NTT performance
+// https://codeforces.com/blog/entry/142063
+
 pub fn ntt<const M: u64>(a: &mut [i64]) {
     let n = a.len();
     if n <= 1 {

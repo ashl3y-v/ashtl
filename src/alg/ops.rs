@@ -1,4 +1,6 @@
-use super::{gcd::gcd, poly::AffPoly};
+use std::collections::HashMap;
+
+use super::poly::AffPoly;
 
 pub fn mod_fact<const M: u64>(n: u64) -> u64 {
     (1..=n).fold(1, |acc, x| acc * x % M)
@@ -116,8 +118,11 @@ pub fn inverses_n_div<const M: u64>(n: usize) -> Vec<u64> {
         return inv;
     }
     inv[1] = 1;
-    for a in 2..n {
+    for a in 2..n.min(M as usize) {
         inv[a] = M - M / a as u64 * inv[M as usize % a] % M;
+    }
+    for a in n.min(M as usize)..n {
+        inv[a] = inv[a % M as usize];
     }
     inv
 }
@@ -173,6 +178,35 @@ pub const fn inverse_euclidean_non_const(a: u64, m: u64) -> u64 {
     return t as u64;
 }
 
+// O(√M)
+pub fn discrete_log<const M: u64>(a: u64, b: u64) -> Option<usize> {
+    if M == 1 {
+        return Some(0);
+    } else if a % M == 0 {
+        return if b % M == 0 { Some(1) } else { None };
+    } else if b % M == 1 {
+        return Some(0);
+    }
+    let m = M.isqrt();
+    let m = (m + if m * m == M { 0 } else { 1 }).max(1) as usize;
+    let mut baby_steps = HashMap::with_capacity(m);
+    let a_inv = inverse_euclidean::<M>(a);
+    let mut gamma = 1u64;
+    for j in 0..m {
+        baby_steps.insert((gamma * b) % M, j);
+        gamma = (gamma * a_inv) % M;
+    }
+    let mut giant_step = 1u64;
+    let a_m = mod_pow::<M>(a, m as u64);
+    for i in 0..m {
+        if let Some(&j) = baby_steps.get(&giant_step) {
+            return Some((i * m + j) as usize);
+        }
+        giant_step = (giant_step * a_m) % M;
+    }
+    None
+}
+
 #[inline]
 pub fn mod_sqrt<const M: u64>(b: u64) -> Option<u64> {
     if b == 0 {
@@ -204,5 +238,31 @@ pub fn mod_sqrt<const M: u64>(b: u64) -> Option<u64> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_discrete_log() {
+        // Test case: 2^x ≡ 8 (mod 13)
+        // Answer should be 3 since 2^3 = 8
+        assert_eq!(discrete_log::<13>(2, 8), Some(3));
+
+        // Test case: 3^x ≡ 1 (mod 7)
+        // Answer should be 0 since 3^0 = 1
+        assert_eq!(discrete_log::<7>(3, 1), Some(0));
+
+        // Test case: 5^x ≡ 6 (mod 11)
+        // 5^1 = 5, 5^2 = 25 ≡ 3, 5^3 = 15 ≡ 4, 5^4 = 20 ≡ 9, 5^5 = 45 ≡ 1
+        // 5^6 = 5, 5^7 = 25 ≡ 3, 5^8 = 15 ≡ 4, 5^9 = 20 ≡ 9, 5^10 = 45 ≡ 1
+        // So 5^? ≡ 6 has no solution in this range
+        assert_eq!(discrete_log::<11>(5, 6), None);
+
+        // Test case: 2^x ≡ 4 (mod 5)
+        // 2^1 = 2, 2^2 = 4, so answer is 2
+        assert_eq!(discrete_log::<5>(2, 4), Some(2));
     }
 }
