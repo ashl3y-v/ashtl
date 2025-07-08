@@ -1,4 +1,3 @@
-pub mod dp;
 pub mod dsu;
 pub mod first_one;
 pub mod knapsack;

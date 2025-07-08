@@ -1,7 +1,9 @@
+#[inline]
 pub fn gray(i: u64) -> u64 {
     i ^ i >> 1
 }
 
+#[inline]
 pub fn inv_gray(mut i: u64) -> u64 {
     i ^= i >> 1;
     i ^= i >> 2;

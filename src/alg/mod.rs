@@ -1,11 +1,8 @@
 pub mod crt;
 pub mod fft;
-pub mod fst;
-pub mod gaussian;
 pub mod gcd;
 pub mod gray;
 pub mod lattice;
-pub mod miller_rabin;
 pub mod montgomery;
 pub mod ntt;
 pub mod ops;
@@ -14,3 +11,4 @@ pub mod prime;
 pub mod primitive_root;
 pub mod sieve;
 pub mod special;
+pub mod zi;

@@ -1,74 +1,14 @@
-use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
-
-/// O(n 2^n)
-pub fn subset_zeta<T: Clone + AddAssign>(a: &mut [T]) {
-    let n = a.len();
-    let mut j = 1;
-    while j < n {
-        for i in 0..n {
-            if i & j != 0 {
-                let b = a[i ^ j].clone();
-                a[i] += b;
-            }
-        }
-        j <<= 1;
-    }
-}
-
-/// O(n 2^n)
-pub fn subset_mobius<T: Clone + SubAssign>(a: &mut [T]) {
-    let n = a.len();
-    let mut j = 1;
-    while j < n {
-        for i in 0..n {
-            if i & j != 0 {
-                let b = a[i ^ j].clone();
-                a[i] -= b;
-            }
-        }
-        j <<= 1;
-    }
-}
-
-/// O(n 2^n)
-pub fn superset_zeta<T: Clone + AddAssign>(a: &mut [T]) {
-    let n = a.len();
-    let mut j = 1;
-    while j < n {
-        for i in 0..n {
-            if i & j != 0 {
-                let b = a[i].clone();
-                a[i ^ j] += b;
-            }
-        }
-        j <<= 1;
-    }
-}
-
-/// O(n 2^n)
-pub fn superset_mobius<T: Clone + SubAssign>(a: &mut [T]) {
-    let n = a.len();
-    let mut j = 1;
-    while j < n {
-        for i in 0..n {
-            if i & j != 0 {
-                let b = a[i].clone();
-                a[i ^ j] -= b;
-            }
-        }
-        j <<= 1;
-    }
-}
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 /// O(n log log n)
-pub fn divisor_zeta<T: Clone + AddAssign>(a: &mut [T], primes: &[usize]) {
+pub fn divisor<T: for<'a> AddAssign<&'a T>>(a: &mut [T], primes: &[usize]) {
     let n = a.len() - 1;
     for &p in primes {
         let mut i = 1;
         let mut j = p;
         while j <= n {
-            let b = a[i].clone();
-            a[j] += b;
+            let [a_j, a_i] = a.get_disjoint_mut([j, i]).unwrap();
+            *a_j += &*a_i;
             i += 1;
             j += p;
         }
@@ -76,14 +16,41 @@ pub fn divisor_zeta<T: Clone + AddAssign>(a: &mut [T], primes: &[usize]) {
 }
 
 /// O(n log log n)
-pub fn divisor_mobius<T: Clone + SubAssign>(a: &mut [T], primes: &[usize]) {
+pub fn divisor_inv<T: for<'a> SubAssign<&'a T>>(a: &mut [T], primes: &[usize]) {
     let n = a.len() - 1;
     for p in primes {
         let mut i = n / p;
         let mut j = i * p;
         while i != 0 {
-            let b = a[i].clone();
-            a[j] -= b;
+            let [a_j, a_i] = a.get_disjoint_mut([j, i]).unwrap();
+            *a_j -= &*a_i;
+            i -= 1;
+            j -= p;
+        }
+    }
+}
+
+/// O(n log n)
+pub fn lcm_conv<T: for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + MulAssign>(
+    a: &mut [T],
+    mut b: Vec<T>,
+    primes: &[usize],
+) {
+    divisor(a, &primes);
+    divisor(&mut b, &primes);
+    a.iter_mut().zip(b.into_iter()).for_each(|(i, j)| *i *= j);
+    divisor_inv(a, &primes);
+}
+
+/// O(n log log n)
+pub fn multiple<T: for<'a> AddAssign<&'a T>>(a: &mut [T], primes: &[usize]) {
+    let n = a.len() - 1;
+    for p in primes {
+        let mut i = n / p;
+        let mut j = i * p;
+        while i != 0 {
+            let [a_i, a_j] = a.get_disjoint_mut([i, j]).unwrap();
+            *a_i += &*a_j;
             i -= 1;
             j -= p;
         }
@@ -91,112 +58,203 @@ pub fn divisor_mobius<T: Clone + SubAssign>(a: &mut [T], primes: &[usize]) {
 }
 
 /// O(n log log n)
-pub fn multiple_zeta<T: Clone + AddAssign>(a: &mut [T], primes: &[usize]) {
-    let n = a.len() - 1;
-    for p in primes {
-        let mut i = n / p;
-        let mut j = i * p;
-        while i != 0 {
-            let b = a[j].clone();
-            a[i] += b;
-            i -= 1;
-            j -= p;
-        }
-    }
-}
-
-/// O(n log log n)
-pub fn multiple_mobius<T: Clone + SubAssign>(a: &mut [T], primes: &[usize]) {
+pub fn multiple_inv<T: for<'a> SubAssign<&'a T>>(a: &mut [T], primes: &[usize]) {
     let n = a.len() - 1;
     for &p in primes {
         let mut i = 1;
         let mut j = p;
         while j <= n {
-            let b = a[j].clone();
-            a[i] -= b;
+            let [a_i, a_j] = a.get_disjoint_mut([i, j]).unwrap();
+            *a_i -= &*a_j;
             i += 1;
             j += p;
         }
     }
 }
 
-pub fn gcd_convolution<T: Clone + AddAssign + SubAssign + MulAssign>(
+/// O(n log log n)
+pub fn gcd_conv<T: for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + MulAssign>(
     a: &mut [T],
-    b: &mut [T],
+    mut b: Vec<T>,
     primes: &[usize],
 ) {
-    multiple_zeta(a, &primes);
-    multiple_zeta(b, &primes);
-    for i in 0..a.len() {
-        a[i] *= b[i].clone();
-    }
-    multiple_mobius(a, &primes);
+    multiple(a, &primes);
+    multiple(&mut b, &primes);
+    a.iter_mut().zip(b.into_iter()).for_each(|(i, j)| *i *= j);
+    multiple_inv(a, &primes);
 }
 
-pub fn lcm_convolution<T: Clone + AddAssign + SubAssign + MulAssign>(
+/// O(n log n)
+pub fn subset<T: for<'a> AddAssign<&'a T>>(a: &mut [T]) {
+    let n = a.len();
+    let mut k = 1;
+    while k < n {
+        let mut i = 0;
+        while i < n {
+            for j in i..i + k {
+                let [a_j, a_jk] = a.get_disjoint_mut([j, j + k]).unwrap();
+                *a_j += &*a_jk;
+            }
+            i += k << 1;
+        }
+        k <<= 1;
+    }
+}
+
+/// O(n log n)
+pub fn subset_inv<T: for<'a> SubAssign<&'a T>>(a: &mut [T]) {
+    let n = a.len();
+    let mut k = 1;
+    while k < n {
+        let mut i = 0;
+        while i < n {
+            for j in i..i + k {
+                let [a_j, a_jk] = a.get_disjoint_mut([j, j + k]).unwrap();
+                *a_j -= &*a_jk;
+            }
+            i += k << 1;
+        }
+        k <<= 1;
+    }
+}
+
+/// O(n log n)
+pub fn and_conv<T: for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + MulAssign>(
     a: &mut [T],
-    b: &mut [T],
-    primes: &[usize],
+    mut b: Vec<T>,
 ) {
-    divisor_zeta(a, &primes);
-    divisor_zeta(b, &primes);
-    for i in 0..a.len() {
-        a[i] *= b[i].clone();
-    }
-    divisor_mobius(a, &primes);
+    subset(a);
+    subset(&mut b);
+    a.iter_mut().zip(b.into_iter()).for_each(|(i, j)| *i *= j);
+    subset(a);
 }
 
-pub fn subset_convolution<
+/// O(n log^2 n)
+pub fn subset_conv<T>(a: &mut [T], b: &mut [T])
+where
     T: Clone
         + Default
         + AddAssign<T>
         + for<'a> AddAssign<&'a T>
         + for<'a> SubAssign<&'a T>
         + for<'a> Mul<&'a T, Output = T>,
->(
-    n: usize,
-    f: &[T],
-    g: &[T],
-) -> Vec<T> {
+{
+    let n = a.len().ilog2() as usize;
     let mut fhat = vec![vec![T::default(); 1 << n]; n + 1];
     let mut ghat = vec![vec![T::default(); 1 << n]; n + 1];
     for m in 0_usize..1 << n {
-        fhat[m.count_ones() as usize][m] = f[m].clone();
-        ghat[m.count_ones() as usize][m] = g[m].clone();
+        fhat[m.count_ones() as usize][m] = a[m].clone();
+        ghat[m.count_ones() as usize][m] = b[m].clone();
     }
     for i in 0..=n {
-        for j in 0..=n {
-            for m in 0..1 << n {
-                if m & (1 << j) != 0 {
-                    let [fhat_m, fhat_mxor] = fhat[i].get_disjoint_mut([m, m ^ (1 << j)]).unwrap();
-                    *fhat_m += &*fhat_mxor;
-                    let [ghat_m, ghat_mxor] = ghat[i].get_disjoint_mut([m, m ^ (1 << j)]).unwrap();
-                    *ghat_m += &*ghat_mxor;
-                }
-            }
-        }
+        superset(&mut fhat[i]);
+        superset(&mut ghat[i]);
     }
     let mut h = vec![vec![T::default(); 1 << n]; n + 1];
-    for m in 0..1 << n {
-        for i in 0..=n {
-            for j in 0..=i {
-                h[i][m] += fhat[j][m].clone() * &ghat[i - j][m];
-            }
+    for i in 0..=n {
+        for j in 0..=i {
+            h[i].iter_mut()
+                .zip(&fhat[j])
+                .zip(&ghat[i - j])
+                .for_each(|((a, b), c)| *a += b.clone() * c);
         }
     }
     for i in 0..=n {
-        for j in 0..n {
-            for m in 0..1 << n {
-                if m & (1 << j) != 0 {
-                    let [h_m, h_mxor] = h[i].get_disjoint_mut([m, m ^ (1 << j)]).unwrap();
-                    *h_m -= &*h_mxor;
-                }
-            }
-        }
+        superset_inv(&mut h[i]);
     }
-    let mut fog = vec![T::default(); 1 << n];
     for m in 0..1 << n {
-        fog[m] = h[m.count_ones() as usize][m].clone();
+        a[m] = h[m.count_ones() as usize][m].clone();
     }
-    fog
+}
+
+/// O(n log n)
+pub fn superset<T: for<'a> AddAssign<&'a T>>(a: &mut [T]) {
+    let n = a.len();
+    let mut k = 1;
+    while k < n {
+        let mut i = 0;
+        while i < n {
+            for j in i..i + k {
+                let [a_jk, a_j] = a.get_disjoint_mut([j + k, j]).unwrap();
+                *a_jk += &*a_j;
+            }
+            i += k << 1;
+        }
+        k <<= 1;
+    }
+}
+
+/// O(n log n)
+pub fn superset_inv<T: for<'a> SubAssign<&'a T>>(a: &mut [T]) {
+    let n = a.len();
+    let mut k = 1;
+    while k < n {
+        let mut i = 0;
+        while i < n {
+            for j in i..i + k {
+                let [a_jk, a_j] = a.get_disjoint_mut([j + k, j]).unwrap();
+                *a_jk -= &*a_j;
+            }
+            i += k << 1;
+        }
+        k <<= 1;
+    }
+}
+
+/// O(n log n)
+pub fn or_conv<T: for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + MulAssign>(
+    a: &mut [T],
+    mut b: Vec<T>,
+) {
+    superset(a);
+    superset(&mut b);
+    a.iter_mut().zip(b.into_iter()).for_each(|(i, j)| *i *= j);
+    superset_inv(a);
+}
+
+/// O(n log n)
+pub fn xor<T>(a: &mut [T])
+where
+    T: Clone + for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T>,
+{
+    let n = a.len();
+    let mut k = 1;
+    while k < n {
+        let mut i = 0;
+        while i < n {
+            for j in i..i + k {
+                let v = a[j + k].clone();
+                a[j + k] = a[j].clone();
+                a[j + k] -= &v;
+                a[j] += &v;
+            }
+            i += k << 1;
+        }
+        k <<= 1;
+    }
+}
+
+/// O(n log n)
+pub fn xor_inv<T>(a: &mut [T])
+where
+    T: Clone + for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + DivAssign,
+    i32: Into<T>,
+{
+    let n = a.len();
+    xor(a);
+    for x in a {
+        *x /= (n as i32).into();
+    }
+}
+
+/// O(n log n)
+pub fn xor_conv<T>(a: &mut [T], mut b: Vec<T>)
+where
+    T: Clone + for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + MulAssign + DivAssign,
+    i32: Into<T>,
+{
+    xor(a);
+    xor(&mut b);
+    a.iter_mut().zip(b.into_iter()).for_each(|(i, j)| *i *= j);
+    xor_inv(a);
 }

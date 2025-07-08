@@ -24,7 +24,7 @@ pub fn eulerian_path(v: usize, m: usize, adj: &[Vec<usize>]) -> Vec<usize> {
 }
 
 /// euler tour of a tree
-pub fn ett(n: usize, dfs: &[usize], pos: &[usize], ss: &[usize]) -> Vec<usize> {
+pub fn euler_tour(n: usize, dfs: &[usize], pos: &[usize], ss: &[usize]) -> Vec<usize> {
     let mut et = Vec::with_capacity(n * 2);
     let mut stack = Vec::with_capacity(n);
     for &v in dfs {

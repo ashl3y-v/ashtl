@@ -16,28 +16,28 @@ pub fn eratosthenes_sieve(n: usize) -> BitVec {
     is_composite
 }
 
-pub fn linear_sieve_primes(n: usize) -> (BitVec, Vec<usize>) {
+pub fn sieve_primes(n: usize) -> (Vec<usize>, BitVec) {
     let mut is_composite = BitVec::from_elem(n, false);
     let mut primes = Vec::with_capacity(n / n.ilog2() as usize);
     for i in 2..n {
         if !is_composite[i] {
             primes.push(i);
         }
-        for j in 0..primes.len() {
-            if i * primes[j] >= n {
+        for &p in &primes {
+            if i * p >= n {
                 break;
             }
-            is_composite.set(i * primes[j], true);
-            if i.is_multiple_of(primes[j]) {
+            is_composite.set(i * p, true);
+            if i.is_multiple_of(p) {
                 break;
             }
         }
     }
-    (is_composite, primes)
+    (primes, is_composite)
 }
 
 /// O(n + n F + n / log n G) if on_coprime costs F and on_prime_pow costs G
-pub fn linear_sieve<T: Clone>(
+pub fn sieve<T: Clone>(
     n: usize,
     id: T,
     mut on_coprime: impl FnMut(&T, &T) -> T,
@@ -82,7 +82,7 @@ pub fn linear_sieve<T: Clone>(
 }
 
 /// O(n + n F + n / log n G) if on_coprime costs F and on_prime costs G
-pub fn linear_sieve_complete<T: Clone>(
+pub fn sieve_complete<T: Clone>(
     n: usize,
     id: T,
     mut on_coprime: impl FnMut(&T, &T) -> T,
@@ -111,14 +111,14 @@ pub fn linear_sieve_complete<T: Clone>(
 }
 
 pub fn liouville(n: usize) -> (Vec<i8>, BitVec, Vec<usize>) {
-    linear_sieve_complete(n, 1, |a, b| a * b, |_, _| -1)
+    sieve_complete(n, 1, |a, b| a * b, |_, _| -1)
 }
 
 pub fn j_k(k: u32, n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
     if k == 1 {
-        linear_sieve(n, 1, |a, b| a * b, |p, i, _| p.pow(i - 1) * (p - 1))
+        sieve(n, 1, |a, b| a * b, |p, i, _| p.pow(i - 1) * (p - 1))
     } else {
-        linear_sieve(
+        sieve(
             n,
             1,
             |a, b| a * b,
@@ -128,12 +128,12 @@ pub fn j_k(k: u32, n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
 }
 
 pub fn mobius(n: usize) -> (Vec<i8>, BitVec, Vec<usize>, Vec<u32>) {
-    linear_sieve(n, 1, |a, b| a * b, |_, i, _| if i == 1 { -1 } else { 0 })
+    sieve(n, 1, |a, b| a * b, |_, i, _| if i == 1 { -1 } else { 0 })
 }
 
 pub fn gcd_k(k: usize, n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
     let fs = factor_mult(k);
-    linear_sieve(
+    sieve(
         n,
         1,
         |a, b| a * b,
@@ -149,16 +149,16 @@ pub fn gcd_k(k: usize, n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
 
 pub fn sigma_k(k: u32, n: usize) -> (Vec<u64>, BitVec, Vec<usize>, Vec<u32>) {
     let mut s = if k == 0 {
-        linear_sieve(n, 1, |a, b| a * b, |_, i, _| 1 + i as u64)
+        sieve(n, 1, |a, b| a * b, |_, i, _| 1 + i as u64)
     } else if k == 1 {
-        linear_sieve(
+        sieve(
             n,
             1,
             |a, b| a * b,
             |p, i, _| ((p as u64).pow(i + 1) - 1) / (p as u64 - 1),
         )
     } else {
-        linear_sieve(
+        sieve(
             n,
             1,
             |a, b| a * b,
@@ -170,24 +170,24 @@ pub fn sigma_k(k: u32, n: usize) -> (Vec<u64>, BitVec, Vec<usize>, Vec<u32>) {
 }
 
 pub fn gamma(n: usize) -> (Vec<i8>, BitVec, Vec<usize>, Vec<u32>) {
-    linear_sieve(n, 1, |a, b| a * b, |_, _, _| -1)
+    sieve(n, 1, |a, b| a * b, |_, _, _| -1)
 }
 
 pub fn little_omega(n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
-    linear_sieve(n, 0, |a, b| a + b, |_, _, _| 1)
+    sieve(n, 0, |a, b| a + b, |_, _, _| 1)
 }
 
 pub fn big_omega(n: usize) -> (Vec<usize>, BitVec, Vec<usize>) {
-    linear_sieve_complete(n, 0, |a, b| a + b, |_, _| 1)
+    sieve_complete(n, 0, |a, b| a + b, |_, _| 1)
 }
 
 pub fn psi(n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
-    linear_sieve(n, 1, |a, b| a * b, |p, i, _| p.pow(i - 1) * (p + 1))
+    sieve(n, 1, |a, b| a * b, |p, i, _| p.pow(i - 1) * (p + 1))
 }
 
 pub fn chi_0_a(a: usize, n: usize) -> (Vec<usize>, BitVec, Vec<usize>) {
     let fs = factor_dedup(a);
-    linear_sieve_complete(
+    sieve_complete(
         n,
         1,
         |a, b| a * b,
@@ -198,7 +198,7 @@ pub fn chi_0_a(a: usize, n: usize) -> (Vec<usize>, BitVec, Vec<usize>) {
 }
 
 pub fn jacobi(a: usize, n: usize) -> (Vec<i8>, BitVec, Vec<usize>) {
-    linear_sieve_complete(
+    sieve_complete(
         n,
         1,
         |a, b| a * b,
@@ -221,7 +221,7 @@ pub fn jacobi(a: usize, n: usize) -> (Vec<i8>, BitVec, Vec<usize>) {
 
 pub fn jacobi_denom(a: usize, n: usize) -> (Vec<i8>, BitVec, Vec<usize>) {
     if a == 2 {
-        linear_sieve_complete(
+        sieve_complete(
             n,
             1,
             |a, b| a * b,
@@ -236,7 +236,7 @@ pub fn jacobi_denom(a: usize, n: usize) -> (Vec<i8>, BitVec, Vec<usize>) {
             },
         )
     } else {
-        linear_sieve_complete(
+        sieve_complete(
             n,
             1,
             |a, b| a * b,
@@ -249,19 +249,19 @@ pub fn jacobi_denom(a: usize, n: usize) -> (Vec<i8>, BitVec, Vec<usize>) {
 }
 
 pub fn val_p(p: usize, n: usize) -> (Vec<u32>, BitVec, Vec<usize>) {
-    linear_sieve_complete(n, 0, |a, b| a + b, |q, _| if q == p { 1 } else { 0 })
+    sieve_complete(n, 0, |a, b| a + b, |q, _| if q == p { 1 } else { 0 })
 }
 
 pub fn a0(n: usize) -> (Vec<usize>, BitVec, Vec<usize>) {
-    linear_sieve_complete(n, 0, |a, b| a + b, |p, _| p)
+    sieve_complete(n, 0, |a, b| a + b, |p, _| p)
 }
 
 pub fn a1(n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
-    linear_sieve(n, 0, |a, b| a + b, |p, _, _| p)
+    sieve(n, 0, |a, b| a + b, |p, _, _| p)
 }
 
 pub fn mod_pow_k<const M: u64>(k: usize, n: usize) -> (Vec<u64>, BitVec, Vec<usize>) {
-    let mut s = linear_sieve_complete(
+    let mut s = sieve_complete(
         n,
         1,
         |a, b| a * b % M,

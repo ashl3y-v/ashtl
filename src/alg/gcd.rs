@@ -1,19 +1,27 @@
-use std::ops::{Rem, Shr, Sub};
+use std::ops::{Div, Mul, Rem};
 
+#[inline]
 pub fn gcd<T>(mut a: T, mut b: T) -> T
 where
-    T: Copy
-        + Default
-        + PartialEq
-        + PartialOrd
-        + Sub<Output = T>
-        + Shr<u32, Output = T>
-        + Rem<Output = T>,
+    T: Copy + Default + PartialEq + Rem<Output = T>,
 {
     while b != T::default() {
         (a, b) = (b, a % b);
     }
     a
+}
+
+#[inline]
+pub fn lcm<T>(a: T, b: T) -> T
+where
+    T: Copy + Default + PartialEq + Mul<Output = T> + Div<Output = T> + Rem<Output = T>,
+{
+    let d = gcd(a, b);
+    if d == T::default() {
+        T::default()
+    } else {
+        a * b / d
+    }
 }
 
 pub const fn euclidean(a: i128, b: i128) -> (i128, i128, i128) {

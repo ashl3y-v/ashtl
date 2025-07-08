@@ -4,13 +4,13 @@ use std::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ST<T, F: FnMut(&T, &T) -> T> {
+pub struct SparseTable<T, F: FnMut(&T, &T) -> T> {
     pub n: usize,
     pub t: Vec<T>,
     pub f: F,
 }
 
-impl<T: Clone, F: FnMut(&T, &T) -> T> ST<T, F> {
+impl<T: Clone, F: FnMut(&T, &T) -> T> SparseTable<T, F> {
     pub fn new(a: Vec<T>, mut f: F) -> Self {
         let n = a.len();
         let l = if n == 0 { 0 } else { n.ilog2() as usize + 1 };
@@ -58,13 +58,13 @@ impl<T: Clone, F: FnMut(&T, &T) -> T> ST<T, F> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DST<T, F> {
+pub struct DisjointSparseTable<T, F> {
     pub n: usize,
     pub t: Vec<T>,
     pub f: F,
 }
 
-impl<T: Clone + std::fmt::Debug, F> DST<T, F>
+impl<T: Clone + std::fmt::Debug, F> DisjointSparseTable<T, F>
 where
     F: FnMut(&T, &T) -> T,
 {
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn test_sum_query() {
         let arr = vec![1, 3, 2, 7, 9, 11];
-        let mut dst = ST::new(arr, |a, b| *a.max(b));
+        let mut dst = SparseTable::new(arr, |a, b| *a.max(b));
 
         assert_eq!(dst.query(1..=3), 7);
         assert_eq!(dst.query(0..=2), 3);
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn test_with_stored_function() {
         let arr = vec![1, 3, 2, 7, 9, 11];
-        let mut dst = ST::new(arr, |a, b| *a.max(b));
+        let mut dst = SparseTable::new(arr, |a, b| *a.max(b));
 
         assert_eq!(dst.query(1..=3), 7);
         assert_eq!(dst.query(0..=2), 3);
@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn test_sum_query_disjoint() {
         let arr = vec![1, 3, 2, 7, 9, 11];
-        let mut dst = DST::new(arr, |a, b| a + b);
+        let mut dst = DisjointSparseTable::new(arr, |a, b| a + b);
 
         assert_eq!(dst.query(1..=3), 12); // 3 + 2 + 7 = 12
         assert_eq!(dst.query(0..=2), 6); // 1 + 3 + 2 = 6
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn test_with_stored_function_disjoint() {
         let arr = vec![1, 3, 2, 7, 9, 11];
-        let mut dst = DST::new(arr, |a: &i32, b: &i32| a + b);
+        let mut dst = DisjointSparseTable::new(arr, |a: &i32, b: &i32| a + b);
 
         assert_eq!(dst.query(1..=3), 12); // 3 + 2 + 7 = 12
         assert_eq!(dst.query(0..=2), 6); // 1 + 3 + 2 = 6

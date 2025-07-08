@@ -269,13 +269,6 @@ where
     }
 }
 
-// TODO: euler tour tree
-// https://codeforces.com/blog/entry/128556
-
-// TODO: top tree
-// https://codeforces.com/blog/entry/103726
-// https://codeforces.com/blog/entry/128556
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -223,7 +223,7 @@ where
         self
     }
 
-    fn merge_nodes(&mut self, mut a: usize, b: usize) -> usize {
+    pub fn merge_nodes(&mut self, mut a: usize, b: usize) -> usize {
         if a == NULL {
             return b;
         } else if b == NULL {
@@ -238,7 +238,7 @@ where
         a
     }
 
-    fn split_node(&mut self, mut a: usize, k: usize) -> (usize, usize) {
+    pub fn split_node(&mut self, mut a: usize, k: usize) -> (usize, usize) {
         if a == NULL {
             (NULL, NULL)
         } else if k == NULL {
