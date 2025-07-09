@@ -48,7 +48,7 @@ pub fn diameter<T: Clone + PartialOrd + BitXorAssign>(
 #[cfg(test)]
 mod tests {
     use super::diameter;
-    use crate::grph::representations::es_to_xor;
+    use crate::grph::format::es_to_xor;
     use std::collections::{HashMap, VecDeque};
 
     /// Build a bidirectional map (u→v, v→u) → weight.

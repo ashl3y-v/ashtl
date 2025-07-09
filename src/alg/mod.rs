@@ -8,7 +8,7 @@ pub mod ntt;
 pub mod ops;
 pub mod poly;
 pub mod prime;
-pub mod primitive_root;
+pub mod primitive;
 pub mod sieve;
 pub mod special;
 pub mod zi;

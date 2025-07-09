@@ -2803,23 +2803,11 @@ impl<const M: u64> Debug for Poly<M> {
 
 impl<const M: u64> PartialEq for Poly<M> {
     fn eq(&self, other: &Self) -> bool {
-        self.coeff[..=self.deg_or_0()].eq(&other.coeff[..=other.deg_or_0()])
+        self.coeff[..=self.deg_or_0()] == other.coeff[..=other.deg_or_0()]
     }
 }
 
 impl<const M: u64> Eq for Poly<M> {}
-
-impl<const M: u64> PartialOrd for Poly<M> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.coeff[..=self.deg_or_0()].partial_cmp(&other.coeff[..=other.deg_or_0()])
-    }
-}
-
-impl<const M: u64> Ord for Poly<M> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.coeff[..=self.deg_or_0()].cmp(&other.coeff[..=other.deg_or_0()])
-    }
-}
 
 impl<const M: u64> Neg for Poly<M> {
     type Output = Self;
@@ -3194,16 +3182,36 @@ impl<const M: u64> Shl<usize> for Poly<M> {
 // TODO: set power series
 // https://codeforces.com/blog/entry/92183
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct AffPoly<const M: u64> {
+#[derive(Clone)]
+pub struct Affine<const M: u64> {
     pub a: u64,
     pub b: u64,
     pub c: u64,
 }
 
-impl<const M: u64> AffPoly<M> {
+impl<const M: u64> PartialEq for Affine<M> {
+    fn eq(&self, other: &Self) -> bool {
+        (self.a % M, self.b % M, self.c % M) == (other.a % M, other.b % M, other.c % M)
+    }
+}
+
+impl<const M: u64> Eq for Affine<M> {}
+
+impl<const M: u64> PartialOrd for Affine<M> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        (self.a % M, self.b % M, self.c % M).partial_cmp(&(other.a % M, other.b % M, other.c % M))
+    }
+}
+
+impl<const M: u64> Ord for Affine<M> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.a % M, self.b % M, self.c % M).cmp(&(other.a % M, other.b % M, other.c % M))
+    }
+}
+
+impl<const M: u64> Affine<M> {
     pub fn new(a: u64, b: u64, c: u64) -> Self {
-        AffPoly {
+        Affine {
             a: a % M,
             b: b % M,
             c: c % M,
@@ -3215,7 +3223,7 @@ impl<const M: u64> AffPoly<M> {
     }
 
     pub fn pow(&self, mut n: u64) -> Self {
-        let mut an = AffPoly::new(1, 0, self.c);
+        let mut an = Affine::new(1, 0, self.c);
         let mut a = self.clone();
         while n != 0 {
             if n & 1 != 0 {
@@ -3228,7 +3236,7 @@ impl<const M: u64> AffPoly<M> {
     }
 }
 
-impl<const M: u64> MulAssign<&Self> for AffPoly<M> {
+impl<const M: u64> MulAssign<&Self> for Affine<M> {
     fn mul_assign(&mut self, rhs: &Self) {
         (self.a, self.b) = (
             self.a * rhs.a % M + self.b * rhs.b % M * self.c % M,
@@ -3239,14 +3247,14 @@ impl<const M: u64> MulAssign<&Self> for AffPoly<M> {
     }
 }
 
-impl<const M: u64> MulAssign<Self> for AffPoly<M> {
+impl<const M: u64> MulAssign<Self> for Affine<M> {
     fn mul_assign(&mut self, rhs: Self) {
         *self *= &rhs;
     }
 }
 
-impl<const M: u64> Mul<Self> for &AffPoly<M> {
-    type Output = AffPoly<M>;
+impl<const M: u64> Mul<Self> for &Affine<M> {
+    type Output = Affine<M>;
 
     fn mul(self, rhs: Self) -> Self::Output {
         let mut s = self.clone();
@@ -3255,7 +3263,7 @@ impl<const M: u64> Mul<Self> for &AffPoly<M> {
     }
 }
 
-impl<const M: u64> Mul<Self> for AffPoly<M> {
+impl<const M: u64> Mul<Self> for Affine<M> {
     type Output = Self;
 
     fn mul(mut self, rhs: Self) -> Self::Output {

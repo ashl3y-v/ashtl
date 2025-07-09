@@ -1,7 +1,7 @@
 use super::{
-    miller_rabin::miller_rabin,
     ops::{inverse_euclidean, mod_pow_pow_two},
-    primitive_root::find_ntt_root,
+    prime::miller_rabin,
+    primitive::find_ntt_root,
 };
 
 pub fn find_ntt_prime(n: u64, b: u64) -> u64 {

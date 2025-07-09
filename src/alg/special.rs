@@ -40,3 +40,28 @@ pub fn fibonacci_mod<const M: u64>(n: u64) -> u128 {
     }
     f0.rem_euclid(M as i128) as u128
 }
+
+/// O(log min(a,b))
+pub fn jacobi(mut a: u64, mut b: u64) -> i8 {
+    debug_assert!(b > 0 && b & 1 == 1);
+    a = a.rem_euclid(b);
+    let mut t = 0;
+    while a != 0 {
+        while a & 3 == 0 {
+            a >>= 2;
+        }
+        if a & 1 == 0 {
+            t ^= b;
+            a >>= 1;
+        }
+        t ^= a & b & 2;
+        (a, b) = (b % a, a);
+    }
+    if b != 1 {
+        0
+    } else if ((t ^ (t >> 1)) & 2) != 0 {
+        -1
+    } else {
+        1
+    }
+}

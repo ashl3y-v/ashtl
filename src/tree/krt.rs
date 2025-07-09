@@ -1,4 +1,4 @@
-use super::lca::LCA;
+use super::ancestor::LCA;
 use crate::range::rmq::RMQ;
 use std::cmp::Ordering;
 

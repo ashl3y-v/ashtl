@@ -22,6 +22,8 @@ pub fn cartesian<T: PartialOrd>(a: &[T]) -> Vec<usize> {
     p
 }
 
+// TODO: add building cartesian treap from tree
+
 #[cfg(test)]
 mod tests {
     use super::cartesian;

@@ -1,6 +1,5 @@
+use super::poly::Affine;
 use std::collections::HashMap;
-
-use super::poly::AffPoly;
 
 pub fn mod_fact<const M: u64>(n: u64) -> u64 {
     (1..=n).fold(1, |acc, x| acc * x % M)
@@ -226,7 +225,7 @@ pub fn mod_sqrt<const M: u64>(b: u64) -> Option<u64> {
                 return Some(M - z);
             }
         }
-        let x = AffPoly::<M>::new(z, 1, b);
+        let x = Affine::<M>::new(z, 1, b);
         let result = x.pow(exp);
         if result.b != 0 {
             let inv = inverse_euclidean::<M>(result.b);

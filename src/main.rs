@@ -3,7 +3,8 @@ use ashtl::alg::{
     lattice,
     ops::inverse_euclidean,
     poly::Poly,
-    sieve::sieve_primes,
+    sieve::{self, sieve_primes},
+    special::jacobi,
 };
 use rand::Rng;
 use std::time::Instant;
@@ -11,20 +12,17 @@ use std::time::Instant;
 // const M: u64 = (119 << 23) + 1;
 const M: u64 = (15 << 27) + 1;
 
-fn binuzz(a: u64, b: u64) -> u64 {
-    if b & a == b { 1 } else { 0 }
-}
-
 fn main() -> std::io::Result<()> {
     // println!("{}", find_ntt_prime(1 << 8, 1000));
     let mut rng = rand::rng();
-    let n = 1 << 20;
-    let k = 20;
+    let n = 1 << 10;
+    let k = 7;
     let i = 70;
     let d = 2;
     let z = 3;
     let q = 3;
     let inv = |a: i64| inverse_euclidean::<M>(a.rem_euclid(M as i64) as u64) as i64;
+
     // let mut coeff = Vec::with_capacity(n);
     // for _ in 0..n {
     //     coeff.push(rng.random_range(M >> 8..M >> 4) as i64);

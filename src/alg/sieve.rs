@@ -204,17 +204,17 @@ pub fn jacobi(a: usize, n: usize) -> (Vec<i8>, BitVec, Vec<usize>) {
         |a, b| a * b,
         |p, _| {
             if p == 2 {
-                return if a & 1 == 0 {
-                    0
-                } else if ((a * a - 1) >> 3) & 1 == 0 {
-                    1
-                } else {
-                    -1
+                return match a & 7 {
+                    1 => 1,
+                    7 => 1,
+                    3 => -1,
+                    5 => -1,
+                    _ => 0,
                 };
             }
             let v = mod_pow_non_const(a as u64, p as u64 >> 1, p as u64);
             let v = if v == p as u64 - 1 { -1 } else { v as i8 };
-            if a & 3 == 3 && p & 3 == 3 { -v } else { v }
+            if a & p & 3 == 3 { -v } else { v }
         },
     )
 }
@@ -225,14 +225,12 @@ pub fn jacobi_denom(a: usize, n: usize) -> (Vec<i8>, BitVec, Vec<usize>) {
             n,
             1,
             |a, b| a * b,
-            |p, _| {
-                if p & 1 == 0 {
-                    0
-                } else if ((p * p - 1) >> 3) & 1 == 0 {
-                    1
-                } else {
-                    -1
-                }
+            |p, _| match p & 7 {
+                1 => 1,
+                7 => 1,
+                3 => -1,
+                5 => -1,
+                _ => 0,
             },
         )
     } else {
