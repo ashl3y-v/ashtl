@@ -1,12 +1,19 @@
 use super::poly::Affine;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Div, Mul, Rem, Sub},
+};
 
 pub fn mod_fact<const M: u64>(n: u64) -> u64 {
     (1..=n).fold(1, |acc, x| acc * x % M)
 }
 
-pub fn mod_rfact<const M: u64>(n: u64) -> u64 {
-    inverse_euclidean::<M>(mod_fact::<M>(n))
+pub fn mod_rfact<const M: u64>(n: u64) -> i64 {
+    inverse_euclidean::<M, _>(mod_fact::<M>(n) as i64)
+}
+
+pub fn mod_rfact_u<const M: u64>(n: u64) -> u64 {
+    inverse_euclidean::<M, _>(mod_fact::<M>(n) as i64).rem_euclid(M as i64) as u64
 }
 
 pub fn fact(n: u64) -> u64 {
@@ -40,6 +47,35 @@ pub fn fact_mult(mut n: u64, p: u64) -> u64 {
         }
     }
     c
+}
+
+/// O(M log_M n)
+pub fn mod_binom<const M: u64>(mut n: u64, mut k: u64) -> u64 {
+    if k > n {
+        return 0;
+    }
+    let mut r = 1;
+    let mut a;
+    let mut b;
+    while k != 0 {
+        (n, a, k, b) = (n / M, n % M, k / M, k % M);
+        if b > a {
+            return 0;
+        } else if b < a >> 1 {
+            b = a - b;
+        }
+        r = r * mod_rfact_u::<M>(a - b) % M * (b + 1..=a).fold(1, |acc, x| acc * x % M) % M;
+    }
+    r
+}
+
+pub fn mod_binom_alt<const M: u64>(n: u64, mut k: u64) -> u64 {
+    if k > n {
+        return 0;
+    } else if k < n >> 1 {
+        k = n - k;
+    }
+    mod_rfact_u::<M>(n - k) * (k + 1..=n).fold(1, |acc, x| acc * (x % M) % M) % M
 }
 
 pub const fn mod_pow<const M: u64>(mut a: u64, mut b: u64) -> u64 {
@@ -77,6 +113,16 @@ pub const fn mod_pow_pow_two<const M: u64>(mut a: u64, b: u64) -> u64 {
     while i < b {
         a *= a;
         a %= M;
+        i += 1;
+    }
+    a
+}
+
+pub const fn mod_pow_pow_two_signed<const M: u64>(mut a: i64, b: u64) -> i64 {
+    let mut i = 0;
+    while i < b {
+        a *= a;
+        a %= M as i64;
         i += 1;
     }
     a
@@ -127,37 +173,48 @@ pub fn inverses_n_div<const M: u64>(n: usize) -> Vec<u64> {
 }
 
 #[inline]
-pub fn inverses<const M: u64>(a: &[u64]) -> Vec<u64> {
+pub fn inverses<const M: u64, T>(a: &[T]) -> Vec<T>
+where
+    T: Copy
+        + Default
+        + PartialEq
+        + Mul<Output = T>
+        + Sub<Output = T>
+        + Div<Output = T>
+        + Rem<Output = T>,
+    i64: Into<T>,
+{
     let n = a.len();
     let mut b = Vec::with_capacity(n);
-    let mut p = 1;
+    let mut p = 1.into();
     for i in 0..n {
         b.push(p);
-        p = p * a[i] % M;
+        p = p * a[i] % (M as i64).into();
     }
-    let mut x = inverse_euclidean::<M>(p);
+    let mut x = inverse_euclidean::<M, _>(p);
     for i in (0..n).rev() {
-        b[i] = b[i] * x % M;
-        x = x * a[i] % M;
+        b[i] = b[i] * x % (M as i64).into();
+        x = x * a[i] % (M as i64).into();
     }
     b
 }
 
 #[inline]
-pub const fn inverse_euclidean<const M: u64>(a: u64) -> u64 {
-    let (mut t, mut nt, mut r, mut nr) = (0_i64, 1, M as i64, a as i64);
-    while nr != 0 {
+pub fn inverse_euclidean<const M: u64, T>(a: T) -> T
+where
+    T: Copy + Default + PartialEq + Sub<Output = T> + Mul<Output = T> + Div<Output = T>,
+    i64: Into<T>,
+{
+    let (mut t, mut nt, mut r, mut nr) = (T::default(), 1.into(), (M as i64).into(), a);
+    while nr != T::default() {
         let q = r / nr;
         (t, nt) = (nt, t - q * nt);
         (r, nr) = (nr, r - q * nr);
     }
-    if r > 1 {
-        return 0;
+    if r != 1.into() {
+        return T::default();
     }
-    if t < 0 {
-        t += M as i64;
-    }
-    return t as u64;
+    t
 }
 
 #[inline]
@@ -189,7 +246,7 @@ pub fn discrete_log<const M: u64>(a: u64, b: u64) -> Option<usize> {
     let m = M.isqrt();
     let m = (m + if m * m == M { 0 } else { 1 }).max(1) as usize;
     let mut baby_steps = HashMap::with_capacity(m);
-    let a_inv = inverse_euclidean::<M>(a);
+    let a_inv = inverse_euclidean::<M, _>(a as i64).rem_euclid(M as i64) as u64;
     let mut gamma = 1u64;
     for j in 0..m {
         baby_steps.insert((gamma * b) % M, j);
@@ -228,7 +285,7 @@ pub fn mod_sqrt<const M: u64>(b: u64) -> Option<u64> {
         let x = Affine::<M>::new(z, 1, b);
         let result = x.pow(exp);
         if result.b != 0 {
-            let inv = inverse_euclidean::<M>(result.b);
+            let inv = inverse_euclidean::<M, _>(result.b as i64).rem_euclid(M as i64) as u64;
             if inv != 0 {
                 if inv < M - inv {
                     return Some(inv);

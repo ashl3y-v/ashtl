@@ -72,12 +72,10 @@ pub fn max_matching_bipartite(
             }
             i += 1;
         }
-
         if !matched {
             break;
         }
     }
-
     (size, l, r)
 }
 

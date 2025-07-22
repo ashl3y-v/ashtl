@@ -1,6 +1,7 @@
 use super::{gcd::gcd, ops::mod_pow_non_const};
 use crate::ds::sort::{counting_sort, counting_sort_dedup};
 
+/// O(log^3 n)
 /// Works up to 7 * 10^18
 pub fn miller_rabin(n: u64) -> bool {
     if n < 2 || n % 6 % 4 != 1 {
@@ -23,6 +24,7 @@ pub fn miller_rabin(n: u64) -> bool {
     true
 }
 
+/// O(n^1/4) expected
 fn pollard(n: usize) -> usize {
     let mut x = 0usize;
     let mut y = 0usize;
@@ -51,6 +53,7 @@ fn pollard(n: usize) -> usize {
     gcd(prd, n)
 }
 
+/// O(n^1/4 log^2 n)
 pub fn factor(n: usize) -> Vec<usize> {
     if n == 1 {
         return Vec::new();
@@ -65,6 +68,7 @@ pub fn factor(n: usize) -> Vec<usize> {
     left
 }
 
+/// O(n^1/4 log^2 n)
 pub fn factor_mult(n: usize) -> Vec<(usize, u32)> {
     let mut fs = factor(n);
     counting_sort(&mut fs, n + 1);
@@ -83,17 +87,44 @@ pub fn factor_mult(n: usize) -> Vec<(usize, u32)> {
     f
 }
 
+/// O(n^1/4 log^2 n)
 pub fn factor_dedup(n: usize) -> Vec<usize> {
     let mut fs = factor(n);
     counting_sort_dedup(&mut fs, n + 1);
     fs
 }
 
+/// O(n^1/4 log^2 n)
+pub fn divisors(n: usize) -> Vec<usize> {
+    if n == 0 {
+        return Vec::new();
+    } else if n == 1 {
+        return vec![1];
+    }
+    let prime_factors = factor_mult(n);
+    let mut result = vec![1];
+    for (prime, power) in prime_factors {
+        let current_len = result.len();
+        let mut prime_power = prime;
+        for _ in 1..=power {
+            for i in 0..current_len {
+                result.push(result[i] * prime_power);
+            }
+            prime_power *= prime;
+        }
+    }
+    result.sort_unstable();
+    result
+}
+
 // TODO: fast prime counting
 // https://codeforces.com/blog/entry/91632
+// https://usaco.guide/adv/multiplicative?lang=cpp
 pub fn pi(n: usize) -> usize {
     1
 }
+
+// TODO: divisor lattice and codivisor lattice as graphs
 
 #[cfg(test)]
 mod tests {

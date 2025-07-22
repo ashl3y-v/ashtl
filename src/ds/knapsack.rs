@@ -1,4 +1,4 @@
-use crate::ds::monotone::MonotoneQueue;
+use crate::ds::queue::MonotoneQueue;
 
 /// O(n max w_i)
 pub fn subset_sum(w: &[u64], t: u64) -> u64 {

@@ -54,3 +54,6 @@ impl DSU {
 // TODO: DSU with potential
 // https://judge.yosupo.jp/submission/214503
 // https://judge.yosupo.jp/submission/236404
+
+// TODO: persistent union find
+// https://judge.yosupo.jp/problem/persistent_unionfind

@@ -319,6 +319,12 @@ where
     }
 }
 
+// TODO: sparse segment tree
+// https://usaco.guide/plat/sparse-segtree?lang=cpp
+
 // TODO: wide segment tree
 // https://judge.yosupo.jp/submission/254992
 // https://en.algorithmica.org/hpc/data-structures/segment-trees/
+
+// TODO: persistent segment tree
+// https://usaco.guide/adv/persistent?lang=cpp

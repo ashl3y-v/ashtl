@@ -3,7 +3,6 @@ use crate::range::rmq::RMQ;
 use std::cmp::Ordering;
 
 /// Kruskal reconstruction tree
-/// O(n log n) construction
 pub struct KRT<F: FnMut(usize, usize, usize)> {
     pub n: usize,
     pub chs: Vec<[usize; 2]>,

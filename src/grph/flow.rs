@@ -104,12 +104,10 @@ impl<F: Copy + Default + Ord + AddAssign + SubAssign> PushRelabel<F> {
         let ws = &self.g[u];
         for i in 0..self.g[u].len() {
             let Edge { to: w, c, .. } = ws[i];
-            if c > F::default() {
-                let cand = self.h[w] + 1;
-                if cand < nh {
-                    nh = cand;
-                    nc = i;
-                }
+            let cand = self.h[w] + 1;
+            if c > F::default() && cand < nh {
+                nh = cand;
+                nc = i;
             }
         }
         self.h[u] = nh;
@@ -119,7 +117,7 @@ impl<F: Copy + Default + Ord + AddAssign + SubAssign> PushRelabel<F> {
         if hi < n && self.co[hi] == 0 {
             for i in 0..n {
                 if self.h[i] > hi && self.h[i] < n {
-                    self.co[self.h[i]] -= 1;
+                    self.co[self.h[i]] = 0;
                     self.h[i] = n + 1;
                 }
             }
@@ -184,8 +182,17 @@ impl<F: Copy + Default + Ord + AddAssign + SubAssign> PushRelabel<F> {
     }
 }
 
+// TODO: add dinic's implementation
+
 // TODO: min-cost max flow
+// https://koosaga.com/289
+// https://ideone.com/q6PWgB
+// https://judge.yosupo.jp/submission/218137
+// https://codeforces.com/blog/entry/104075
 // https://codeforces.com/blog/entry/95823
+
+// TODO: flow with demands
+// https://usaco.guide/adv/flow-lb?lang=cpp
 
 #[cfg(test)]
 mod tests {

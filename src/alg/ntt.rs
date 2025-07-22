@@ -1,5 +1,5 @@
 use super::{
-    ops::{inverse_euclidean, mod_pow_pow_two},
+    ops::{inverse_euclidean, mod_pow_pow_two, mod_pow_pow_two_signed},
     prime::miller_rabin,
     primitive::find_ntt_root,
 };
@@ -67,8 +67,8 @@ pub fn intt<const M: u64>(a: &mut [i64]) {
     let mut k = 2;
     let mut s = 2;
     while k < n {
-        let x = mod_pow_pow_two::<M>(
-            inverse_euclidean::<M>(find_ntt_root::<M>()),
+        let x = mod_pow_pow_two_signed::<M>(
+            inverse_euclidean::<M, _>(find_ntt_root::<M>() as i64),
             (M - 1).trailing_zeros() as u64 - s,
         ) as i64;
         for i in k..2 * k {
@@ -97,7 +97,7 @@ pub fn intt<const M: u64>(a: &mut [i64]) {
         }
         k <<= 1;
     }
-    let n_inv = inverse_euclidean::<M>(n as u64);
+    let n_inv = inverse_euclidean::<M, _>(n as i64);
     a.iter_mut().for_each(|i| {
         *i *= n_inv as i64;
     });

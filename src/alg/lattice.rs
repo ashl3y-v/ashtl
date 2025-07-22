@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{AddAssign, DivAssign, Mul, MulAssign, SubAssign};
 
 /// O(n log log n)
 pub fn divisor<T: for<'a> AddAssign<&'a T>>(a: &mut [T], primes: &[usize]) {

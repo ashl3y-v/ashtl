@@ -1,6 +1,6 @@
 use super::{
     ops::{mod_pow, mod_pow_non_const},
-    prime::{factor_dedup, factor_mult},
+    prime,
 };
 use bit_vec::BitVec;
 
@@ -36,12 +36,12 @@ pub fn sieve_primes(n: usize) -> (Vec<usize>, BitVec) {
     (primes, is_composite)
 }
 
-/// O(n + n F + n / log n G) if on_coprime costs F and on_prime_pow costs G
+/// O(n + n F + n / log n G) if on_cop_pk costs F and on_pk costs G
 pub fn sieve<T: Clone>(
     n: usize,
     id: T,
-    mut on_coprime: impl FnMut(&T, &T) -> T,
-    mut on_prime_pow: impl FnMut(usize, u32, &[T]) -> T,
+    mut on_cop_pk: impl FnMut(&T, &T) -> T,
+    mut on_pk: impl FnMut(usize, u32, &[T]) -> T,
 ) -> (Vec<T>, BitVec, Vec<usize>, Vec<u32>) {
     let mut is_composite = BitVec::from_elem(n, false);
     let mut primes = Vec::with_capacity(n / n.ilog2() as usize);
@@ -52,7 +52,7 @@ pub fn sieve<T: Clone>(
         if !is_composite[i] {
             primes.push(i);
             known.push(1);
-            f[i] = on_prime_pow(i, 1, &f);
+            f[i] = on_pk(i, 1, &f);
             cnt[i] = 1;
         }
         for j in 0..primes.len() {
@@ -63,17 +63,17 @@ pub fn sieve<T: Clone>(
             is_composite.set(i * p, true);
             if i.is_multiple_of(p) {
                 let p_cnt = p.pow(cnt[i]);
-                let p_cntip1 = if cnt[i] + 1 <= known[j] {
+                let f_p_cntip1 = if cnt[i] + 1 <= known[j] {
                     &f[p_cnt * p]
                 } else {
                     known[j] = cnt[i] + 1;
-                    &on_prime_pow(p, cnt[i] + 1, &f)
+                    &on_pk(p, cnt[i] + 1, &f)
                 };
-                f[i * p] = on_coprime(&f[i / p_cnt], p_cntip1);
+                f[i * p] = on_cop_pk(&f[i / p_cnt], f_p_cntip1);
                 cnt[i * p] = cnt[i] + 1;
                 break;
             } else {
-                f[i * p] = on_coprime(&f[i], &f[p]);
+                f[i * p] = on_cop_pk(&f[i], &f[p]);
                 cnt[i * p] = 1;
             }
         }
@@ -85,8 +85,8 @@ pub fn sieve<T: Clone>(
 pub fn sieve_complete<T: Clone>(
     n: usize,
     id: T,
-    mut on_coprime: impl FnMut(&T, &T) -> T,
-    mut on_prime: impl FnMut(usize, &[T]) -> T,
+    mut on_mul: impl FnMut(&T, &T) -> T,
+    mut on_p: impl FnMut(usize, &[T]) -> T,
 ) -> (Vec<T>, BitVec, Vec<usize>) {
     let mut is_composite = BitVec::from_elem(n, false);
     let mut primes = Vec::with_capacity(n / n.ilog2() as usize);
@@ -94,14 +94,97 @@ pub fn sieve_complete<T: Clone>(
     for i in 2..n {
         if !is_composite[i] {
             primes.push(i);
-            f[i] = on_prime(i, &f);
+            f[i] = on_p(i, &f);
         }
         for &p in &primes {
             if i * p >= n {
                 break;
             }
             is_composite.set(i * p, true);
-            f[i * p] = on_coprime(&f[i], &f[p]);
+            f[i * p] = on_mul(&f[i], &f[p]);
+            if i.is_multiple_of(p) {
+                break;
+            }
+        }
+    }
+    (f, is_composite, primes)
+}
+
+/// O(n + d(k) F + ppd(k) G) if on_coprime costs F and on_prime_pow costs G
+/// ppd(k) = O(log n / log log n) number of prime powers dividing k
+pub fn sieve_divk<T: Clone>(
+    n: usize,
+    k: usize,
+    id: T,
+    mut on_cop_pk: impl FnMut(&T, &T) -> T,
+    mut on_pk: impl FnMut(usize, u32, &[T]) -> T,
+) -> (Vec<T>, BitVec, Vec<usize>, Vec<u32>) {
+    let n = n.min(k + 1);
+    let mut is_composite = BitVec::from_elem(n, false);
+    let mut primes = Vec::with_capacity(n / n.ilog2() as usize);
+    let mut known = Vec::with_capacity(n / n.ilog2() as usize);
+    let mut cnt = vec![0; n];
+    let mut f = vec![id.clone(); n];
+    for i in (2..n).filter(|&i| k.is_multiple_of(i)) {
+        if !is_composite[i] {
+            primes.push(i);
+            known.push(1);
+            f[i] = on_pk(i, 1, &f);
+            cnt[i] = 1;
+        }
+        for j in 0..primes.len() {
+            let p = primes[j];
+            if i * p >= n {
+                break;
+            } else if !k.is_multiple_of(i * p) {
+                continue;
+            }
+            is_composite.set(i * p, true);
+            if i.is_multiple_of(p) {
+                let p_cnt = p.pow(cnt[i]);
+                let f_p_cntip1 = if cnt[i] + 1 <= known[j] {
+                    &f[p_cnt * p]
+                } else {
+                    known[j] = cnt[i] + 1;
+                    &on_pk(p, cnt[i] + 1, &f)
+                };
+                f[i * p] = on_cop_pk(&f[i / p_cnt], f_p_cntip1);
+                cnt[i * p] = cnt[i] + 1;
+                break;
+            } else {
+                f[i * p] = on_cop_pk(&f[i], &f[p]);
+                cnt[i * p] = 1;
+            }
+        }
+    }
+    (f, is_composite, primes, cnt)
+}
+
+/// O(n + d(k) F + ω(k) G) if on_coprime costs F and on_prime costs G
+pub fn sieve_complete_divk<T: Clone>(
+    n: usize,
+    k: usize,
+    id: T,
+    mut on_mul: impl FnMut(&T, &T) -> T,
+    mut on_p: impl FnMut(usize, &[T]) -> T,
+) -> (Vec<T>, BitVec, Vec<usize>) {
+    let n = n.min(k + 1);
+    let mut is_composite = BitVec::from_elem(n, false);
+    let mut primes = Vec::with_capacity(n / n.ilog2() as usize);
+    let mut f = vec![id.clone(); n];
+    for i in (2..n).filter(|&i| k.is_multiple_of(i)) {
+        if !is_composite[i] {
+            primes.push(i);
+            f[i] = on_p(i, &f);
+        }
+        for &p in &primes {
+            if i * p >= n {
+                break;
+            } else if !k.is_multiple_of(i * p) {
+                continue;
+            }
+            is_composite.set(i * p, true);
+            f[i * p] = on_mul(&f[i], &f[p]);
             if i.is_multiple_of(p) {
                 break;
             }
@@ -131,8 +214,12 @@ pub fn mobius(n: usize) -> (Vec<i8>, BitVec, Vec<usize>, Vec<u32>) {
     sieve(n, 1, |a, b| a * b, |_, i, _| if i == 1 { -1 } else { 0 })
 }
 
+pub fn mobius_divk(k: usize, n: usize) -> (Vec<i8>, BitVec, Vec<usize>, Vec<u32>) {
+    sieve_divk(n, k, 1, |a, b| a * b, |_, i, _| if i == 1 { -1 } else { 0 })
+}
+
 pub fn gcd_k(k: usize, n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
-    let fs = factor_mult(k);
+    let fs = prime::factor_mult(k);
     sieve(
         n,
         1,
@@ -186,7 +273,7 @@ pub fn psi(n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
 }
 
 pub fn chi_0_a(a: usize, n: usize) -> (Vec<usize>, BitVec, Vec<usize>) {
-    let fs = factor_dedup(a);
+    let fs = prime::factor_dedup(a);
     sieve_complete(
         n,
         1,
@@ -266,5 +353,64 @@ pub fn mod_pow_k<const M: u64>(k: usize, n: usize) -> (Vec<u64>, BitVec, Vec<usi
         |p, _| mod_pow::<M>(p as u64, k as u64),
     );
     s.0[0] = 0;
+    s
+}
+
+pub fn factor(n: usize) -> (Vec<Vec<usize>>, BitVec, Vec<usize>) {
+    let mut s = sieve_complete(
+        n,
+        vec![],
+        |a, b| {
+            let mut c = a.clone();
+            c.extend_from_slice(&b);
+            c
+        },
+        |p, _| vec![p],
+    );
+    s.0[0] = vec![0];
+    s.0[1] = vec![1];
+    s
+}
+
+pub fn factor_mult(n: usize) -> (Vec<Vec<(usize, u32)>>, BitVec, Vec<usize>, Vec<u32>) {
+    let mut s = sieve(
+        n,
+        vec![],
+        |a, b| {
+            let mut c = a.clone();
+            c.extend_from_slice(&b);
+            c
+        },
+        |p, k, _| vec![(p, k)],
+    );
+    s.0[0] = vec![(0, 1)];
+    s.0[1] = vec![(1, 1)];
+    s
+}
+
+pub fn divisors(n: usize) -> (Vec<Vec<usize>>, BitVec, Vec<usize>, Vec<u32>) {
+    let mut s = sieve(
+        n,
+        vec![1],
+        |a, b| {
+            let mut c = a.clone();
+            for v in &b[1..] {
+                for w in a {
+                    c.push(v * w);
+                }
+            }
+            c
+        },
+        |p, k, _| {
+            let mut d = Vec::with_capacity(k as usize);
+            let mut pi = 1;
+            for _ in 0..=k {
+                d.push(pi);
+                pi *= p;
+            }
+            d
+        },
+    );
+    s.0[0] = vec![0];
     s
 }

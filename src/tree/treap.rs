@@ -1,4 +1,5 @@
-// TODO: make this use an array, reduce pushes and pulls to strictly necessary (inspir from splay), make ordered by custom priorities
+// TODO: make this use an array, reduce pushes and pulls to strictly necessary (inspir from splay), make Y inputed by user
+
 use rand::Rng;
 
 #[derive(Clone, Debug)]
@@ -51,12 +52,6 @@ impl<T, D: Default + PartialEq, PushF: FnMut(&mut Node<T, D>), PullF: FnMut(&mut
     }
 
     fn pull(&mut self, node: &mut Node<T, D>) {
-        if let Some(ref mut l) = node.l {
-            (self.push)(l);
-        }
-        if let Some(ref mut r) = node.r {
-            (self.push)(r);
-        }
         node.c = Node::cnt(&node.l) + Node::cnt(&node.r) + 1;
         (self.pull)(node);
     }
@@ -204,6 +199,7 @@ impl<T: Clone, D: Default + PartialEq, PushF: FnMut(&mut Node<T, D>), PullF: FnM
         Some(node)
     }
 
+    // TODO: i'm pretty sure this is just wrong for the case of non random Y at least
     fn heapify(&mut self, mut node: &mut Box<Node<T, D>>) {
         loop {
             let left_priority = node.l.as_ref().map(|n| n.y);

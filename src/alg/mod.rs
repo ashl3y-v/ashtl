@@ -12,3 +12,4 @@ pub mod primitive;
 pub mod sieve;
 pub mod special;
 pub mod zi;
+pub mod zsqrt;

@@ -4,6 +4,7 @@ pub fn cliques() {}
 
 // TODO: enumerating triangles
 // https://judge.yosupo.jp/submission/106463
+// https://pypi.org/project/aegypti/
 pub fn triangles() {}
 
 // TODO: maximum clique

@@ -1,8 +1,11 @@
+pub mod array;
 pub mod dsu;
 pub mod first_one;
+pub mod heap;
 pub mod knapsack;
 pub mod matroid;
-pub mod monotone;
-pub mod persistent;
+pub mod queue;
 pub mod score;
+pub mod set;
 pub mod sort;
+pub mod stack;

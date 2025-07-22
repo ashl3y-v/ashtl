@@ -2,6 +2,7 @@ use crate::ds::score::MinScore;
 use bit_vec::BitVec;
 use std::{collections::BinaryHeap, ops::Add};
 
+/// O(n m)
 pub fn bellman_ford<T: Copy + PartialOrd + Add<T, Output = T> + Default>(
     v: usize,
     adj: &[Vec<(usize, T)>],
@@ -21,6 +22,7 @@ pub fn bellman_ford<T: Copy + PartialOrd + Add<T, Output = T> + Default>(
     Ok((d, p))
 }
 
+/// O(n m)
 pub fn spfa<T: Copy + PartialOrd + Add<T, Output = T> + Default>(
     v: usize,
     adj: &[Vec<(usize, T)>],
@@ -57,6 +59,7 @@ pub fn spfa<T: Copy + PartialOrd + Add<T, Output = T> + Default>(
     Ok((d, p))
 }
 
+/// O(n)
 pub fn recover_negative_cycle<T>(v: usize, d: &[T], p: &[usize]) -> Vec<usize> {
     let n = d.len();
     let mut path = Vec::new();
@@ -81,6 +84,7 @@ pub fn recover_negative_cycle<T>(v: usize, d: &[T], p: &[usize]) -> Vec<usize> {
     path
 }
 
+/// O(n m)
 pub fn bellman_ford_unchecked<T: Copy + PartialOrd + Add<T, Output = T> + Default>(
     v: usize,
     adj: &[Vec<(usize, T)>],
@@ -110,7 +114,7 @@ pub fn bellman_ford_unchecked<T: Copy + PartialOrd + Add<T, Output = T> + Defaul
     (d, p)
 }
 
-/// Dijkstra's algorithm
+/// O((n + m) log n)
 /// Works for any type T such that:
 /// For source T::default() is correct initialization
 /// sum(p) + v >= sum(p) if v adjacent to end of p
@@ -149,6 +153,7 @@ pub fn dijkstra<T: Copy + PartialOrd + Add<T, Output = T> + Default>(
     scores
 }
 
+/// O(n^3)
 pub fn floyd_warshall(d: &mut [Vec<i64>], mut p: Option<&mut [Vec<usize>]>) {
     let n = d.len();
     for i in 0..n {
@@ -180,6 +185,7 @@ pub fn floyd_warshall(d: &mut [Vec<i64>], mut p: Option<&mut [Vec<usize>]>) {
     }
 }
 
+/// O(n)
 pub fn recover_path(u: usize, v: usize, p: &[Vec<usize>]) -> Vec<usize> {
     if u == v {
         return vec![u];
