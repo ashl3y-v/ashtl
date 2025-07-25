@@ -81,7 +81,7 @@ pub fn dsatur(adj: &[Vec<usize>]) -> (HashMap<usize, usize>, usize) {
     (cols, max_col + 1)
 }
 
-/// O(2^n n^2 log k)
+/// O(2^n n^2)
 pub fn k_col<const M: u64>(k: usize, adj: &[usize]) -> bool {
     let n = adj.len();
     let mut f = vec![0; 1 << n];
@@ -96,11 +96,11 @@ pub fn k_col<const M: u64>(k: usize, adj: &[usize]) -> bool {
         }
         f[i] = 1;
     }
-    let f = Poly::<M>::new(f).sps_pow_bin(k);
+    let f = Poly::<M>::new(f).sps_pow(k);
     f[(1 << n) - 1] != 0
 }
 
-/// O(2^n n^2 log^2 n)
+/// O(2^n n^2 log n)
 pub fn chi<const M: u64>(adj: &[usize]) -> usize {
     let n = adj.len();
     let mut f = vec![0; 1 << n];
@@ -123,7 +123,7 @@ pub fn chi<const M: u64>(adj: &[usize]) -> usize {
     let mut r = n;
     while l != r {
         let m = l + (r - l >> 1);
-        let mut t = f.clone().sps_pow_bin(m - l);
+        let mut t = f.clone().sps_pow(m - l);
         if pref_changed {
             t = t.sps_mul(&pref);
         };

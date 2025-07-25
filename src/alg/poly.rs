@@ -3113,6 +3113,7 @@ impl<const M: u64> Poly<M> {
         ak
     }
 
+    /// O(2^n n^2)
     #[inline]
     pub fn sps_pow(self, k: usize) -> Self {
         (self.sps_log().unwrap() * k as E)
