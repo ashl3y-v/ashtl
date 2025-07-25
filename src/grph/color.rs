@@ -1,9 +1,11 @@
 use bit_vec::BitVec;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
+use crate::alg::poly::Poly;
+
 /// O((n + m) n!)
-pub fn chromatic_number(graph: &[Vec<usize>]) -> usize {
-    let n = graph.len();
+pub fn chromatic_number(adj: &[Vec<usize>]) -> usize {
+    let n = adj.len();
     let mut ans = n + 1;
     let mut colors = vec![0; n];
     fn dfs(graph: &[Vec<usize>], colors: &mut [usize], c: usize, cnt: usize, ans: &mut usize) {
@@ -38,7 +40,7 @@ pub fn chromatic_number(graph: &[Vec<usize>]) -> usize {
         }
         colors[u] = 0;
     }
-    dfs(graph, &mut colors, 0, n, &mut ans);
+    dfs(adj, &mut colors, 0, n, &mut ans);
     ans
 }
 
@@ -76,8 +78,64 @@ pub fn dsatur(adj: &[Vec<usize>]) -> (HashMap<usize, usize>, usize) {
             }
         }
     }
-
     (cols, max_col + 1)
+}
+
+/// O(2^n n^2 log k)
+pub fn k_col<const M: u64>(k: usize, adj: &[usize]) -> bool {
+    let n = adj.len();
+    let mut f = vec![0; 1 << n];
+    'a: for i in 0..1_usize << n {
+        for v in 0..n {
+            if i & 1 << v != 0 {
+                if (adj[v] & i) != 0 {
+                    f[i] = 0;
+                    continue 'a;
+                }
+            }
+        }
+        f[i] = 1;
+    }
+    let f = Poly::<M>::new(f).sps_pow_bin(k);
+    f[(1 << n) - 1] != 0
+}
+
+/// O(2^n n^2 log^2 n)
+pub fn chi<const M: u64>(adj: &[usize]) -> usize {
+    let n = adj.len();
+    let mut f = vec![0; 1 << n];
+    'a: for i in 0..1_usize << n {
+        for v in 0..n {
+            if i & 1 << v != 0 {
+                if (adj[v] & i) != 0 {
+                    f[i] = 0;
+                    continue 'a;
+                }
+            }
+        }
+        f[i] = 1;
+    }
+    let f = Poly::<M>::new(f);
+    let mut pref = Poly::<M>::from_elem(0, 1 << n);
+    pref.coeff[0] = 1;
+    let mut pref_changed = false;
+    let mut l = 0;
+    let mut r = n;
+    while l != r {
+        let m = l + (r - l >> 1);
+        let mut t = f.clone().sps_pow_bin(m - l);
+        if pref_changed {
+            t = t.sps_mul(&pref);
+        };
+        (l, r) = if t[(1 << n) - 1] != 0 {
+            (l, m - 1)
+        } else {
+            pref = t;
+            pref_changed = true;
+            (m + 1, r)
+        };
+    }
+    l
 }
 
 // TODO: chromatic poly

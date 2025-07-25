@@ -1,3 +1,8 @@
+use std::{
+    fmt::Debug,
+    ops::{Index, IndexMut},
+};
+
 pub struct DSU {
     pub dsu: Vec<isize>,
 }
@@ -48,6 +53,32 @@ impl DSU {
     pub fn size(&mut self, x: usize) -> usize {
         let r = self.find(x);
         (-self.dsu[r]) as usize
+    }
+}
+
+impl Debug for DSU {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self.dsu))
+    }
+}
+
+impl<Idx, T> Index<Idx> for DSU
+where
+    Vec<isize>: Index<Idx, Output = T>,
+{
+    type Output = T;
+
+    fn index(&self, index: Idx) -> &Self::Output {
+        &self.dsu[index]
+    }
+}
+
+impl<Idx, T> IndexMut<Idx> for DSU
+where
+    Vec<isize>: IndexMut<Idx, Output = T>,
+{
+    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
+        &mut self.dsu[index]
     }
 }
 

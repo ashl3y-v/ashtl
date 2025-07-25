@@ -1,29 +1,25 @@
 use crate::ds::dsu::DSU;
 use bit_vec::BitVec;
 
-// TODO: get down to O((n+m) α(n))
-// also change filename
 /// Online Bridge Tree O(n log n α(n) + m α(n))
 pub struct BridgeTree {
     pub par: Vec<usize>,
-    pub dsu_2ecc: DSU,
-    pub dsu_cc: DSU,
+    pub ecc2: DSU,
+    pub cc: DSU,
     pub count: usize,
     pub mask: BitVec,
-    pub lca_iteration: usize,
-    pub last_visit: Vec<usize>,
+    pub seen: BitVec,
 }
 
 impl BridgeTree {
     pub fn new(n: usize) -> Self {
         BridgeTree {
             par: vec![usize::MAX; n],
-            dsu_2ecc: DSU::new(n),
-            dsu_cc: DSU::new(n),
+            ecc2: DSU::new(n),
+            cc: DSU::new(n),
             count: 0,
             mask: BitVec::from_elem(n, false),
-            lca_iteration: 0,
-            last_visit: vec![0; n],
+            seen: BitVec::from_elem(n, false),
         }
     }
 
@@ -35,49 +31,47 @@ impl BridgeTree {
         let root = v;
         let mut child = usize::MAX;
         while self.par[cur] != usize::MAX {
-            let p = self.dsu_2ecc.find(self.par[cur]);
+            let p = self.ecc2.find(self.par[cur]);
             self.par[cur] = child;
-            self.dsu_cc.dsu[cur] = root as isize;
-            child = cur;
-            cur = p;
+            self.cc[cur] = root as isize;
+            (child, cur) = (cur, p);
         }
         self.par[cur] = child;
-        self.dsu_cc.dsu[child] = self.dsu_cc.dsu[cur];
-        self.dsu_cc.dsu[cur] = root as isize;
+        self.cc[child] = self.cc[cur];
+        self.cc[cur] = root as isize;
         self
     }
 
     fn merge_path(&mut self, mut a: usize, mut b: usize) -> &mut Self {
-        self.lca_iteration += 1;
-        let iter = self.lca_iteration;
+        self.seen.clear();
         let mut path_a = Vec::new();
         let mut path_b = Vec::new();
         let mut lca = usize::MAX;
         while lca == usize::MAX {
             if a != usize::MAX {
-                a = self.dsu_2ecc.find(a);
+                a = self.ecc2.find(a);
                 path_a.push(a);
-                if self.last_visit[a] == iter {
+                if self.seen[a] {
                     lca = a;
                     break;
                 } else {
-                    self.last_visit[a] = iter;
+                    self.seen.set(a, true);
                     a = self.par[a];
                 }
             }
             if b != usize::MAX {
-                b = self.dsu_2ecc.find(b);
+                b = self.ecc2.find(b);
                 path_b.push(b);
-                if self.last_visit[b] == iter {
+                if self.seen[b] {
                     lca = b;
                     break;
                 } else {
-                    self.last_visit[b] = iter;
+                    self.seen.set(b, true);
                     b = self.par[b];
                 }
             }
         }
-        let mut r = self.dsu_2ecc.find(lca);
+        let mut r = self.ecc2.find(lca);
         for i in 0..path_a.len() {
             let v = path_a[i];
             if v == lca {
@@ -85,7 +79,7 @@ impl BridgeTree {
             }
             self.mask.set(v, true);
             self.count -= 1;
-            (_, r) = self.dsu_2ecc.union_root(v, r);
+            (_, r) = self.ecc2.union_root(v, r);
         }
         for i in 0..path_b.len() {
             let v = path_b[i];
@@ -94,29 +88,29 @@ impl BridgeTree {
             }
             self.mask.set(v, true);
             self.count -= 1;
-            (_, r) = self.dsu_2ecc.union_root(v, r);
+            (_, r) = self.ecc2.union_root(v, r);
         }
         self.par[r] = self.par[lca];
         self
     }
 
     pub fn add_edge(&mut self, mut a: usize, mut b: usize) -> &mut Self {
-        a = self.dsu_2ecc.find(a);
-        b = self.dsu_2ecc.find(b);
+        a = self.ecc2.find(a);
+        b = self.ecc2.find(b);
         if a == b {
             return self;
         }
-        let ca = self.dsu_cc.find(a);
-        let mut cb = self.dsu_cc.find(b);
+        let ca = self.cc.find(a);
+        let mut cb = self.cc.find(b);
         if ca != cb {
-            if self.dsu_cc.dsu[ca] < self.dsu_cc.dsu[cb] {
+            if self.cc[ca] < self.cc[cb] {
                 (a, b, cb) = (b, a, ca);
             }
             self.count += 1;
             self.make_root(a);
             self.par[a] = b;
-            self.dsu_cc.dsu[cb] += self.dsu_cc.dsu[a];
-            self.dsu_cc.dsu[a] = b as isize;
+            self.cc[cb] += self.cc[a];
+            self.cc[a] = b as isize;
         } else {
             self.merge_path(a, b);
         }
@@ -545,11 +539,11 @@ mod tests {
         assert_eq!(bt.count, 2);
 
         // Verify connectivity: nodes in same cycle should be in same 2-ecc
-        assert_eq!(bt.dsu_2ecc.find(0), bt.dsu_2ecc.find(1));
-        assert_eq!(bt.dsu_2ecc.find(1), bt.dsu_2ecc.find(2));
+        assert_eq!(bt.ecc2.find(0), bt.ecc2.find(1));
+        assert_eq!(bt.ecc2.find(1), bt.ecc2.find(2));
 
-        assert_eq!(bt.dsu_2ecc.find(3), bt.dsu_2ecc.find(4));
-        assert_eq!(bt.dsu_2ecc.find(4), bt.dsu_2ecc.find(5));
+        assert_eq!(bt.ecc2.find(3), bt.ecc2.find(4));
+        assert_eq!(bt.ecc2.find(4), bt.ecc2.find(5));
 
         // Bridge endpoints should be in different 2-eccs
         let bridge_endpoints: HashSet<_> = bridges.iter().flat_map(|&(u, v)| [u, v]).collect();
@@ -557,7 +551,7 @@ mod tests {
         // At least 3 different 2-ecc representatives among bridge endpoints
         let bridge_2ecc_reps: HashSet<_> = bridge_endpoints
             .iter()
-            .map(|&node| bt.dsu_2ecc.find(node))
+            .map(|&node| bt.ecc2.find(node))
             .collect();
 
         assert!(
@@ -657,7 +651,7 @@ mod tests {
         for i in 0..10 {
             for j in i + 1..10 {
                 let connected_naive = are_connected_naive(10, &edges, i, j);
-                let same_cc = bt.dsu_cc.find(i) == bt.dsu_cc.find(j);
+                let same_cc = bt.cc.find(i) == bt.cc.find(j);
                 assert_eq!(
                     connected_naive, same_cc,
                     "Connectivity mismatch for nodes {} and {}",

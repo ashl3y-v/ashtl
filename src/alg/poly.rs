@@ -18,7 +18,7 @@ use std::{
 
 type E = i64;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Poly<const M: u64> {
     pub coeff: Vec<E>,
 }
@@ -41,20 +41,15 @@ impl<const M: u64> Poly<M> {
 
     #[inline]
     pub fn deg_or_0(&self) -> usize {
-        self.coeff.iter().rposition(|&i| i != 0).unwrap_or_else(|| {
-            self.coeff
-                .first()
-                .map_or(0, |&v| if v != 0 { self.len() } else { 0 })
-        })
+        self.coeff
+            .iter()
+            .rposition(|&i| i % M as E != 0)
+            .unwrap_or(0)
     }
 
     #[inline]
     pub fn deg(&self) -> Option<usize> {
-        self.coeff.iter().rposition(|&i| i != 0).or_else(|| {
-            self.coeff
-                .first()
-                .map_or(None, |&v| if v != 0 { Some(self.len() - 1) } else { None })
-        })
+        self.coeff.iter().rposition(|&i| i % M as E != 0)
     }
 
     #[inline]
@@ -224,6 +219,15 @@ impl<const M: u64> Poly<M> {
     }
 
     #[inline]
+    pub fn complement(mut self) -> Self {
+        let n = self.coeff.len();
+        for i in 0..n >> 1 {
+            self.coeff.swap(i, i ^ (n - 1));
+        }
+        self
+    }
+
+    #[inline]
     pub fn permute(mut self, mut f: impl FnMut(usize) -> usize, n: usize) -> Self {
         let d = self.deg_or_0();
         self = self.resize(n);
@@ -336,6 +340,18 @@ impl<const M: u64> Poly<M> {
         self
     }
 
+    /// O(k n log k (log k + log n))
+    pub fn prod(mut ps: Vec<Self>) -> Self {
+        fn prod<const M: u64>(l: usize, r: usize, ps: &mut Vec<Poly<M>>) -> Poly<M> {
+            if l + 1 == r {
+                return std::mem::take(&mut ps[l]);
+            }
+            let m = l + (r - l >> 1);
+            prod(l, m, ps) * prod(m, r, ps)
+        }
+        prod(0, ps.len(), &mut ps)
+    }
+
     // TODO: half-gcd algorithm
     // https://codeforces.com/blog/entry/101850
     /// O(n log^2 n)
@@ -371,6 +387,7 @@ impl<const M: u64> Poly<M> {
         unimplemented!()
     }
 
+    // https://judge.yosupo.jp/problem/polynomial_root_finding
     pub fn roots() {
         unimplemented!()
     }
@@ -393,6 +410,8 @@ impl<const M: u64> Poly<M> {
         let a0 = self.coeff.get(0).copied().unwrap_or(0);
         if a0 == 0 {
             return None;
+        } else if n <= 1 << 9 {
+            return Some(self.clone_mod_xn(n).inv_pow(1, n));
         }
         let a0_inv = inverse_euclidean::<M, _>(a0);
         let mut r = Self::new(vec![a0_inv as E]).resize(n.next_power_of_two());
@@ -517,11 +536,10 @@ impl<const M: u64> Poly<M> {
 
     /// O(n log n)
     pub fn exp(&self, n: usize) -> Option<Self> {
-        if self.len() == 1 {
-            return Some(Self::new(vec![1]));
-        }
-        if self.coeff.get(0).copied().unwrap_or(0) != 0 {
+        if self.coeff.get(0).copied().unwrap_or(0) % M as E != 0 {
             return None;
+        } else if self.len() <= 1 {
+            return Some(Self::new(vec![1]));
         }
         let n = n.next_power_of_two();
         let mut e_k = Self::new(Vec::with_capacity(n)).push(1).push(self.coeff[1]);
@@ -587,11 +605,10 @@ impl<const M: u64> Poly<M> {
 
     /// O(n log n)
     pub fn exp_and_inv(&self, n: usize) -> Option<(Self, Self)> {
-        if self.len() == 1 {
-            return Some((Self::new(vec![1]), Self::new(vec![1])));
-        }
-        if self.coeff.get(0).copied().unwrap_or(0) != 0 {
+        if self.coeff.get(0).copied().unwrap_or(0) % M as E != 0 {
             return None;
+        } else if self.len() <= 1 {
+            return Some((Self::new(vec![1]), Self::new(vec![1])));
         }
         let n = n.next_power_of_two();
         let mut e_k = Self::new(Vec::with_capacity(n)).push(1).push(self.coeff[1]);
@@ -904,12 +921,8 @@ impl<const M: u64> Poly<M> {
         q
     }
 
-    /// const MAGIC = 1 << 9;
-    /// if self.deg_or_0().min(n) <= MAGIC { O(n min(d, n)) }
-    /// else if k <= MAGIC { O(n log n log k) }
-    /// else { O(n log n) }
+    /// O(n log n)
     pub fn pow(self, k: usize, n: usize) -> Self {
-        const MAGIC: usize = 1 << 9;
         let i = self.coeff.iter().position(|&i| i != 0);
         if let Some(i) = i {
             if i > 0 {
@@ -923,13 +936,23 @@ impl<const M: u64> Poly<M> {
                     p
                 }
             } else {
-                if self.deg_or_0().min(n) <= MAGIC {
-                    self.pow_dn(k, n)
-                } else if k <= MAGIC {
+                let l = self.deg_or_0().min(n);
+                if k <= 1 << 10 && l >= 1 << 10 {
                     self.pow_bin(k, n)
+                } else if l <= 1 << 10 {
+                    self.pow_dn(k, n)
                 } else {
-                    let a0k = mod_pow::<M>(self.coeff[i].rem_euclid(M as E) as u64, k as u64) as E;
-                    (self.log(n).unwrap().normalize() * (k as u64 % M) as E)
+                    let mut k = k as E;
+                    let mut a0k =
+                        mod_pow::<M>(self.coeff[i].rem_euclid(M as E) as u64, k as u64) as E;
+                    if (M as E) >> 1 < k {
+                        k -= M as E;
+                    }
+                    if (M as E) >> 1 < a0k {
+                        a0k -= M as E;
+                    }
+                    (self.log(n).unwrap().normalize() * k)
+                        .normalize()
                         .exp(n)
                         .unwrap()
                         .mod_xn(n)
@@ -945,8 +968,16 @@ impl<const M: u64> Poly<M> {
         }
     }
 
-    // a^b = e^{ln a * b}
-    pub fn log_mul_exp(self, rhs: Self, n: usize) -> Option<Self> {
+    /// O(n log n)
+    pub fn inv_pow(self, k: usize, n: usize) -> Self {
+        let k = k % M as usize;
+        let a0_inv = inverse_euclidean::<M, _>(self.coeff[0]);
+        (self * a0_inv).pow(M as usize - k, n).normalize()
+            * mod_pow::<M>(a0_inv.rem_euclid(M as i64) as u64, k as u64) as i64
+    }
+
+    /// a^b = e^{ln a * b}
+    pub fn pow_poly(self, rhs: Self, n: usize) -> Option<Self> {
         (self.log(n)? * rhs).exp(n)
     }
 
@@ -967,8 +998,20 @@ impl<const M: u64> Poly<M> {
                 ans
             };
         }
-        let half = inverse_euclidean::<M, _>(2);
         let st = mod_sqrt::<M>(self.coeff[0].rem_euclid(M as E) as u64)? as E;
+        if self.deg_or_0().min(n) <= 1 << 9 {
+            return Some(
+                (self.clone() / self.coeff[0])
+                    .normalize()
+                    .pow(
+                        inverse_euclidean::<M, _>(2_i64).rem_euclid(M as i64) as usize,
+                        n,
+                    )
+                    .normalize()
+                    * st,
+            );
+        }
+        let half = inverse_euclidean::<M, _>(2);
         let st_inv = inverse_euclidean::<M, _>(st);
         let (mut f, mut g, mut z, mut delta, mut gbuf) = (
             Self::from_elem(st as E, 1),
@@ -1124,7 +1167,7 @@ impl<const M: u64> Poly<M> {
             .mod_xn(d_usize + 1);
             quotient = product.reverse_n(d_usize + 1);
         }
-        let remainder = self - &(&quotient * q);
+        let remainder = -quotient.clone() * q + self;
         (quotient, remainder)
     }
 
@@ -1256,21 +1299,36 @@ impl<const M: u64> Poly<M> {
         }
     }
 
-    // TODO: find x^k in f(x)^i for all 1 <= i <= n in O(n log n)
-    // https://codeforces.com/blog/entry/77551
+    /// O(n log n)
+    pub fn pows_cinv_xi(self, i: usize, n: usize) -> Self {
+        let n = n.min(i);
+        let a0_inv = inverse_euclidean::<M, _>(self.coeff[1]);
+        let mut p = ((self >> 1) * a0_inv)
+            .inv_pow(i, n)
+            .reverse_k(i)
+            .normalize()
+            * mod_pow::<M>(a0_inv.rem_euclid(M as i64) as u64, i as u64) as i64;
+        let i_inv = inverse_euclidean::<M, _>(i as i64) as E;
+        let l = p.len();
+        for j in 0..l {
+            p.coeff[j] %= M as E;
+            p.coeff[j] *= j as E % M as E * i_inv % M as E;
+        }
+        p
+    }
 
-    /// O(d log d log n)
+    /// O(n log n log i)
     #[inline]
-    pub fn nth_rec(&mut self, mut q: Self, mut n: usize) -> E {
-        while n > 0 {
+    pub fn quot_xi(mut self, mut q: Self, mut i: usize) -> E {
+        while i > 0 {
             q = q.n1pkmi(0);
-            if n & 1 == 0 {
-                *self = self.mul_even(&q, n);
+            if i & 1 == 0 {
+                self = self.mul_even(&q, i);
             } else {
-                *self = self.mul_odd(&q, n);
+                self = self.mul_odd(&q, i);
             }
-            q = q.mul_neg_self_even(n);
-            n >>= 1;
+            q = q.mul_neg_self_even(i);
+            i >>= 1;
         }
         (self.coeff[0] * inverse_euclidean::<M, _>(q.coeff[0])) % M as E
     }
@@ -1899,7 +1957,7 @@ impl<const M: u64> Poly<M> {
 
     /// O(n)
     #[inline]
-    pub fn sum_pwrs(mut self, p: usize, n: usize) -> Self {
+    pub fn sum_pows(mut self, p: usize, n: usize) -> Self {
         let mut pws = sieve_complete(
             n,
             1,
@@ -1987,7 +2045,7 @@ impl<const M: u64> Poly<M> {
 
     /// O(n log n)
     #[inline]
-    pub fn sum_pwrs_k(k: usize, n: usize) -> Self {
+    pub fn sum_pows_k(k: usize, n: usize) -> Self {
         let mut e = Self::exp_x(n + 1);
         e = ((-e.clone() + 1) >> 1).inv(n).unwrap().normalize()
             * ((e - Self::exp_ax(k as E + 1, n + 1)) >> 1).normalize();
@@ -2537,7 +2595,7 @@ impl<const M: u64> Poly<M> {
 
     /// O(n log n)
     #[inline]
-    pub fn catalan_p(self, n: usize) -> Option<Self> {
+    pub fn catalan_poly(self, n: usize) -> Option<Self> {
         Some(((self * -4 + 1).sqrt(n)? + 1).inv(n)? * 2)
     }
 
@@ -2680,6 +2738,13 @@ impl<const M: u64> Poly<M> {
             .borel()
     }
 
+    // https://codeforces.com/blog/entry/115696
+    // https://judge.yosupo.jp/problem/shift_of_sampling_points_of_polynomial
+    #[inline]
+    pub fn shift_pts(self, a: E) -> Self {
+        unimplemented!()
+    }
+
     /// O(n^2)
     pub fn comp_naive(&self, b: &Self, n: usize) -> Self {
         let q = n.isqrt();
@@ -2687,7 +2752,7 @@ impl<const M: u64> Poly<M> {
         let b_q = b.clone().pow(q, n);
         b_k.push(Self::new(vec![1]));
         for i in 1..q {
-            b_k.push((b * &b_k[i - 1]).mod_xn(n).normalize())
+            b_k.push((b.clone() * &b_k[i - 1]).mod_xn(n).normalize())
         }
         let mut b_qk = Self::new(vec![1]);
         let mut ans = Self::new(vec![0; n]);
@@ -2705,14 +2770,17 @@ impl<const M: u64> Poly<M> {
         ans.normalize()
     }
 
+    // TODO: power projection
     // https://maspypy.com/fps-composition-and-compositional-inverse-part-1-compositional-inverse-and-power-projection
-    pub fn power_proj() {
+    pub fn pow_proj() {
         unimplemented!()
     }
 
+    // TODO: composition
     // https://maspypy.com/fps-composition-and-compositional-inverse-part-1-compositional-inverse-and-power-projection
     // https://maspypy.com/fps-composition-and-compositional-inverse-part-2
     // https://judge.yosupo.jp/problem/composition_of_formal_power_series
+    // https://judge.yosupo.jp/problem/composition_of_formal_power_series_large
     // https://codeforces.com/blog/entry/127674
     // https://codeforces.com/blog/entry/128204
     // https://codeforces.com/blog/entry/126124
@@ -2720,10 +2788,12 @@ impl<const M: u64> Poly<M> {
         unimplemented!()
     }
 
+    // TODO: compositional inverse
     // https://maspypy.com/fps-composition-and-compositional-inverse-part-2
     // https://judge.yosupo.jp/problem/compositional_inverse_of_formal_power_series
+    // https://judge.yosupo.jp/problem/compositional_inverse_of_formal_power_series_large
     // https://codeforces.com/blog/entry/128814
-    pub fn comp_inv() -> Self {
+    pub fn cinv() -> Self {
         unimplemented!()
     }
 
@@ -2769,19 +2839,19 @@ impl<const M: u64> Poly<M> {
             .multiple_inv(&primes)
     }
 
-    /// O(n log n)
+    /// O(2^n n)
     pub fn subset(mut self) -> Self {
         lattice::subset(&mut self.coeff);
         self
     }
 
-    /// O(n log n)
+    /// O(2^n n)
     pub fn subset_inv(mut self) -> Self {
         lattice::subset_inv(&mut self.coeff);
         self
     }
 
-    /// O(n log n)
+    /// O(2^n n)
     pub fn and_conv(self, rhs: Self) -> Self {
         self.subset()
             .normalize()
@@ -2790,27 +2860,61 @@ impl<const M: u64> Poly<M> {
             .subset_inv()
     }
 
-    /// O(n log^2 n)
-    pub fn subset_conv(mut self, rhs: &Self) -> Self {
+    /// O(2^n n^2)
+    pub fn sps_mul_slice(a: &[i64], b: &[i64], o: &mut [i64]) {
+        let n = a.len().trailing_zeros() as usize;
+        let mut ahat = vec![vec![0; 1 << n]; n + 1];
+        let mut bhat = vec![vec![0; 1 << n]; n + 1];
+        for m in 0_usize..1 << n {
+            ahat[m.count_ones() as usize][m] = a[m];
+            bhat[m.count_ones() as usize][m] = b[m];
+        }
+        for i in 0..=n {
+            lattice::superset(&mut ahat[i]);
+            lattice::superset(&mut bhat[i]);
+            ahat[i].iter_mut().for_each(|i| *i %= M as E);
+            bhat[i].iter_mut().for_each(|i| *i %= M as E);
+        }
+        let mut h = vec![vec![0; 1 << n]; n + 1];
+        for i in 0..=n {
+            for j in 0..=i {
+                h[i].iter_mut()
+                    .zip(&ahat[j])
+                    .zip(&bhat[i - j])
+                    .for_each(|((a, b), c)| *a += b * c % M as E);
+            }
+        }
+        for i in 0..=n {
+            lattice::superset_inv(&mut h[i]);
+        }
+        for m in 0..1 << n {
+            o[m] = h[m.count_ones() as usize][m] % M as E;
+        }
+    }
+
+    pub fn sps_mul(self, rhs: &Self) -> Self {
+        let mut r = vec![0; self.coeff.len()];
+        Self::sps_mul_slice(&self.coeff, &rhs.coeff, &mut r);
+        Self::new(r)
+    }
+
+    /// O(2^n n^2)
+    pub fn sps_square(mut self) -> Self {
         let n = self.len().ilog2() as usize;
         let mut fhat = vec![vec![0; 1 << n]; n + 1];
-        let mut ghat = vec![vec![0; 1 << n]; n + 1];
         for m in 0_usize..1 << n {
             fhat[m.count_ones() as usize][m] = self.coeff[m];
-            ghat[m.count_ones() as usize][m] = rhs.coeff[m];
         }
         for i in 0..=n {
             lattice::superset(&mut fhat[i]);
-            lattice::superset(&mut ghat[i]);
             fhat[i].iter_mut().for_each(|i| *i %= M as E);
-            ghat[i].iter_mut().for_each(|i| *i %= M as E);
         }
         let mut h = vec![vec![0; 1 << n]; n + 1];
         for i in 0..=n {
             for j in 0..=i {
                 h[i].iter_mut()
                     .zip(&fhat[j])
-                    .zip(&ghat[i - j])
+                    .zip(&fhat[i - j])
                     .for_each(|((a, b), c)| *a += b * c % M as E);
             }
         }
@@ -2823,19 +2927,19 @@ impl<const M: u64> Poly<M> {
         self
     }
 
-    /// O(n log n)
+    /// O(2^n n)
     pub fn superset(mut self) -> Self {
         lattice::superset(&mut self.coeff);
         self
     }
 
-    /// O(n log n)
+    /// O(n 2^n)
     pub fn superset_inv(mut self) -> Self {
         lattice::superset_inv(&mut self.coeff);
         self
     }
 
-    /// O(n log n)
+    /// O(2^n n)
     pub fn or_conv(self, rhs: Self) -> Self {
         self.superset()
             .normalize()
@@ -2844,19 +2948,19 @@ impl<const M: u64> Poly<M> {
             .superset_inv()
     }
 
-    /// O(n log n)
+    /// O(2^n n)
     pub fn xor(mut self) -> Self {
         lattice::xor(&mut self.coeff);
         self
     }
 
-    /// O(n log n)
+    /// O(2^n n)
     pub fn xor_inv(self) -> Self {
         let n = self.len();
         self.xor() / n as E
     }
 
-    /// O(n log n)
+    /// O(2^n n)
     pub fn xor_conv(self, rhs: Self) -> Self {
         self.xor()
             .normalize()
@@ -2864,6 +2968,162 @@ impl<const M: u64> Poly<M> {
             .normalize()
             .xor_inv()
     }
+
+    // TODO: SPS pow proj
+    // https://judge.yosupo.jp/submission/244[38
+    pub fn sps_pow_proj() -> Self {
+        unimplemented!()
+    }
+
+    /// O(2^n n^2)
+    pub fn sps_inv(&self) -> Self {
+        let n = self.len().trailing_zeros() as usize;
+        let a0_inv = inverse_euclidean::<M, _>(self.coeff[0]);
+        let mut res = vec![0; 1 << n];
+        let mut res_hat = vec![vec![0; 1 << n]; n + 1];
+        let mut self_hat = vec![vec![0; 1 << n]; n + 1];
+        for m in 0_usize..1 << n {
+            self_hat[m.count_ones() as usize][m] = self.coeff[m];
+        }
+        for i in 0..=n {
+            lattice::superset(&mut self_hat[i]);
+            self_hat[i].iter_mut().for_each(|i| *i %= M as E);
+        }
+        for l in 0..=n {
+            res_hat[l]
+                .iter_mut()
+                .zip(&self_hat[0])
+                .for_each(|(i, j)| *i += *i * *j % M as E);
+            for i in 1..=l {
+                let [res_hat_l, res_hat_lmi] = res_hat.get_disjoint_mut([l, l - i]).unwrap();
+                res_hat_l
+                    .iter_mut()
+                    .zip(&self_hat[i])
+                    .zip(res_hat_lmi)
+                    .for_each(|((i, j), &mut k)| *i += j * k % M as E);
+            }
+            lattice::superset_inv(&mut res_hat[l]);
+            if l == 0 {
+                res_hat[l][0] = (1 - res_hat[l][0]) * a0_inv % M as E;
+                res[0] = res_hat[l][0];
+            }
+            for x in 1..1_usize << n {
+                if x.count_ones() as usize == l {
+                    res_hat[l][x] = ((x == 0) as E - res_hat[l][x]) * a0_inv % M as E;
+                    res[x] = res_hat[l][x];
+                }
+            }
+            lattice::superset(&mut res_hat[l]);
+            res_hat[l].iter_mut().for_each(|i| *i %= M as E);
+        }
+        Self::new(res)
+    }
+
+    /// O(2^n n^2)
+    pub fn sps_quot_slice(a: &[i64], b: &[i64], o: &mut [i64]) {
+        let n = a.len().trailing_zeros() as usize;
+        let a0_inv = inverse_euclidean::<M, _>(b[0]);
+        let mut res_hat = vec![vec![0; 1 << n]; n + 1];
+        let mut b_hat = vec![vec![0; 1 << n]; n + 1];
+        for m in 0_usize..1 << n {
+            b_hat[m.count_ones() as usize][m] = b[m];
+        }
+        for i in 0..=n {
+            lattice::superset(&mut b_hat[i]);
+            b_hat[i].iter_mut().for_each(|i| *i %= M as E);
+        }
+        for l in 0..=n {
+            res_hat[l]
+                .iter_mut()
+                .zip(&b_hat[0])
+                .for_each(|(i, j)| *i += *i * *j % M as E);
+            for i in 1..=l {
+                let [res_hat_l, res_hat_lmi] = res_hat.get_disjoint_mut([l, l - i]).unwrap();
+                res_hat_l
+                    .iter_mut()
+                    .zip(&b_hat[i])
+                    .zip(res_hat_lmi)
+                    .for_each(|((i, j), &mut k)| *i += j * k % M as E);
+            }
+            lattice::superset_inv(&mut res_hat[l]);
+            for x in 0..1_usize << n {
+                if x.count_ones() as usize == l {
+                    res_hat[l][x] = (a[x] - res_hat[l][x]) * a0_inv % M as E;
+                    o[x] = res_hat[l][x];
+                }
+            }
+            lattice::superset(&mut res_hat[l]);
+            res_hat[l].iter_mut().for_each(|i| *i %= M as E);
+        }
+    }
+
+    /// O(2^n n^2)
+    pub fn sps_quot(self, rhs: &Self) -> Self {
+        let mut r = vec![0; self.coeff.len()];
+        Self::sps_mul_slice(&self.coeff, &rhs.coeff, &mut r);
+        Self::new(r)
+    }
+
+    /// O(2^n n^2)
+    pub fn sps_exp(&self) -> Option<Self> {
+        let n = self.coeff.len().trailing_zeros();
+        if self.coeff[0] != 0 {
+            return None;
+        }
+        let mut e = vec![0; 1 << n];
+        e[0] = 1;
+        for i in 0..n {
+            let (a, b) = e.split_at_mut(1 << i);
+            Self::sps_mul_slice(&a, &self.coeff[1 << i..2 << i], &mut b[..1 << i]);
+        }
+        Some(Self::new(e))
+    }
+
+    /// O(2^n n^2)
+    pub fn sps_log(&self) -> Option<Self> {
+        let n = self.coeff.len().trailing_zeros();
+        if self.coeff[0] != 1 {
+            return None;
+        }
+        let mut l = vec![0; 1 << n];
+        for i in 0..n {
+            Self::sps_quot_slice(
+                &self.coeff[1 << i..2 << i],
+                &self.coeff[..1 << i],
+                &mut l[1 << i..2 << i],
+            );
+        }
+        Some(Self::new(l))
+    }
+
+    // TODO: improve sps pow big O with exp and log
+    // remember when u chnage to check usages
+    /// O(2^n n^2 log k)
+    #[inline]
+    pub fn sps_pow_bin(mut self, mut k: usize) -> Self {
+        let mut ak = Self::from_elem(0, self.coeff.len());
+        ak[0] = 1;
+        while k != 0 {
+            if k & 1 != 0 {
+                ak = ak.sps_mul(&self);
+            }
+            self = self.sps_square();
+            k >>= 1;
+        }
+        ak
+    }
+
+    #[inline]
+    pub fn sps_pow(self, k: usize) -> Self {
+        (self.sps_log().unwrap() * k as E)
+            .normalize()
+            .sps_exp()
+            .unwrap()
+    }
+
+    // TODO: comp SPS
+    // https://judge.yosupo.jp/submission/140530
+    pub fn comp_sps() {}
 
     // TODO: min plus convolution
     // https://judge.yosupo.jp/submission/296643
@@ -2873,20 +3133,6 @@ impl<const M: u64> Poly<M> {
     pub fn min_plus() -> Self {
         unimplemented!()
     }
-
-    // TODO: SPS pow proj
-    // https://judge.yosupo.jp/submission/244938
-    pub fn sps_pow_proj() -> Self {
-        unimplemented!()
-    }
-
-    // TODO: SPS exp
-    // https://judge.yosupo.jp/problem/exp_of_set_power_series
-    pub fn sps_exp() {}
-
-    // TODO: SPS comp
-    // https://judge.yosupo.jp/submission/140530
-    pub fn sps_comp() {}
 }
 
 impl<const M: u64> Debug for Poly<M> {
@@ -2902,9 +3148,18 @@ impl<const M: u64> PartialEq for Poly<M> {
         let d1 = other.deg();
         match (d0, d1) {
             (None, None) => true,
-            (None, Some(_)) => false,
-            (Some(_), None) => false,
-            (Some(d0), Some(d1)) => self.coeff[..=d0] == other.coeff[..=d1],
+            (Some(d0), Some(d1)) => {
+                if d0 != d1 {
+                    return false;
+                }
+                for i in 0..=d0 {
+                    if self.coeff[i] % M as E != other.coeff[i] % M as E {
+                        return false;
+                    }
+                }
+                true
+            }
+            _ => false,
         }
     }
 }
@@ -2917,16 +3172,6 @@ impl<const M: u64> Neg for Poly<M> {
     fn neg(mut self) -> Self::Output {
         self.coeff.iter_mut().for_each(|v| *v = -*v);
         self
-    }
-}
-
-impl<const M: u64> Add<Self> for &Poly<M> {
-    type Output = Poly<M>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        let mut s = self.clone();
-        s += rhs;
-        s
     }
 }
 
@@ -2959,20 +3204,7 @@ impl<const M: u64> AddAssign<&Self> for Poly<M> {
 
 impl<const M: u64> AddAssign<Self> for Poly<M> {
     fn add_assign(&mut self, rhs: Self) {
-        self.coeff
-            .iter_mut()
-            .zip(&rhs.coeff)
-            .for_each(|(a, b)| *a += b);
-    }
-}
-
-impl<const M: u64> Sub<Self> for &Poly<M> {
-    type Output = Poly<M>;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        let mut s = self.clone();
-        s -= rhs;
-        s
+        *self += &rhs;
     }
 }
 
@@ -2982,16 +3214,6 @@ impl<const M: u64> Sub<Self> for Poly<M> {
     fn sub(mut self, rhs: Self) -> Self::Output {
         self -= rhs;
         self
-    }
-}
-
-impl<const M: u64> Sub<Poly<M>> for &Poly<M> {
-    type Output = Poly<M>;
-
-    fn sub(self, mut rhs: Poly<M>) -> Self::Output {
-        rhs.coeff.iter_mut().for_each(|i| *i = -*i);
-        rhs += self;
-        rhs
     }
 }
 
@@ -3006,29 +3228,7 @@ impl<const M: u64> SubAssign<&Self> for Poly<M> {
 
 impl<const M: u64> SubAssign<Self> for Poly<M> {
     fn sub_assign(&mut self, rhs: Self) {
-        self.coeff
-            .iter_mut()
-            .zip(&rhs.coeff)
-            .for_each(|(a, &b)| *a -= b);
-    }
-}
-
-impl<const M: u64> Mul<Self> for &Poly<M> {
-    type Output = Poly<M>;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        let mut s = self.clone();
-        s *= rhs;
-        s
-    }
-}
-
-impl<const M: u64> Mul<Poly<M>> for &Poly<M> {
-    type Output = Poly<M>;
-
-    fn mul(self, mut rhs: Poly<M>) -> Self::Output {
-        rhs *= self;
-        rhs
+        *self -= &rhs;
     }
 }
 
@@ -3112,6 +3312,9 @@ impl<const M: u64> Sub<E> for Poly<M> {
 
 impl<const M: u64> MulAssign<E> for Poly<M> {
     fn mul_assign(&mut self, rhs: E) {
+        if rhs == 1 {
+            return;
+        }
         self.coeff.iter_mut().for_each(|i| *i *= rhs);
     }
 }
@@ -3171,6 +3374,9 @@ impl<const M: u64> Div<&Self> for Poly<M> {
 
 impl<const M: u64> DivAssign<E> for Poly<M> {
     fn div_assign(&mut self, rhs: E) {
+        if rhs == 1 {
+            return;
+        }
         *self *= inverse_euclidean::<M, _>(rhs);
     }
 }
@@ -3283,8 +3489,409 @@ impl<const M: u64> Shl<usize> for Poly<M> {
     }
 }
 
+// TODO: bivariable genfuncs
+#[derive(Clone)]
+pub struct Poly2<const M: u64> {
+    pub n: usize,
+    pub m: usize,
+    pub coeff: Vec<E>,
+}
+
+impl<const M: u64> Poly2<M> {
+    #[inline]
+    pub fn from_slice(n: usize, m: usize, coeff: Vec<E>) -> Self {
+        Self { n, m, coeff }
+    }
+
+    #[inline]
+    pub fn from_elem(n: usize, m: usize, a: E) -> Self {
+        Self {
+            n,
+            m,
+            coeff: vec![a; n * m],
+        }
+    }
+
+    #[inline]
+    pub fn from_fn(n: usize, m: usize, mut f: impl FnMut((usize, usize)) -> E) -> Self {
+        let mut coeff = vec![0; n * m];
+        for i in 0..n {
+            for j in 0..m {
+                coeff[i * m + j] = f((i, j));
+            }
+        }
+        Self { n, m, coeff }
+    }
+
+    #[inline]
+    pub fn enumerate_coeff(&self) -> impl Iterator<Item = (usize, usize, &E)> {
+        self.coeff
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (i / self.m, i % self.m, v))
+    }
+
+    #[inline]
+    pub fn enumerate_coeff_mut(&mut self) -> impl Iterator<Item = (usize, usize, &mut E)> {
+        self.coeff
+            .iter_mut()
+            .enumerate()
+            .map(|(i, v)| (i / self.m, i % self.m, v))
+    }
+
+    #[inline]
+    pub fn yi(&self, i: usize) -> impl Iterator<Item = &E> {
+        self.coeff.iter().skip(i).step_by(self.n)
+    }
+
+    #[inline]
+    pub fn yi_mut(&mut self, i: usize) -> impl Iterator<Item = &mut E> {
+        self.coeff.iter_mut().skip(i).step_by(self.n)
+    }
+
+    #[inline]
+    pub fn transpose(self) -> Self {
+        Self::from_fn(self.m, self.n, |(i, j)| self[(j, i)])
+    }
+
+    #[inline]
+    pub fn resize_x(&mut self, n: usize) -> &mut Self {
+        self.coeff.resize(self.m * n, 0);
+        self.n = n;
+        self
+    }
+
+    #[inline]
+    pub fn resize_y(&mut self, m: usize) -> &mut Self {
+        if m == self.m {
+            return self;
+        }
+        if m < self.m {
+            let mut write_idx = 0;
+            for row in 0..self.n {
+                let row_start = row * self.m;
+                for col in 0..m {
+                    self.coeff[write_idx] = self.coeff[row_start + col];
+                    write_idx += 1;
+                }
+            }
+            self.coeff.truncate(self.n * m);
+        } else {
+            self.coeff.resize(self.n * m, 0);
+            for i in (0..self.n).rev() {
+                for j in (0..self.m).rev() {
+                    self.coeff[i * m + j] = self.coeff[i * self.m + j];
+                }
+                for j in self.m..m {
+                    self.coeff[i * m + j] = 0;
+                }
+            }
+        }
+        self.m = m;
+        self
+    }
+
+    #[inline]
+    pub fn normalize(mut self) -> Self {
+        self.coeff.iter_mut().for_each(|i| {
+            *i %= M as E;
+        });
+        self
+    }
+
+    #[inline]
+    pub fn pos_normalize(mut self) -> Self {
+        self.coeff.iter_mut().for_each(|i| {
+            *i = i.rem_euclid(M as E);
+        });
+        self
+    }
+
+    #[inline]
+    pub fn neg_normalize(mut self) -> Self {
+        self.coeff.iter_mut().for_each(|i| {
+            *i = i.rem_euclid(M as E);
+            if (M as E) >> 1 < *i {
+                *i -= M as E;
+            }
+        });
+        self
+    }
+
+    #[inline]
+    pub fn deg_x(&self) -> Option<usize> {
+        self.coeff
+            .iter()
+            .rposition(|&i| i % M as E != 0)
+            .map(|i| i / self.m)
+    }
+
+    #[inline]
+    pub fn deg_y(&self) -> Option<usize> {
+        (0..self.m).rposition(|i| self.yi(i).any(|&i| i % M as E != 0))
+    }
+
+    #[inline]
+    pub fn deg_or_0_x(&self) -> usize {
+        self.coeff
+            .iter()
+            .rposition(|&i| i % M as E != 0)
+            .map_or(0, |i| i / self.m)
+    }
+
+    #[inline]
+    pub fn deg_or_0_y(&self) -> usize {
+        (0..self.m)
+            .rposition(|i| self.yi(i).any(|&i| i % M as E != 0))
+            .unwrap_or(0)
+    }
+
+    #[inline]
+    pub fn dot(mut self, rhs: &Self) -> Self {
+        for i in 0..self.n.min(rhs.n) {
+            self.coeff[i * self.m..(i + 1) * self.m]
+                .iter_mut()
+                .zip(&rhs[i])
+                .for_each(|(i, j)| *i *= j);
+        }
+        self
+    }
+
+    #[inline]
+    pub fn dot_nm(mut self, n: usize, m: usize, rhs: &Self) -> Self {
+        let n = n.min(self.n.min(rhs.n));
+        let m = m.min(self.m.min(rhs.m));
+        for i in 0..n {
+            self.coeff[i * self.m..i * self.m + m]
+                .iter_mut()
+                .zip(&rhs[i])
+                .for_each(|(i, j)| *i *= j);
+        }
+        self
+    }
+
+    #[inline]
+    pub fn mod_xn(mut self, n: usize) -> Self {
+        self.coeff.truncate(n * self.m);
+        self.n = n;
+        self
+    }
+
+    #[inline]
+    pub fn mod_yn(mut self, m: usize) -> Self {
+        if m >= self.m {
+            return self;
+        }
+        let mut write_idx = 0;
+        for row in 0..self.n {
+            let row_start = row * self.m;
+            for col in 0..m {
+                self.coeff[write_idx] = self.coeff[row_start + col];
+                write_idx += 1;
+            }
+        }
+        self.coeff.truncate(self.n * m);
+        self.m = m;
+        self
+    }
+
+    // #[inline]
+    // pub fn pow(self, mut rhs: u32) -> Self {
+    //     let mut res = Self::eye(self.n, self.m);
+    //     let mut a = self;
+    //     while rhs != 0 {
+    //         if rhs & 1 != 0 {
+    //             res = &res * &a;
+    //         }
+    //         a = &a * &a;
+    //         rhs >>= 1;
+    //     }
+
+    //     res
+    // }
+}
+
+impl<const M: u64> Debug for Poly2<M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for i in 0..self.n {
+            writeln!(f, "{:?}", &self[i])?;
+        }
+        Ok(())
+    }
+}
+
+impl<const M: u64> Index<usize> for Poly2<M> {
+    type Output = [E];
+
+    fn index(&self, i: usize) -> &Self::Output {
+        &self.coeff[i * self.m..(i + 1) * self.m]
+    }
+}
+
+impl<const M: u64> IndexMut<usize> for Poly2<M> {
+    fn index_mut(&mut self, i: usize) -> &mut Self::Output {
+        &mut self.coeff[i * self.m..(i + 1) * self.m]
+    }
+}
+
+impl<const M: u64> Index<(usize, usize)> for Poly2<M> {
+    type Output = E;
+
+    fn index(&self, (i, j): (usize, usize)) -> &Self::Output {
+        &self.coeff[i * self.m + j]
+    }
+}
+
+impl<const M: u64> IndexMut<(usize, usize)> for Poly2<M> {
+    fn index_mut(&mut self, (i, j): (usize, usize)) -> &mut Self::Output {
+        &mut self.coeff[i * self.m + j]
+    }
+}
+
+impl<const M: u64> PartialEq for Poly2<M> {
+    fn eq(&self, other: &Self) -> bool {
+        let dx0 = self.deg_x();
+        let dx1 = other.deg_x();
+        let dy0 = self.deg_y();
+        let dy1 = other.deg_y();
+        match (dx0, dx1, dy0, dy1) {
+            (None, None, None, None) => true,
+            (Some(dx0), Some(dx1), Some(dy0), Some(dy1)) => {
+                if dx0 != dx1 || dy0 != dy1 {
+                    return false;
+                }
+                for i in 0..=dx0 {
+                    if self[i]
+                        .iter()
+                        .zip(&other[i])
+                        .take(dy0)
+                        .any(|(&i, &j)| i != j)
+                    {
+                        return false;
+                    }
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+impl<const M: u64> Eq for Poly2<M> {}
+
+impl<const M: u64> Neg for Poly2<M> {
+    type Output = Self;
+
+    fn neg(mut self) -> Self::Output {
+        self.coeff.iter_mut().for_each(|v| *v = -*v);
+        self
+    }
+}
+
+impl<const M: u64> Add<Self> for &Poly2<M> {
+    type Output = Poly2<M>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut s = self.clone();
+        s += rhs;
+        s
+    }
+}
+
+impl<const M: u64> Add<Self> for Poly2<M> {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += &rhs;
+        self
+    }
+}
+
+impl<const M: u64> Add<&Self> for Poly2<M> {
+    type Output = Self;
+
+    fn add(mut self, rhs: &Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl<const M: u64> AddAssign<&Self> for Poly2<M> {
+    fn add_assign(&mut self, rhs: &Self) {
+        for i in 0..self.n.min(rhs.n) {
+            self.coeff[i * self.m..(i + 1) * self.m]
+                .iter_mut()
+                .zip(&rhs[i])
+                .for_each(|(i, j)| *i += j);
+        }
+    }
+}
+
+impl<const M: u64> AddAssign<Self> for Poly2<M> {
+    fn add_assign(&mut self, rhs: Self) {
+        *self += &rhs;
+    }
+}
+
+impl<const M: u64> Sub<Self> for Poly2<M> {
+    type Output = Poly2<M>;
+
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        self -= rhs;
+        self
+    }
+}
+
+impl<const M: u64> SubAssign<&Self> for Poly2<M> {
+    fn sub_assign(&mut self, rhs: &Self) {
+        for i in 0..self.n.min(rhs.n) {
+            self.coeff[i * self.m..(i + 1) * self.m]
+                .iter_mut()
+                .zip(&rhs[i])
+                .for_each(|(i, j)| *i -= j);
+        }
+    }
+}
+
+impl<const M: u64> SubAssign<Self> for Poly2<M> {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self -= &rhs;
+    }
+}
+
+impl<const M: u64> Mul<Self> for Poly2<M> {
+    type Output = Self;
+
+    fn mul(mut self, rhs: Self) -> Self::Output {
+        self *= rhs;
+        self
+    }
+}
+
+impl<const M: u64> Mul<&Self> for Poly2<M> {
+    type Output = Self;
+
+    fn mul(mut self, rhs: &Self) -> Self::Output {
+        self *= rhs;
+        self
+    }
+}
+
+impl<const M: u64> MulAssign<&Self> for Poly2<M> {
+    fn mul_assign(&mut self, rhs: &Self) {
+        let rhs = rhs.clone();
+        *self *= rhs;
+    }
+}
+
+impl<const M: u64> MulAssign<Self> for Poly2<M> {
+    fn mul_assign(&mut self, rhs: Self) {
+        unimplemented!()
+    }
+}
+
 // TODO: CDQ convolution
-// https://codeforces.com/blog/entry/111399
+// https://codeforces.com/blog/entry/1113]9
 
 // TODO: set power series
 // https://codeforces.com/blog/entry/92183

@@ -10,6 +10,7 @@ use ashtl::{
         special::{fibonacci_mod, jacobi},
         zsqrt::ZSqrt,
     },
+    grph::color::{self, k_col},
     lin::mat::Mat,
 };
 use rand::Rng;
@@ -21,15 +22,34 @@ const M: u64 = (15 << 27) + 1;
 
 fn main() -> std::io::Result<()> {
     // put everyone's phones in my thing
-    // bridge tree down to O((n+m)α(n))
     // println!("{}", find_ntt_prime(1 << 27, M << 2));
     let mut rng = rand::rng();
-    let n = 1 << 4;
-    let k = 100;
     let inv = |a: i64| inverse_euclidean::<M, _>(a);
+    let inv_u = |a: i64| inverse_euclidean::<M, _>(a).rem_euclid(M as i64) as u64;
     // let invs = inverses_n_div::<M>(n << 1);
+    let n = 1 << 8;
+    let m = 1 << 9;
+    let k = M as usize - 1;
+    let i = 7;
+    let n = 17;
 
-    // for i in 5..=10 {
+    let mut a = Poly::<M>::new(vec![0; 1 << n]);
+    a.coeff[0] = 1;
+    let mut coeff = Vec::with_capacity(n);
+    for _ in 0..1 << n {
+        coeff.push(rng.random_range(M >> 4..M) as i64);
+    }
+    coeff[0] = 1;
+    let mut a = Poly::<M>::new(coeff);
+    let timer = Instant::now();
+    let mut b = a.clone().sps_pow_bin(k).pos_normalize();
+    println!("{:?}", timer.elapsed());
+    let timer = Instant::now();
+    let mut c = a.clone().sps_pow(k).pos_normalize();
+    println!("{:?}", timer.elapsed());
+    assert_eq!(b, c);
+
+    // for i in 5..=12 {
     //     let k = i;
     //     let n = 1 << i;
     //     println!("{}", n);
@@ -39,26 +59,22 @@ fn main() -> std::io::Result<()> {
     //         coeff.push(rng.random_range(M >> 4..M) as i64);
     //     }
     //     let mut a = Poly::<M>::new(coeff);
-    //     let mut b = a.clone();
-    //     let mut a1 = a.clone();
-    //     let mut b1 = a.clone();
-    //     let mut a2 = a.clone();
-    //     let mut b2 = a.clone();
+    //     a[0] = 1;
     //     let timer = Instant::now();
-    //     let mut c = a.mul_naive(&b);
-    //     println!("{:?}", timer.elapsed());
+    //     let mut b = a.clone().sqrt(n).unwrap();
+    //     println!("sqrt {:?}", timer.elapsed());
     //     let timer = Instant::now();
-    //     let mut e = a * b;
-    //     println!("{:?}", timer.elapsed());
+    //     let mut c = a.clone().pow(inv_u(2) as usize, n);
+    //     println!("pow {:?}", timer.elapsed());
     //     let timer = Instant::now();
-    //     let mut c = a1.mul_naive(&b1);
-    //     println!("{:?}", timer.elapsed());
+    //     let mut b = a.clone().sqrt(n).unwrap();
+    //     println!("sqrt {:?}", timer.elapsed());
     //     let timer = Instant::now();
-    //     let mut e = a2 * b2;
-    //     println!("{:?}", timer.elapsed());
+    //     let mut c = a.clone().pow(inv_u(2) as usize, n);
+    //     println!("pow {:?}", timer.elapsed());
+    //     b = b.pos_normalize().truncate_deg();
     //     c = c.pos_normalize().truncate_deg();
-    //     e = e.pos_normalize().truncate_deg();
-    //     assert_eq!(c, e);
+    //     assert_eq!(b, c);
     // }
 
     // for k in 3..=20 {

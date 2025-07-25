@@ -20,17 +20,17 @@ pub struct Mat<const M: u64> {
 
 impl<const M: u64> Mat<M> {
     #[inline]
-    pub fn eye(n: usize, m: usize) -> Mat<M> {
+    pub fn eye(n: usize, m: usize) -> Self {
         let mut elems = vec![0; n * m];
         for i in 0..n.min(m) {
             elems[(m + 1) * i] = 1;
         }
-        Mat { n, m, elems }
+        Self { n, m, elems }
     }
 
     #[inline]
-    pub fn from_elem(n: usize, m: usize, v: E) -> Mat<M> {
-        Mat {
+    pub fn from_elem(n: usize, m: usize, v: E) -> Self {
+        Self {
             n,
             m,
             elems: vec![v; n * m],
@@ -45,12 +45,12 @@ impl<const M: u64> Mat<M> {
                 elems[i * m + j] = f((i, j));
             }
         }
-        Mat { n, m, elems }
+        Self { n, m, elems }
     }
 
     #[inline]
     pub fn from_slice(n: usize, m: usize, s: &[E]) -> Self {
-        Mat {
+        Self {
             n,
             m,
             elems: s.to_vec(),
@@ -94,8 +94,8 @@ impl<const M: u64> Mat<M> {
     }
 
     #[inline]
-    pub fn transpose(&mut self) -> Mat<M> {
-        Mat::from_fn(self.m, self.n, |(i, j)| self[(j, i)])
+    pub fn transpose(&mut self) -> Self {
+        Self::from_fn(self.m, self.n, |(i, j)| self[(j, i)])
     }
 
     #[inline]
@@ -136,22 +136,22 @@ impl<const M: u64> Mat<M> {
     }
 
     #[inline]
-    pub fn concat_rows(&self, rhs: &Self) -> Mat<M> {
+    pub fn concat_rows(&self, rhs: &Self) -> Self {
         if self.m == 0 {
-            return Mat {
+            return Self {
                 n: self.n,
                 m: rhs.m,
                 elems: rhs.elems.clone(),
             };
         }
         if rhs.m == 0 {
-            return Mat {
+            return Self {
                 n: self.n,
                 m: self.m,
                 elems: self.elems.clone(),
             };
         }
-        Mat {
+        Self {
             n: self.n,
             m: self.m + rhs.m,
             elems: self
@@ -202,8 +202,8 @@ impl<const M: u64> Mat<M> {
     }
 
     #[inline]
-    pub fn pow(self, mut rhs: u32) -> Mat<M> {
-        let mut res = Mat::eye(self.n, self.m);
+    pub fn pow(self, mut rhs: u32) -> Self {
+        let mut res = Self::eye(self.n, self.m);
         let mut a = self;
         while rhs != 0 {
             if rhs & 1 != 0 {
@@ -218,7 +218,7 @@ impl<const M: u64> Mat<M> {
 
     #[inline]
     pub fn diamond(&self, rhs: &Self) -> Self {
-        let mut c = Mat::from_elem(self.n, rhs.m, 0);
+        let mut c = Self::from_elem(self.n, rhs.m, 0);
         for i in 0..self.n {
             let row_a = &self[i];
             let row_c = &mut c[i];
@@ -343,9 +343,9 @@ impl<const M: u64> Mat<M> {
         res
     }
 
-    pub fn inv(&self, mut f: impl FnMut(usize), g: impl FnMut(usize)) -> (E, usize, Mat<M>) {
+    pub fn inv(&self, mut f: impl FnMut(usize), g: impl FnMut(usize)) -> (E, usize, Self) {
         let n = self.n;
-        let mut a = self.concat_rows(&Mat::eye(n, n));
+        let mut a = self.concat_rows(&Self::eye(n, n));
         let mut rk = 0;
         a.echelonize::<1>(
             |i| {
@@ -360,7 +360,7 @@ impl<const M: u64> Mat<M> {
             return (
                 0,
                 rk,
-                Mat {
+                Self {
                     n: 0,
                     m: 0,
                     elems: vec![],
@@ -378,7 +378,7 @@ impl<const M: u64> Mat<M> {
             row_i.iter_mut().for_each(|i| *i *= a_ii_inv);
         }
         let mut counter = 0;
-        let mut inv = Mat {
+        let mut inv = Self {
             n: self.n,
             m: self.m,
             elems: a
@@ -397,7 +397,7 @@ impl<const M: u64> Mat<M> {
         (det, rk, inv)
     }
 
-    pub fn ker(&self, mut f: impl FnMut(usize), mut g: impl FnMut(usize)) -> Mat<M> {
+    pub fn ker(&self, mut f: impl FnMut(usize), mut g: impl FnMut(usize)) -> Self {
         let mut a = self.clone();
         let mut pivots = Vec::with_capacity(a.m);
         let mut free = Vec::with_capacity(a.m);
@@ -411,7 +411,7 @@ impl<const M: u64> Mat<M> {
                 g(j)
             },
         );
-        let mut sols = Mat::from_elem(free.len(), a.m, 0);
+        let mut sols = Self::from_elem(free.len(), a.m, 0);
         for j in 0..pivots.len() {
             let b = inverse_euclidean::<M, _>(a[(j, pivots[j])] as i64) as E;
             for i in 0..free.len() {
@@ -424,12 +424,7 @@ impl<const M: u64> Mat<M> {
         sols
     }
 
-    pub fn solve(
-        &self,
-        t: &Mat<M>,
-        f: impl FnMut(usize),
-        g: impl FnMut(usize),
-    ) -> Option<[Mat<M>; 2]> {
+    pub fn solve(&self, t: &Self, f: impl FnMut(usize), g: impl FnMut(usize)) -> Option<[Self; 2]> {
         let a = self.concat_rows(t);
         let sols = a.ker(f, g);
         if sols.n < t.m {
@@ -444,14 +439,14 @@ impl<const M: u64> Mat<M> {
                 }
             }
         }
-        let mut x_t = Mat::from_elem(t.m, self.m, 0);
+        let mut x_t = Self::from_elem(t.m, self.m, 0);
         for i in 0..t.m {
             x_t[i]
                 .iter_mut()
                 .zip(&sols[sols.n - t.m + i])
                 .for_each(|(i, &j)| *i = j);
         }
-        let mut ker = Mat::from_elem(sols.n - t.m, self.m, 0);
+        let mut ker = Self::from_elem(sols.n - t.m, self.m, 0);
         for i in 0..sols.n - t.m {
             ker[i].iter_mut().zip(&sols[i]).for_each(|(i, &j)| *i = j);
         }
@@ -509,11 +504,10 @@ impl<const M: u64> IndexMut<(usize, usize)> for Mat<M> {
     }
 }
 
-/// TODO: this is wrong somehow
 impl<const M: u64> PartialEq for Mat<M> {
     fn eq(&self, other: &Self) -> bool {
         for (a, b) in self.elements().zip(other.elements()) {
-            if a != b {
+            if (a - b) % M as E != 0 {
                 return false;
             }
         }
