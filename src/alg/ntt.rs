@@ -2,6 +2,7 @@ use super::{
     ops::{inverse_euclidean, mod_pow_pow_two, mod_pow_pow_two_signed},
     prime::miller_rabin,
     primitive::find_ntt_root,
+    sieve,
 };
 
 pub fn find_ntt_prime(n: u64, b: u64) -> u64 {
@@ -11,6 +12,21 @@ pub fn find_ntt_prime(n: u64, b: u64) -> u64 {
         }
     }
     0
+}
+
+pub fn find_ntt_prime_min_big_omega(n: u64, b: u64) -> (u64, u64) {
+    let (mut cur_big_omega, mut cur_k) = (usize::MAX, 0);
+    let big_omega = sieve::big_omega(((b - 1) / n) as usize).0;
+    for k in (0..(b - 1) / n).rev() {
+        if miller_rabin(k * n + 1) {
+            if big_omega[k as usize] < cur_big_omega
+                || (big_omega[k as usize] == cur_big_omega && k > cur_k)
+            {
+                (cur_big_omega, cur_k) = (big_omega[k as usize], k);
+            }
+        }
+    }
+    return (cur_big_omega as u64, cur_k);
 }
 
 // TODO: improve NTT performance
@@ -28,12 +44,9 @@ pub fn ntt<const M: u64>(a: &mut [i64]) {
     while k < n {
         let x =
             mod_pow_pow_two::<M>(find_ntt_root::<M>(), (M - 1).trailing_zeros() as u64 - s) as i64;
-        for i in k..2 * k {
-            rt[i] = if i & 1 != 0 {
-                rt[i >> 1] * x % M as i64
-            } else {
-                rt[i >> 1]
-            };
+        for i in (k..k << 1).step_by(2) {
+            rt[i] = rt[i >> 1];
+            rt[i + 1] = rt[i >> 1] * x % M as i64;
         }
         k <<= 1;
         s += 1;
@@ -45,11 +58,8 @@ pub fn ntt<const M: u64>(a: &mut [i64]) {
             for j in 0..k {
                 let (ij, ijk) = (i + j, i + j + k);
                 let a_ij = a[ij];
-                a[ij] += a[ijk];
-                a[ijk] = a_ij - a[ijk];
-                a[ijk] *= rt[j + k];
-                a[ij] %= M as i64;
-                a[ijk] %= M as i64;
+                a[ij] = (a_ij + a[ijk]) % M as i64;
+                a[ijk] = rt[j + k] * (a_ij - a[ijk]) % M as i64;
             }
             i += k << 1;
         }
@@ -71,12 +81,9 @@ pub fn intt<const M: u64>(a: &mut [i64]) {
             inverse_euclidean::<M, _>(find_ntt_root::<M>() as i64),
             (M - 1).trailing_zeros() as u64 - s,
         ) as i64;
-        for i in k..2 * k {
-            rt[i] = if i & 1 != 0 {
-                rt[i >> 1] * x % M as i64
-            } else {
-                rt[i >> 1]
-            };
+        for i in (k..k << 1).step_by(2) {
+            rt[i] = rt[i >> 1];
+            rt[i + 1] = rt[i >> 1] * x % M as i64;
         }
         k <<= 1;
         s += 1;
@@ -88,10 +95,8 @@ pub fn intt<const M: u64>(a: &mut [i64]) {
             for j in 0..k {
                 let (ij, ijk) = (i + j, i + j + k);
                 let z = rt[j + k] * a[ijk];
-                a[ijk] = a[ij] - z;
-                a[ij] += z;
-                a[ij] %= M as i64;
-                a[ijk] %= M as i64;
+                a[ijk] = (a[ij] - z) % M as i64;
+                a[ij] = (a[ij] + z) % M as i64;
             }
             i += k << 1;
         }
@@ -104,12 +109,7 @@ pub fn intt<const M: u64>(a: &mut [i64]) {
 }
 
 pub fn ntt_conv<const M: u64>(a: &mut Vec<i64>, b: &mut Vec<i64>) {
-    let deg = |a: &[i64]| {
-        a.iter().rposition(|&i| i != 0).or_else(|| {
-            a.first()
-                .map_or(None, |&v| if v != 0 { Some(a.len()) } else { None })
-        })
-    };
+    let deg = |a: &[i64]| a.iter().rposition(|&i| i % M as i64 != 0);
     let d0 = deg(a);
     let d1 = deg(b);
     if let Some(d0) = d0
@@ -128,7 +128,7 @@ pub fn ntt_conv<const M: u64>(a: &mut Vec<i64>, b: &mut Vec<i64>) {
 }
 
 pub fn ntt_conv_self<const M: u64>(a: &mut Vec<i64>) {
-    let d = a.iter().rposition(|&v| v != 0);
+    let d = a.iter().rposition(|&i| i % M as i64 != 0);
     if let Some(d) = d {
         let n = ((d << 1) + 1).next_power_of_two();
         a.resize(n, 0);

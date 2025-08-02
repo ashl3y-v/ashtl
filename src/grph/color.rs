@@ -115,23 +115,15 @@ pub fn chi<const M: u64>(adj: &[usize]) -> usize {
         }
         f[i] = 1;
     }
-    let f = Poly::<M>::new(f);
-    let mut pref = Poly::<M>::from_elem(0, 1 << n);
-    pref.coeff[0] = 1;
-    let mut pref_changed = false;
+    let f = Poly::<M>::new(f).sps_log().unwrap();
     let mut l = 0;
     let mut r = n;
     while l != r {
         let m = l + (r - l >> 1);
-        let mut t = f.clone().sps_pow(m - l);
-        if pref_changed {
-            t = t.sps_mul(&pref);
-        };
-        (l, r) = if t[(1 << n) - 1] != 0 {
+        let t = (f.clone() * m as i64).sps_exp().unwrap();
+        (l, r) = if t[(1 << n) - 1] % M as i64 != 0 {
             (l, m - 1)
         } else {
-            pref = t;
-            pref_changed = true;
             (m + 1, r)
         };
     }

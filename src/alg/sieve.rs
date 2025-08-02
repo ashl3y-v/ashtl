@@ -44,8 +44,8 @@ pub fn sieve<T: Clone>(
     mut on_pk: impl FnMut(usize, u32, &[T]) -> T,
 ) -> (Vec<T>, BitVec, Vec<usize>, Vec<u32>) {
     let mut is_composite = BitVec::from_elem(n, false);
-    let mut primes = Vec::with_capacity(n / n.ilog2() as usize);
-    let mut known = Vec::with_capacity(n / n.ilog2() as usize);
+    let mut primes = Vec::with_capacity(n as usize);
+    let mut known = Vec::with_capacity(n as usize);
     let mut cnt = vec![0; n];
     let mut f = vec![id.clone(); n];
     for i in 2..n {

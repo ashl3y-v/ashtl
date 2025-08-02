@@ -95,15 +95,15 @@ pub fn factor_dedup(n: usize) -> Vec<usize> {
 }
 
 /// O(n^1/4 log^2 n)
-pub fn divisors(n: usize) -> Vec<usize> {
+pub fn divisors(n: usize) -> (Vec<usize>, Vec<(usize, u32)>) {
     if n == 0 {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     } else if n == 1 {
-        return vec![1];
+        return (vec![1], vec![(1, 1)]);
     }
     let prime_factors = factor_mult(n);
     let mut result = vec![1];
-    for (prime, power) in prime_factors {
+    for &(prime, power) in &prime_factors {
         let current_len = result.len();
         let mut prime_power = prime;
         for _ in 1..=power {
@@ -114,7 +114,7 @@ pub fn divisors(n: usize) -> Vec<usize> {
         }
     }
     result.sort_unstable();
-    result
+    (result, prime_factors)
 }
 
 // TODO: fast prime counting

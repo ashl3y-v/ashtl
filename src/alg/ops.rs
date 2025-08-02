@@ -1,7 +1,7 @@
-use super::poly::Affine;
+use super::{gcd::euclidean, poly::Affine, primitive::find_primitive_root};
 use std::{
     collections::HashMap,
-    ops::{Div, Mul, Rem, Sub},
+    ops::{Div, Mul, Neg, Rem, Sub},
 };
 
 pub fn mod_fact<const M: u64>(n: u64) -> u64 {
@@ -70,6 +70,7 @@ pub fn mod_binom<const M: u64>(mut n: u64, mut k: u64) -> u64 {
 }
 
 pub const fn mod_pow<const M: u64>(mut a: u64, mut b: u64) -> u64 {
+    a %= M;
     let mut ab = 1;
     while b != 0 {
         if b & 1 != 0 {
@@ -85,6 +86,7 @@ pub const fn mod_pow<const M: u64>(mut a: u64, mut b: u64) -> u64 {
 }
 
 pub const fn mod_pow_signed<const M: u64>(mut a: i64, mut b: u64) -> i64 {
+    a %= M as i64;
     let mut ab = 1;
     while b != 0 {
         if b & 1 != 0 {
@@ -168,7 +170,8 @@ pub fn inverses<const M: u64, T>(a: &[T]) -> Vec<T>
 where
     T: Copy
         + Default
-        + PartialEq
+        + PartialOrd
+        + Neg<Output = T>
         + Mul<Output = T>
         + Sub<Output = T>
         + Div<Output = T>
@@ -193,10 +196,21 @@ where
 #[inline]
 pub fn inverse_euclidean<const M: u64, T>(a: T) -> T
 where
-    T: Copy + Default + PartialEq + Sub<Output = T> + Mul<Output = T> + Div<Output = T>,
+    T: Copy
+        + Default
+        + PartialOrd
+        + Neg<Output = T>
+        + Sub<Output = T>
+        + Mul<Output = T>
+        + Div<Output = T>,
     i64: Into<T>,
 {
-    let (mut t, mut nt, mut r, mut nr) = (T::default(), 1.into(), (M as i64).into(), a);
+    let (mut t, mut nt, mut r, mut nr) = (
+        T::default(),
+        1.into(),
+        (M as i64).into(),
+        if a < T::default() { -a } else { a },
+    );
     while nr != T::default() {
         let q = r / nr;
         (t, nt) = (nt, t - q * nt);
@@ -205,7 +219,7 @@ where
     if r != 1.into() {
         return T::default();
     }
-    t
+    if a >= T::default() { t } else { -t }
 }
 
 #[inline]
@@ -258,6 +272,8 @@ pub fn discrete_log<const M: u64>(a: u64, b: u64) -> Option<usize> {
 pub fn mod_sqrt<const M: u64>(b: u64) -> Option<u64> {
     if b == 0 {
         return Some(0);
+    } else if b == 1 {
+        return Some(1);
     }
     let exp = (M - 1) / 2;
     if mod_pow::<M>(b, exp) != 1 {
@@ -286,6 +302,44 @@ pub fn mod_sqrt<const M: u64>(b: u64) -> Option<u64> {
             }
         }
     }
+}
+
+/// if odd part of k is coprime with M-1 then O(polylog M) else O(√M)
+#[inline]
+pub fn mod_k_rt<const M: u64>(mut a: u64, mut k: usize) -> Option<u64> {
+    a %= M;
+    if a == 0 {
+        return Some(0);
+    } else if a == 1 {
+        return Some(1);
+    } else if k == 1 || (k == 0 && a == 0) {
+        return Some(a);
+    }
+    const fn phi<const M: u64>() -> u64 {
+        M - 1
+    }
+    while k & 1 == 0 {
+        a = mod_sqrt::<M>(a)?;
+        k >>= 1;
+    }
+    let phi = phi::<M>();
+    let (gcd, x, _) = euclidean(k as i128, phi as i128);
+    if gcd == 1 {
+        let k_inv = inverse_euclidean_non_const(k as u64, phi);
+        return Some(mod_pow::<M>(a, k_inv));
+    }
+    let g = find_primitive_root::<M>();
+    let alpha = discrete_log::<M>(g, a)?;
+    let (gcd, x) = (
+        gcd.rem_euclid(M as i128) as usize,
+        x.rem_euclid(M as i128) as usize,
+    );
+    if alpha % gcd != 0 {
+        return None;
+    }
+    let (alpha_r, phi_r) = (alpha / gcd, phi as usize / gcd);
+    let beta = (alpha_r * x).rem_euclid(phi_r);
+    Some(mod_pow::<M>(g, beta as u64))
 }
 
 #[cfg(test)]

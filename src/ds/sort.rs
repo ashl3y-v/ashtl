@@ -12,8 +12,8 @@ pub fn counting_sort(a: &mut [usize], k: usize) -> &mut [usize] {
         let c = counts[v];
         for _ in 0..c {
             a[i] = v;
+            i += 1;
         }
-        i += c;
     }
     a
 }

@@ -77,10 +77,10 @@ impl SAT2 {
 
         self.values = vec![false; self.n];
         for i in 0..self.n {
-            if comp[2 * i] == comp[2 * i + 1] {
+            if comp[i << 1] == comp[i << 1 | 1] {
                 return false;
             }
-            self.values[i] = comp[2 * i] < comp[2 * i + 1];
+            self.values[i] = comp[i << 1] < comp[i << 1 | 1];
         }
         true
     }
