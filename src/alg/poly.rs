@@ -390,46 +390,6 @@ impl<const M: u64> Poly<M> {
         Self::prod_1pzitx(b, -a, n, n + 1).reverse_k(n)
     }
 
-    // TODO: half-gcd algorithm
-    // https://codeforces.com/blog/entry/101850
-    /// O(n log^2 n)
-    pub fn half_gcd(self) {
-        unimplemented!();
-    }
-
-    /// O(n log^2 n)
-    pub fn full_gcd(self) {
-        unimplemented!();
-    }
-
-    /// O(s log^2 s)
-    pub fn convergent() {
-        unimplemented!()
-    }
-
-    // https://codeforces.com/blog/entry/101628
-    // https://judge.yosupo.jp/submission/196170
-    /// O(d log^2 d)
-    pub fn min_rec(self) {
-        unimplemented!();
-    }
-
-    /// O(n log^2 n)
-    pub fn inv_mod() {
-        unimplemented!()
-    }
-
-    /// O(n log^2 n)
-    #[inline]
-    pub fn resultant(self) -> E {
-        unimplemented!()
-    }
-
-    // https://judge.yosupo.jp/problem/polynomial_root_finding
-    pub fn roots() {
-        unimplemented!()
-    }
-
     #[inline]
     pub fn sub_xk(mut self, k: usize) -> Self {
         if k == 1 {
@@ -746,6 +706,7 @@ impl<const M: u64> Poly<M> {
         Some(e_k)
     }
 
+    /// O(n log n)
     pub fn exp_and_inv(&self, n: usize) -> Option<(Self, Self)> {
         if self.coeff.get(0).copied().unwrap_or(0) % M as E != 0 {
             return None;
@@ -1357,6 +1318,43 @@ impl<const M: u64> Poly<M> {
     }
 
     /// O(n log n)
+    pub fn inv_sqrt(&self, n: usize) -> Option<Self> {
+        if *self.coeff.get(0).unwrap_or(&0) == 0 {
+            return None;
+        }
+        let st =
+            inverse_euclidean::<M, _>(mod_sqrt::<M>(self.coeff[0].rem_euclid(M as E) as u64)? as E);
+        if self.deg_or_0().min(n) <= 1 << 9 {
+            return Some(
+                (self.clone() / self.coeff[0])
+                    .normalize()
+                    .pow(
+                        M as usize - inverse_euclidean::<M, _>(2_i64).rem_euclid(M as i64) as usize,
+                        n,
+                    )
+                    .normalize()
+                    * st,
+            );
+        }
+        let half = inverse_euclidean::<M, _>(2);
+        let mut g = Self::from_elem(st as E, 1);
+        let mut k = 1;
+        while k < n {
+            let g_ntt = g.clone().resize(k << 1).ntt();
+            let mut f = g_ntt.clone().dot_self().intt().normalize();
+            f = (f.mod_xn(k << 1) * self.clone_mod_xn(k << 1)).mod_xn(k << 1);
+            f >>= k;
+            f = f.resize(k << 1).ntt().dot(&g_ntt).intt().mod_xn(k << 1);
+            g = g.resize(k << 1);
+            for i in k..k << 1 {
+                g.coeff[i] = -f.coeff[i - k] % M as E * half % M as E;
+            }
+            k <<= 1;
+        }
+        Some(g)
+    }
+
+    /// O(n log n)
     pub fn sqrt_and_inv(&self, n: usize) -> Option<(Self, Option<Self>)> {
         if self.is_zero() {
             return Some((Self::from_elem(0, 0), None));
@@ -1376,6 +1374,26 @@ impl<const M: u64> Poly<M> {
         let half = inverse_euclidean::<M, _>(2);
         let st = mod_sqrt::<M>(self.coeff[0].rem_euclid(M as E) as u64)?;
         let st_inv = inverse_euclidean::<M, _>(st as E);
+        if self.deg_or_0().min(n) <= 1 << 9 {
+            let s = (self.clone() / self.coeff[0]).normalize();
+            return Some((
+                s.clone()
+                    .pow(
+                        inverse_euclidean::<M, _>(2_i64).rem_euclid(M as i64) as usize,
+                        n,
+                    )
+                    .normalize()
+                    * st as E,
+                Some(
+                    s.pow(
+                        M as usize - inverse_euclidean::<M, _>(2_i64).rem_euclid(M as i64) as usize,
+                        n,
+                    )
+                    .normalize()
+                        * st_inv as E,
+                ),
+            ));
+        }
         let (mut f, mut g, mut z, mut delta, mut gbuf) = (
             Self::from_elem(st as E, 1),
             Self::from_elem(st_inv as E, 1),
@@ -2077,7 +2095,19 @@ impl<const M: u64> Poly<M> {
     /// O(n)
     #[inline]
     pub fn exp_x(n: usize) -> Self {
-        Self::new(vec![1; n]).borel()
+        Self::from_elem(1, n).borel()
+    }
+
+    /// O(n)
+    #[inline]
+    pub fn q_exp_x(n: usize, q: E) -> Self {
+        Self::from_elem(1, n).q_borel(q)
+    }
+
+    /// O(n)
+    #[inline]
+    pub fn q_poch_exp_x(n: usize, q: E) -> Self {
+        Self::from_elem(1, n).q_poch_trans(q)
     }
 
     /// O(n)
@@ -2157,10 +2187,7 @@ impl<const M: u64> Poly<M> {
         Self::new(p).exp(n).unwrap()
     }
 
-    // sum_{d | k} μ(k/d) exp(sum_{m | d} z^m/m)
-    // = sum_{d | k} μ(k/d) |Hom(Z_k, S_n)| z^n/n!
-
-    /// O(k^1/4 + d(k) n log n) = O(k^1/4 + exp(O(log k / log log k)) n log n) = O(n^{1 + log 2 / log log n} log n)
+    /// O(k^1/4 + d(k) n log n) = O(k^1/4 + exp(O(log k / log log k)) n log n) = O(k^1/4 + n^{1 + log 2 / log log n} log n)
     pub fn s_i_order_k(k: usize, n: usize) -> Self {
         let mut p = Self::from_elem(0, n);
         let mobius = sieve::mobius(k + 1).0;
@@ -2601,32 +2628,6 @@ impl<const M: u64> Poly<M> {
         }
     }
 
-    /// O(n^3/2)
-    #[inline]
-    pub fn partition_pent(n: usize) -> Self {
-        let mut p = vec![0; n];
-        p[0] = 1;
-        for i in 1..n {
-            let mut acc = 0;
-            for k in 1.. {
-                let pent1 = k * (3 * k - 1) >> 1;
-                if pent1 > i {
-                    break;
-                }
-                let sign = if k & 1 == 1 { 1 } else { -1 };
-                acc += &p[i - pent1] * sign;
-                let pent2 = k * (3 * k + 1) >> 1;
-                if pent2 > i {
-                    continue;
-                }
-                acc += &p[i - pent2] * sign;
-                acc %= M as E;
-            }
-            p[i] = acc;
-        }
-        Self::new(p)
-    }
-
     /// O(n log n)
     #[inline]
     pub fn log_q_fact(k: usize, n: usize) -> Self {
@@ -3007,17 +3008,16 @@ impl<const M: u64> Poly<M> {
     }
 
     /// O(n log n)
-    pub fn mat_rank_i_fq(k: u64, n: usize, q: u64) -> Self {
-        (Self::from_elem(1, n)
-            .mulx_a(mod_pow::<M>(q, k) as E)
-            .q_borel(q as E)
-            * Self::from_elem(1, n)
-                .n1pkmi(0)
-                .mulx_apic2(q as E)
-                .q_borel(q as E))
+    pub fn subspaces_fq_i(n: usize, q: E) -> Self {
+        Self::q_exp_x(n, q).square()
+    }
+
+    /// O(n log n)
+    pub fn mat_rank_i_fq_k(k: u64, n: usize, q: E) -> Self {
+        (Self::q_exp_x(n, q).mulx_a(mod_pow::<M>(q.rem_euclid(M as E) as u64, k) as E)
+            * Self::q_exp_x(n, q).mulx_apic2_ti(q, -1))
         .mod_xn(n)
-        .inv_q_borel(q as E)
-        .kqci(k as usize, q as E)
+        .kqci(k as usize, q)
     }
 
     /// O(n)
@@ -3064,6 +3064,19 @@ impl<const M: u64> Poly<M> {
             .for_each(|(i, j)| *i = *i * qm1_inv % M as E * j % M as E);
         s.coeff[0] = 1;
         s
+    }
+
+    /// O(n log n)
+    pub fn connected_graphs(n: usize) -> Self {
+        Self::exp_x(n).mulx_apic2(2).log(n).unwrap()
+    }
+
+    /// O(n log n)
+    pub fn acyclic_digraphs(n: usize) -> Self {
+        Self::exp_x(n)
+            .mulx_apic2_ti(inverse_euclidean::<M, _>(2), -1)
+            .inv(n)
+            .unwrap()
     }
 
     /// O(n log n)
@@ -3271,15 +3284,6 @@ impl<const M: u64> Poly<M> {
         a
     }
 
-    // [n,k] = (n-1)! 1/(k-1)! [z^{n-k}] (z/(1-e^-z))^n
-    /// O(n log n)
-    #[inline]
-    pub fn stirling1_new(n: usize) -> Self {
-        let p = ((Self::bernoulli(n).pow(n, n + 1).reverse_k(n) >> 1).borel())
-            * mod_fact::<M>(n as u64 - 1) as E;
-        p
-    }
-
     /// O(n log n)
     #[inline]
     pub fn stirling1_unsigned(n: usize) -> Self {
@@ -3330,7 +3334,7 @@ impl<const M: u64> Poly<M> {
 
     /// O(n)
     pub fn elem_symm_geometric(a: E, b: E, n: usize) -> Self {
-        Self::prod_geometric(a, b, n).reverse().n1pkmi(0)
+        Self::prod_1pzitx(b, a, n, n + 1)
     }
 
     /// O(n log n)
@@ -3401,6 +3405,8 @@ impl<const M: u64> Poly<M> {
     pub fn inv_borel(mut self) -> Self {
         self = self.truncate_deg();
         let mut a = 1;
+        self.coeff[0] %= M as E;
+        self.coeff[1] %= M as E;
         self.coeff
             .iter_mut()
             .enumerate()
@@ -3418,6 +3424,8 @@ impl<const M: u64> Poly<M> {
         let d;
         (self, d) = self.truncate_and_deg_or_0();
         let mut a = mod_rfact::<M>(d as u64);
+        self.coeff[0] %= M as E;
+        self.coeff[1] %= M as E;
         self.coeff
             .iter_mut()
             .enumerate()
@@ -3480,6 +3488,47 @@ impl<const M: u64> Poly<M> {
     // TODO: shift points
     #[inline]
     pub fn shift_pts(self, a: E) -> Self {
+        unimplemented!()
+    }
+
+    // TODO: half-gcd algorithm
+    // https://codeforces.com/blog/entry/101850
+    /// O(n log^2 n)
+    pub fn half_gcd(self) {
+        unimplemented!();
+    }
+
+    /// O(n log^2 n)
+    pub fn full_gcd(self) {
+        unimplemented!();
+    }
+
+    /// O(s log^2 s)
+    pub fn convergent() {
+        unimplemented!()
+    }
+
+    // https://codeforces.com/blog/entry/101628
+    // https://judge.yosupo.jp/submission/196170
+    /// O(d log^2 d)
+    pub fn min_rec(self) {
+        unimplemented!();
+    }
+
+    /// O(n log^2 n)
+    pub fn inv_mod() {
+        unimplemented!()
+    }
+
+    /// O(n log^2 n)
+    #[inline]
+    pub fn resultant(self) -> E {
+        unimplemented!()
+    }
+
+    // TODO: root finding
+    // https://judge.yosupo.jp/problem/polynomial_root_finding
+    pub fn roots() {
         unimplemented!()
     }
 

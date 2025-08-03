@@ -1,12 +1,14 @@
-use ashtl::alg::{
-    ntt::{find_ntt_prime, find_ntt_prime_min_big_omega},
-    ops::{self, inverse_euclidean, mod_pow},
-    poly::{Poly, Poly2},
-    primitive::find_primitive_root,
-    sieve,
+use ashtl::{
+    alg::{
+        ops::{self, inverse_euclidean, mod_pow},
+        poly::{Poly, Poly2},
+        sieve,
+    },
+    ds::set,
+    grph::color,
 };
 use rand::Rng;
-use std::time::Instant;
+use std::{collections::HashSet, time::Instant};
 
 // const M: u64 = (119 << 23) + 1;
 // const M: u64 = (7 << 26) + 1;
@@ -25,15 +27,11 @@ fn main() -> std::io::Result<()> {
     let inv = |a: i64| inverse_euclidean::<M, _>(a);
     let inv_u = |a: i64| inverse_euclidean::<M, _>(a).rem_euclid(M as i64) as u64;
     // // let invs = inverses_n_div::<M>(n << 1);
-    let n = 1 << 4;
+    let n = 1 << 8;
     let m = 1 << 4;
     let k = M as usize - 1;
     let i = 7;
-    let q = 3;
-
-    let a = Poly::<M>::stirling1(8).neg_normalize();
-    let b = Poly::<M>::stirling1_new(8).neg_normalize();
-    println!("{:?}\n{:?}", a, b);
+    let q = 2;
 
     // let timer = Instant::now();
     // let a = Poly::<M>::log_prod_1pxit(1..7, 3, n).pos_normalize();

@@ -1,9 +1,7 @@
+use crate::{alg::lattice, ds::set::UbIntSet};
 use bit_vec::BitVec;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap};
 
-use crate::alg::poly::Poly;
-
-/// O((n + m) n!)
 pub fn chromatic_number(adj: &[Vec<usize>]) -> usize {
     let n = adj.len();
     let mut ans = n + 1;
@@ -44,14 +42,14 @@ pub fn chromatic_number(adj: &[Vec<usize>]) -> usize {
     ans
 }
 
-// DSatur greedy coloring
-// O((n + m) log n)
+/// DSatur greedy coloring
+/// O((n + m) log n)
 pub fn dsatur(adj: &[Vec<usize>]) -> (HashMap<usize, usize>, usize) {
     let n = adj.len();
     let mut deg = vec![0; n];
     let mut q = BinaryHeap::with_capacity(n);
     let mut cols = HashMap::with_capacity(n);
-    let mut adj_cols = vec![HashSet::new(); n];
+    let mut adj_cols = vec![UbIntSet::new(n); n];
     let mut seen = BitVec::from_elem(n, false);
     let mut max_col = 0;
     for u in 0..n {
@@ -65,10 +63,7 @@ pub fn dsatur(adj: &[Vec<usize>]) -> (HashMap<usize, usize>, usize) {
         }
         seen.set(u, true);
         let adj_col = &adj_cols[u];
-        let mut col = 0;
-        while adj_col.contains(&col) {
-            col += 1;
-        }
+        let col = adj_col.exsucc(0);
         cols.insert(u, col);
         max_col = max_col.max(col);
         for &v in &adj[u] {
@@ -81,14 +76,14 @@ pub fn dsatur(adj: &[Vec<usize>]) -> (HashMap<usize, usize>, usize) {
     (cols, max_col + 1)
 }
 
-/// O(2^n n^2)
-pub fn k_col<const M: u64>(k: usize, adj: &[usize]) -> bool {
+/// O(2^n n)
+pub fn k_col(k: usize, adj: &[usize]) -> bool {
     let n = adj.len();
-    let mut f = vec![0; 1 << n];
+    let mut f = vec![0_i64; 1 << n];
     'a: for i in 0..1_usize << n {
         for v in 0..n {
             if i & 1 << v != 0 {
-                if (adj[v] & i) != 0 {
+                if adj[v] & i != 0 {
                     f[i] = 0;
                     continue 'a;
                 }
@@ -96,42 +91,96 @@ pub fn k_col<const M: u64>(k: usize, adj: &[usize]) -> bool {
         }
         f[i] = 1;
     }
-    let f = Poly::<M>::new(f).sps_pow(k);
-    f[(1 << n) - 1] != 0
-}
-
-/// O(2^n n^2 log n)
-pub fn chi<const M: u64>(adj: &[usize]) -> usize {
-    let n = adj.len();
-    let mut f = vec![0; 1 << n];
-    'a: for i in 0..1_usize << n {
-        for v in 0..n {
-            if i & 1 << v != 0 {
-                if (adj[v] & i) != 0 {
-                    f[i] = 0;
-                    continue 'a;
-                }
-            }
-        }
-        f[i] = 1;
-    }
-    let f = Poly::<M>::new(f).sps_log().unwrap();
-    let mut l = 0;
-    let mut r = n;
-    while l != r {
-        let m = l + (r - l >> 1);
-        let t = (f.clone() * m as i64).sps_exp().unwrap();
-        (l, r) = if t[(1 << n) - 1] % M as i64 != 0 {
-            (l, m - 1)
+    lattice::xor(&mut f);
+    f.iter_mut().for_each(|i| *i = i.wrapping_pow(k as u32));
+    let mut t = 0;
+    for i in 0..1_usize << n {
+        if i.count_ones() & 1 == 0 {
+            t += f[i]
         } else {
-            (m + 1, r)
+            t -= f[i]
         };
     }
-    l
+    t != 0
+}
+
+/// O(2^n n)
+pub fn chi(adj: &[usize]) -> usize {
+    let n = adj.len();
+    let mut f = vec![0_i64; 1 << n];
+    'a: for i in 0..1_usize << n {
+        for v in 0..n {
+            if i & 1 << v != 0 {
+                if adj[v] & i != 0 {
+                    f[i] = 0;
+                    continue 'a;
+                }
+            }
+        }
+        f[i] = 1;
+    }
+    let mut g = f.clone();
+    lattice::xor(&mut g);
+    let mut f = g.clone();
+    for i in 1..=n {
+        let mut t = 0;
+        for i in 0..1_usize << n {
+            if i.count_ones() & 1 == 0 {
+                t += f[i]
+            } else {
+                t -= f[i]
+            };
+        }
+        if t != 0 {
+            return i;
+        }
+        f.iter_mut()
+            .zip(&g)
+            .for_each(|(i, &j)| *i = i.wrapping_mul(j));
+    }
+    usize::MAX
+}
+
+/// O(2^n n)
+pub fn clique_cover_number(adj: &[usize]) -> usize {
+    let n = adj.len();
+    let mut f = vec![0_i64; 1 << n];
+    'a: for i in 0..1_usize << n {
+        for v in 0..n {
+            if i & 1 << v != 0 {
+                if adj[v] & i & !(1 << v) != i & !(1 << v) {
+                    f[i] = 0;
+                    continue 'a;
+                }
+            }
+        }
+        f[i] = 1;
+    }
+    let mut g = f.clone();
+    lattice::xor(&mut g);
+    let mut f = g.clone();
+    for i in 1..=n {
+        let mut t = 0;
+        for i in 0..1_usize << n {
+            if i.count_ones() & 1 == 0 {
+                t += f[i]
+            } else {
+                t -= f[i]
+            };
+        }
+        if t != 0 {
+            return i;
+        }
+        f.iter_mut()
+            .zip(&g)
+            .for_each(|(i, &j)| *i = i.wrapping_mul(j));
+    }
+    usize::MAX
 }
 
 // TODO: chromatic poly
 // https://judge.yosupo.jp/submission/214976
+// https://codeforces.com/blog/entry/92183
 pub fn chromatic_poly() {}
 
 // TODO: edge coloring

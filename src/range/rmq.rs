@@ -3,18 +3,19 @@ use std::{
     ops::{Bound, RangeBounds},
 };
 
-type BType = u32;
-const B: usize = BType::BITS as usize;
+type E = u64;
+const B: usize = E::BITS as usize;
+
 pub struct RMQ<F: FnMut(usize, usize) -> Ordering> {
     n: usize,
     f: F,
-    mask: Vec<BType>,
+    mask: Vec<E>,
     st: Vec<usize>,
 }
 
 impl<F: FnMut(usize, usize) -> Ordering> RMQ<F> {
     pub fn new(n: usize, mut f: F) -> Self {
-        let mut curr_mask: BType = 0;
+        let mut curr_mask: E = 0;
         let mut mask = Vec::with_capacity(n);
         for i in 0..n {
             curr_mask = curr_mask << 1;

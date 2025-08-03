@@ -6,5 +6,6 @@ pub mod knapsack;
 pub mod matroid;
 pub mod queue;
 pub mod score;
+pub mod set;
 pub mod sort;
 pub mod stack;

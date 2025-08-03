@@ -10,6 +10,7 @@ pub mod isomorphism;
 pub mod krt;
 pub mod lct;
 pub mod li_chao;
+pub mod mst;
 pub mod reroot;
 pub mod splay;
 pub mod top;
