@@ -124,7 +124,7 @@ pub fn pi(n: usize) -> usize {
     1
 }
 
-// TODO: divisor lattice and codivisor lattice as graphs
+// TODO: divisor lattice and multiple lattice as graphs
 
 #[cfg(test)]
 mod tests {

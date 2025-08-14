@@ -14,6 +14,5 @@ pub fn hilbert(mut x: u64, mut y: u64, k: u64) -> u64 {
         y ^= mask;
         s >>= 1;
     }
-
     d
 }

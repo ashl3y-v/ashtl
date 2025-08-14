@@ -4,6 +4,7 @@ pub mod hilbert;
 pub mod interval_container;
 pub mod interval_cover;
 pub mod lagrange;
+pub mod line;
 pub mod line_container;
 pub mod line_deque;
 pub mod pair;

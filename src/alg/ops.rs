@@ -9,11 +9,11 @@ pub fn mod_fact<const M: u64>(n: u64) -> u64 {
 }
 
 pub fn mod_rfact<const M: u64>(n: u64) -> i64 {
-    inverse_euclidean::<M, _>(mod_fact::<M>(n) as i64)
+    inv::<M>(mod_fact::<M>(n) as i64)
 }
 
 pub fn mod_rfact_u<const M: u64>(n: u64) -> u64 {
-    inverse_euclidean::<M, _>(mod_fact::<M>(n) as i64).rem_euclid(M as i64) as u64
+    inv::<M>(mod_fact::<M>(n) as i64).rem_euclid(M as i64) as u64
 }
 
 pub fn fact(n: u64) -> u64 {
@@ -223,7 +223,21 @@ where
 }
 
 #[inline]
-pub const fn inverse_euclidean_non_const(a: u64, m: u64) -> u64 {
+pub const fn inv<const M: u64>(a: i64) -> i64 {
+    let (mut t, mut nt, mut r, mut nr) = (0, 1, M as i64, a.abs());
+    while nr != 0 {
+        let q = r / nr;
+        (t, nt) = (nt, t - q * nt);
+        (r, nr) = (nr, r - q * nr);
+    }
+    if r != 1 {
+        return 0;
+    }
+    if a >= 0 { t } else { -t }
+}
+
+#[inline]
+pub const fn inverse_euclidean_non_gen(a: u64, m: u64) -> u64 {
     let (mut t, mut nt, mut r, mut nr) = (0_i64, 1, m as i64, a as i64);
     while nr != 0 {
         let q = r / nr;
@@ -325,7 +339,7 @@ pub fn mod_k_rt<const M: u64>(mut a: u64, mut k: usize) -> Option<u64> {
     let phi = phi::<M>();
     let (gcd, x, _) = euclidean(k as i128, phi as i128);
     if gcd == 1 {
-        let k_inv = inverse_euclidean_non_const(k as u64, phi);
+        let k_inv = inverse_euclidean_non_gen(k as u64, phi);
         return Some(mod_pow::<M>(a, k_inv));
     }
     let g = find_primitive_root::<M>();

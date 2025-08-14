@@ -1,9 +1,5 @@
-use super::{
-    ops::{inverse_euclidean, mod_pow_pow_two, mod_pow_pow_two_signed},
-    prime::miller_rabin,
-    primitive::find_ntt_root,
-    sieve,
-};
+use super::{prime::miller_rabin, primitive::find_ntt_root, sieve};
+use crate::alg::ops::inv;
 
 pub fn find_ntt_prime(n: u64, b: u64) -> u64 {
     for k in (0..(b - 1) / n).rev() {
@@ -29,10 +25,35 @@ pub fn find_ntt_prime_min_big_omega(n: u64, b: u64) -> (u64, u64) {
     return (cur_big_omega as u64, cur_k);
 }
 
+pub const fn root_pows<const M: u64>() -> [u64; 32] {
+    let mut x = const { find_ntt_root::<M>() };
+    let mut xs = [0; 32];
+    let mut i = 0;
+    while i < 32 {
+        xs[i] = x;
+        x = (x * x) % M;
+        i += 1;
+    }
+    xs
+}
+
+pub const fn root_inv_pows<const M: u64>() -> [u64; 32] {
+    let mut x = const { inv::<M>(find_ntt_root::<M>() as i64).rem_euclid(M as i64) as u64 };
+    let mut xs = [0; 32];
+    let mut i = 0;
+    while i < 32 {
+        xs[i] = x;
+        x = (x * x) % M;
+        i += 1;
+    }
+    xs
+}
+
 // TODO: improve NTT performance
 // https://codeforces.com/blog/entry/142063
 
 pub fn ntt<const M: u64>(a: &mut [i64]) {
+    let root_pows = const { root_pows::<M>() };
     let n = a.len();
     if n <= 1 {
         return;
@@ -42,32 +63,60 @@ pub fn ntt<const M: u64>(a: &mut [i64]) {
     let mut k = 2;
     let mut s = 2;
     while k < n {
-        let x =
-            mod_pow_pow_two::<M>(find_ntt_root::<M>(), (M - 1).trailing_zeros() as u64 - s) as i64;
-        for i in (k..k << 1).step_by(2) {
+        let x = root_pows[(M - 1).trailing_zeros() as usize - s as usize] as i64;
+        let mut i = k;
+        while i < k << 1 {
             rt[i] = rt[i >> 1];
             rt[i + 1] = rt[i >> 1] * x % M as i64;
+            i += 2;
         }
         k <<= 1;
         s += 1;
     }
-    let mut k = n >> 1;
-    while k > 0 {
+    let mut k = if n.trailing_zeros() & 1 != 0 {
+        let k = n >> 1;
         let mut i = 0;
         while i < n {
             for j in 0..k {
                 let (ij, ijk) = (i + j, i + j + k);
-                let a_ij = a[ij];
-                a[ij] = (a_ij + a[ijk]) % M as i64;
-                a[ijk] = rt[j + k] * (a_ij - a[ijk]) % M as i64;
+                let v = a[ij];
+                a[ij] = (v + a[ijk]) % M as i64;
+                a[ijk] = rt[j + k] * (v - a[ijk]) % M as i64;
             }
             i += k << 1;
         }
-        k >>= 1;
+        n >> 3
+    } else {
+        n >> 2
+    };
+    while k > 0 {
+        let mut i = 0;
+        while i < n {
+            for j in 0..k {
+                let [a_0, a_1, a_2, a_3] = unsafe {
+                    a.get_disjoint_unchecked_mut([i + j, i + j + k, i + j + 2 * k, i + j + 3 * k])
+                };
+                let v0 = *a_0;
+                *a_0 = (v0 + *a_2) % M as i64;
+                *a_2 = rt[j + 2 * k] * (v0 - *a_2) % M as i64;
+                let v1 = *a_1;
+                *a_1 = (v1 + *a_3) % M as i64;
+                *a_3 = rt[j + 3 * k] * (v1 - *a_3) % M as i64;
+                let v2 = *a_0;
+                *a_0 = (v2 + *a_1) % M as i64;
+                *a_1 = rt[j + k] * (v2 - *a_1) % M as i64;
+                let v3 = *a_2;
+                *a_2 = (v3 + *a_3) % M as i64;
+                *a_3 = rt[j + k] * (v3 - *a_3) % M as i64;
+            }
+            i += k << 2;
+        }
+        k >>= 2;
     }
 }
 
 pub fn intt<const M: u64>(a: &mut [i64]) {
+    let root_inv_pows = const { root_inv_pows::<M>() };
     let n = a.len();
     if n <= 1 {
         return;
@@ -77,19 +126,41 @@ pub fn intt<const M: u64>(a: &mut [i64]) {
     let mut k = 2;
     let mut s = 2;
     while k < n {
-        let x = mod_pow_pow_two_signed::<M>(
-            inverse_euclidean::<M, _>(find_ntt_root::<M>() as i64),
-            (M - 1).trailing_zeros() as u64 - s,
-        ) as i64;
-        for i in (k..k << 1).step_by(2) {
+        let x = root_inv_pows[(M - 1).trailing_zeros() as usize - s as usize] as i64;
+        let mut i = k;
+        while i < k << 1 {
             rt[i] = rt[i >> 1];
             rt[i + 1] = rt[i >> 1] * x % M as i64;
+            i += 2;
         }
         k <<= 1;
         s += 1;
     }
     let mut k = 1;
-    while k < n {
+    while k < n >> 1 {
+        let mut i = 0;
+        while i < n {
+            for j in 0..k {
+                let [a_0, a_1, a_2, a_3] = unsafe {
+                    a.get_disjoint_unchecked_mut([i + j, i + j + k, i + j + 2 * k, i + j + 3 * k])
+                };
+                let z0 = rt[j + k] * *a_1;
+                let z1 = rt[j + k] * *a_3;
+                let z2 = rt[j + 2 * k] * ((*a_2 + z1) % M as i64);
+                let z3 = rt[j + 3 * k] * ((*a_2 - z1) % M as i64);
+                *a_1 = *a_0 - z0;
+                *a_0 += z0;
+                *a_2 = (*a_0 - z2) % M as i64;
+                *a_0 = (*a_0 + z2) % M as i64;
+                *a_3 = (*a_1 - z3) % M as i64;
+                *a_1 = (*a_1 + z3) % M as i64;
+            }
+            i += k << 2;
+        }
+        k <<= 2;
+    }
+    if n.trailing_zeros() & 1 != 0 {
+        let k = n >> 1;
         let mut i = 0;
         while i < n {
             for j in 0..k {
@@ -100,9 +171,8 @@ pub fn intt<const M: u64>(a: &mut [i64]) {
             }
             i += k << 1;
         }
-        k <<= 1;
     }
-    let n_inv = inverse_euclidean::<M, _>(n as i64);
+    let n_inv = inv::<M>(n as i64);
     a.iter_mut().for_each(|i| {
         *i *= n_inv as i64;
     });

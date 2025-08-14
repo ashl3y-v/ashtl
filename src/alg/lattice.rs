@@ -7,7 +7,7 @@ pub fn divisor<T: for<'a> AddAssign<&'a T>>(a: &mut [T], primes: &[usize]) {
         let mut i = 1;
         let mut j = p;
         while j <= n {
-            let [a_j, a_i] = a.get_disjoint_mut([j, i]).unwrap();
+            let [a_j, a_i] = unsafe { a.get_disjoint_unchecked_mut([j, i]) };
             *a_j += &*a_i;
             i += 1;
             j += p;
@@ -22,7 +22,7 @@ pub fn divisor_inv<T: for<'a> SubAssign<&'a T>>(a: &mut [T], primes: &[usize]) {
         let mut i = n / p;
         let mut j = i * p;
         while i != 0 {
-            let [a_j, a_i] = a.get_disjoint_mut([j, i]).unwrap();
+            let [a_j, a_i] = unsafe { a.get_disjoint_unchecked_mut([j, i]) };
             *a_j -= &*a_i;
             i -= 1;
             j -= p;
@@ -49,7 +49,7 @@ pub fn multiple<T: for<'a> AddAssign<&'a T>>(a: &mut [T], primes: &[usize]) {
         let mut i = n / p;
         let mut j = i * p;
         while i != 0 {
-            let [a_i, a_j] = a.get_disjoint_mut([i, j]).unwrap();
+            let [a_i, a_j] = unsafe { a.get_disjoint_unchecked_mut([i, j]) };
             *a_i += &*a_j;
             i -= 1;
             j -= p;
@@ -64,7 +64,7 @@ pub fn multiple_inv<T: for<'a> SubAssign<&'a T>>(a: &mut [T], primes: &[usize]) 
         let mut i = 1;
         let mut j = p;
         while j <= n {
-            let [a_i, a_j] = a.get_disjoint_mut([i, j]).unwrap();
+            let [a_i, a_j] = unsafe { a.get_disjoint_unchecked_mut([i, j]) };
             *a_i -= &*a_j;
             i += 1;
             j += p;
@@ -87,34 +87,72 @@ pub fn gcd_conv<T: for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + MulAssi
 /// O(n log n)
 pub fn subset<T: for<'a> AddAssign<&'a T>>(a: &mut [T]) {
     let n = a.len();
+    let mut butter4 = |i0, i1, i2, i3| {
+        let [a_0, a_1, a_2, a_3] = unsafe { a.get_disjoint_unchecked_mut([i0, i1, i2, i3]) };
+        *a_0 += &*a_1;
+        *a_2 += &*a_3;
+        *a_0 += &*a_2;
+        *a_1 += &*a_3;
+    };
     let mut k = 1;
-    while k < n {
+    while k < n >> 1 {
         let mut i = 0;
         while i < n {
             for j in i..i + k {
-                let [a_j, a_jk] = a.get_disjoint_mut([j, j + k]).unwrap();
-                *a_j += &*a_jk;
+                butter4(j, j + k, j + 2 * k, j + 3 * k);
+            }
+            i += k << 2;
+        }
+        k <<= 2;
+    }
+    if n.trailing_zeros() & 1 != 0 {
+        let k = n >> 1;
+        let mut i = 0;
+        while i < n {
+            let mut j = i;
+            while j < i + k {
+                let [a_0, a_1] = unsafe { a.get_disjoint_unchecked_mut([j, j + k]) };
+                *a_0 += &*a_1;
+                j += 1;
             }
             i += k << 1;
         }
-        k <<= 1;
     }
 }
 
 /// O(n log n)
 pub fn subset_inv<T: for<'a> SubAssign<&'a T>>(a: &mut [T]) {
     let n = a.len();
+    let mut butter4 = |i0, i1, i2, i3| {
+        let [a_0, a_1, a_2, a_3] = unsafe { a.get_disjoint_unchecked_mut([i0, i1, i2, i3]) };
+        *a_0 -= &*a_1;
+        *a_2 -= &*a_3;
+        *a_0 -= &*a_2;
+        *a_1 -= &*a_3;
+    };
     let mut k = 1;
-    while k < n {
+    while k < n >> 1 {
         let mut i = 0;
         while i < n {
             for j in i..i + k {
-                let [a_j, a_jk] = a.get_disjoint_mut([j, j + k]).unwrap();
-                *a_j -= &*a_jk;
+                butter4(j, j + k, j + 2 * k, j + 3 * k);
+            }
+            i += k << 2;
+        }
+        k <<= 2;
+    }
+    if n.trailing_zeros() & 1 != 0 {
+        let k = n >> 1;
+        let mut i = 0;
+        while i < n {
+            let mut j = i;
+            while j < i + k {
+                let [a_0, a_1] = unsafe { a.get_disjoint_unchecked_mut([j, j + k]) };
+                *a_0 -= &*a_1;
+                j += 1;
             }
             i += k << 1;
         }
-        k <<= 1;
     }
 }
 
@@ -127,6 +165,89 @@ pub fn and_conv<T: for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + MulAssi
     subset(&mut b);
     a.iter_mut().zip(b.into_iter()).for_each(|(i, j)| *i *= j);
     subset(a);
+}
+
+/// O(n log n)
+pub fn superset<T: for<'a> AddAssign<&'a T>>(a: &mut [T]) {
+    let n = a.len();
+    let mut butter4 = |i0, i1, i2, i3| {
+        let [a_0, a_1, a_2, a_3] = unsafe { a.get_disjoint_unchecked_mut([i0, i1, i2, i3]) };
+        *a_1 += &*a_0;
+        *a_3 += &*a_2;
+        *a_2 += &*a_0;
+        *a_3 += &*a_1;
+    };
+    let mut k = 1;
+    while k < n >> 1 {
+        let mut i = 0;
+        while i < n {
+            for j in i..i + k {
+                butter4(j, j + k, j + 2 * k, j + 3 * k);
+            }
+            i += k << 2;
+        }
+        k <<= 2;
+    }
+    if n.trailing_zeros() & 1 != 0 {
+        let k = n >> 1;
+        let mut i = 0;
+        while i < n {
+            let mut j = i;
+            while j < i + k {
+                let [a_0, a_1] = unsafe { a.get_disjoint_unchecked_mut([j, j + k]) };
+                *a_1 += &*a_0;
+                j += 1;
+            }
+            i += k << 1;
+        }
+    }
+}
+
+/// O(n log n)
+pub fn superset_inv<T: for<'a> SubAssign<&'a T>>(a: &mut [T]) {
+    let n = a.len();
+    let mut butter4 = |i0, i1, i2, i3| {
+        let [a_0, a_1, a_2, a_3] = unsafe { a.get_disjoint_unchecked_mut([i0, i1, i2, i3]) };
+        *a_1 -= &*a_0;
+        *a_3 -= &*a_2;
+        *a_2 -= &*a_0;
+        *a_3 -= &*a_1;
+    };
+    let mut k = 1;
+    while k < n >> 1 {
+        let mut i = 0;
+        while i < n {
+            for j in i..i + k {
+                butter4(j, j + k, j + 2 * k, j + 3 * k);
+            }
+            i += k << 2;
+        }
+        k <<= 2;
+    }
+    if n.trailing_zeros() & 1 != 0 {
+        let k = n >> 1;
+        let mut i = 0;
+        while i < n {
+            let mut j = i;
+            while j < i + k {
+                let [a_0, a_1] = unsafe { a.get_disjoint_unchecked_mut([j, j + k]) };
+                *a_1 -= &*a_0;
+                j += 1;
+            }
+            i += k << 1;
+        }
+    }
+}
+
+/// O(n log n)
+pub fn or_conv<T: for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + MulAssign>(
+    a: &mut [T],
+    mut b: Vec<T>,
+) {
+    superset(a);
+    superset(&mut b);
+    a.iter_mut().zip(b.into_iter()).for_each(|(i, j)| *i *= j);
+    superset_inv(a);
 }
 
 /// O(n log^2 n)
@@ -168,69 +289,48 @@ where
 }
 
 /// O(n log n)
-pub fn superset<T: for<'a> AddAssign<&'a T>>(a: &mut [T]) {
-    let n = a.len();
-    let mut k = 1;
-    while k < n {
-        let mut i = 0;
-        while i < n {
-            for j in i..i + k {
-                let [a_jk, a_j] = a.get_disjoint_mut([j + k, j]).unwrap();
-                *a_jk += &*a_j;
-            }
-            i += k << 1;
-        }
-        k <<= 1;
-    }
-}
-
-/// O(n log n)
-pub fn superset_inv<T: for<'a> SubAssign<&'a T>>(a: &mut [T]) {
-    let n = a.len();
-    let mut k = 1;
-    while k < n {
-        let mut i = 0;
-        while i < n {
-            for j in i..i + k {
-                let [a_jk, a_j] = a.get_disjoint_mut([j + k, j]).unwrap();
-                *a_jk -= &*a_j;
-            }
-            i += k << 1;
-        }
-        k <<= 1;
-    }
-}
-
-/// O(n log n)
-pub fn or_conv<T: for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T> + MulAssign>(
-    a: &mut [T],
-    mut b: Vec<T>,
-) {
-    superset(a);
-    superset(&mut b);
-    a.iter_mut().zip(b.into_iter()).for_each(|(i, j)| *i *= j);
-    superset_inv(a);
-}
-
-/// O(n log n)
 pub fn xor<T>(a: &mut [T])
 where
     T: Clone + for<'a> AddAssign<&'a T> + for<'a> SubAssign<&'a T>,
 {
     let n = a.len();
+    let op = |a: &mut T, b: &mut T| {
+        let v = b.clone();
+        *b = a.clone();
+        *b -= &v;
+        *a += &v;
+    };
+    let mut butter4 = |i0, i1, i2, i3| {
+        let [a_0, a_1, a_2, a_3]: [&mut T; 4] =
+            unsafe { a.get_disjoint_unchecked_mut([i0, i1, i2, i3]) };
+        op(a_0, a_1);
+        op(a_2, a_3);
+        op(a_0, a_2);
+        op(a_1, a_3);
+    };
     let mut k = 1;
-    while k < n {
+    while k < n >> 1 {
         let mut i = 0;
         while i < n {
             for j in i..i + k {
-                let v = a[j + k].clone();
-                a[j + k] = a[j].clone();
-                a[j + k] -= &v;
-                a[j] += &v;
+                butter4(j, j + k, j + 2 * k, j + 3 * k);
+            }
+            i += k << 2;
+        }
+        k <<= 2;
+    }
+    if n.trailing_zeros() & 1 != 0 {
+        let k = n >> 1;
+        let mut i = 0;
+        while i < n {
+            let mut j = i;
+            while j < i + k {
+                let [a_0, a_1] = unsafe { a.get_disjoint_unchecked_mut([j, j + k]) };
+                op(a_0, a_1);
+                j += 1;
             }
             i += k << 1;
         }
-        k <<= 1;
     }
 }
 

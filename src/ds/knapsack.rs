@@ -1,4 +1,4 @@
-use crate::ds::queue::MonotoneQueue;
+use crate::{alg::poly::Poly, ds::queue::MonotoneQueue};
 
 /// O(n max w_i)
 pub fn subset_sum(w: &[u64], t: u64) -> u64 {
@@ -48,6 +48,17 @@ pub fn zero_one_knapsack(v: &[u64], w: &[u64], c: u64) -> Vec<u64> {
     f
 }
 
+/// O(n + c log c)
+pub fn zero_one_knapsack_eq<const M: u64>(w: &[usize], c: usize) -> Vec<u64> {
+    Poly::<M>::log_prod_1pxit(w.into_iter().cloned(), 1, c + 1)
+        .exp(c + 1)
+        .unwrap()
+        .coeff
+        .into_iter()
+        .map(|i| i.rem_euclid(M as i64) as u64)
+        .collect::<Vec<_>>()
+}
+
 /// O(n c)
 pub fn complete_knapsack(v: &[u64], w: &[u64], c: u64) -> Vec<u64> {
     let n = v.len();
@@ -58,6 +69,17 @@ pub fn complete_knapsack(v: &[u64], w: &[u64], c: u64) -> Vec<u64> {
         }
     }
     f
+}
+
+/// O(n + c log c)
+pub fn complete_knapsack_eq<const M: u64>(w: &[usize], c: usize) -> Vec<u64> {
+    (-Poly::<M>::log_prod_1pxit(w.into_iter().cloned(), -1, c + 1))
+        .exp(c + 1)
+        .unwrap()
+        .coeff
+        .into_iter()
+        .map(|i| i.rem_euclid(M as i64) as u64)
+        .collect::<Vec<_>>()
 }
 
 /// O(n c)
@@ -92,7 +114,46 @@ pub fn multiple_knapsack(v: &[u64], w: &[u64], k: &[usize], c: u64) -> Vec<u64> 
     dp.into_iter().map(|v| v as u64).collect()
 }
 
-// TODO: knapsack optimizations
+/// O(n + c log c)
+pub fn multiple_knapsack_eq<const M: u64>(w: &[usize], k: &[usize], c: usize) -> Vec<u64> {
+    (Poly::<M>::log_prod_1pxit(k.into_iter().zip(w).map(|(&i, &j)| (i + 1) * j), -1, c + 1)
+        - Poly::<M>::log_prod_1pxit(w.into_iter().cloned(), -1, c + 1))
+    .exp(c + 1)
+    .unwrap()
+    .coeff
+    .into_iter()
+    .map(|i| i.rem_euclid(M as i64) as u64)
+    .collect::<Vec<_>>()
+}
+
+/// O(n)
+pub fn min_plus_cvx_cvx(a: &[i64], b: &[i64]) -> Vec<i64> {
+    if a.is_empty() || b.is_empty() {
+        return if a.is_empty() { b.to_vec() } else { a.to_vec() };
+    }
+    let (n0, n1) = (a.len(), b.len());
+    let mut c = vec![0; n0 + n1 - 1];
+    let (mut i0, mut i1) = (0, 0);
+    c[0] = a[i0] + b[i1];
+    for i in 1..n0 + n1 - 1 {
+        if i1 == n1 - 1 || (i0 != n0 - 1 && a[i0 + 1] + b[i1] < a[i0] + b[i1 + 1]) {
+            i0 += 1;
+        } else {
+            i1 += 1;
+        }
+        c[i] = a[i0] + b[i1];
+    }
+    c
+}
+
+// TODO: min plus only one convex convolution (also add to poly)
+// https://judge.yosupo.jp/submission/296643
+// https://codeforces.com/blog/entry/98663
+pub fn min_plus_cvx(a: &[i64], b: &[i64]) -> Vec<i64> {
+    unimplemented!()
+}
+
+// TODO: other knapsack optimizations
 // https://codeforces.com/blog/entry/98663
 
 #[cfg(test)]

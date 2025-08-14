@@ -19,7 +19,7 @@ pub fn fibonacci(n: u64) -> u128 {
     f0
 }
 
-pub fn fibonacci_mod<const M: u64>(n: u64) -> u128 {
+pub const fn fibonacci_mod<const M: u64>(n: u64) -> u128 {
     let mut f0: i128 = 0;
     let mut f1: i128 = 1;
     let mut mask = 1u64 << (63 - n.leading_zeros());

@@ -1,10 +1,11 @@
 use ashtl::{
     alg::{
+        lattice, ntt,
         ops::{self, inverse_euclidean, mod_pow},
         poly::{Poly, Poly2},
-        sieve,
+        sieve, special,
     },
-    ds::set,
+    ds::{knapsack, set},
     grph::color,
 };
 use rand::Rng;
@@ -22,23 +23,92 @@ fn main() -> std::io::Result<()> {
     // prufer sequences
     // get rid of stuff taking mut self and n
     // make stuff use truncate_deg instead of doing stuff up to deg
+    // ntt faster
     // println!("{}", find_ntt_prime(1 << 27, M << 2));
+    // gs:
 
     let inv = |a: i64| inverse_euclidean::<M, _>(a);
     let inv_u = |a: i64| inverse_euclidean::<M, _>(a).rem_euclid(M as i64) as u64;
     // // let invs = inverses_n_div::<M>(n << 1);
-    let n = 1 << 8;
-    let m = 1 << 4;
-    let k = M as usize - 1;
-    let i = 7;
+    let n = 1 << 4;
+    let m = 1 << 9;
+    let i = 1 << 23;
+    let k = 2 + i;
     let q = 2;
+    // let a = Poly::<M>::new(vec![7, 3, 2, 0]);
+    // let mut w = Poly::<M>::new(vec![0; 4]);
+    // w[3] = 1;
 
+    let mut coeff = Vec::with_capacity(n);
+    for _ in 0..n {
+        coeff.push(rng.random_range(M >> 4..M) as i64);
+    }
+    let mut a = Poly::<M>::new(coeff);
+    let mut coeff = Vec::with_capacity(m);
+    for _ in 0..m {
+        coeff.push(rng.random_range(M >> 4..M) as i64);
+    }
+    let mut b = Poly::<M>::new(coeff);
     // let timer = Instant::now();
-    // let a = Poly::<M>::log_prod_1pxit(1..7, 3, n).pos_normalize();
+    // println!("{:?}", timer.elapsed());
+    // let a = Poly::<M>::new(vec![0, 1]);
+    // let b = Poly::<M>::new(vec![1, -1, -1]);
+    // let timer = Instant::now();
+    // let b = a.clone().comp_inv();
+    // println!("{:?}", timer.elapsed());
+    // let c = b.comp(&a, n).neg_normalize();
+    // println!("{:?}", c);
+    // assert_eq!(c.coeff[0], 0);
+    // assert_eq!(c.coeff[1], 1);
+    // println!(
+    //     "{:?}",
+    //     c.coeff.iter().skip(2).position(|&i| i != 0).map(|i| i + 2)
+    // );
+    // let timer = Instant::now();
+    // println!("{:?}", timer.elapsed());
+    // let a = Poly::<M>::new(vec![1, 2, 3, 4]);
+    // let b = Poly::<M>::new(vec![7, 3, 2, 1]);
+    //sum_{i=k}^n a_i c^i i! 1/(k-i)! 1/k! c^-k
+    // let mut d = a.comp_naive(&b, n).mod_xn(n);
+    // let mut d = a.comp_naive(&b, n << 1).mod_xn(n << 1);
+    // let timer = Instant::now();
+    // let mut c = a.resize(n << 1).comp(b);
+    // println!("{:?}", timer.elapsed());
+    // println!("{} {} {}", n, c.len(), d.len());
+    // (c, d) = (c.neg_normalize(), d.neg_normalize());
+    // assert_eq!(c, d);
+    // println!("{:?}\n{:?}", c, d);
+    // assert_eq!(c, d);
+    let c = Poly::<M>::new(vec![7, 3, 2, 5]);
+    let e = c.mono_to_binom().pos_normalize();
+    let f = e.clone().binom_to_mono().pos_normalize();
+    println!("{:?}", e);
+    println!("{:?}", f);
+
+    // println!("{:?}", b);
+    // let mut coeff = Vec::with_capacity(n);
+    // for _ in 0..n {
+    //     coeff.push(rng.random_range(M >> 4..M) as i64);
+    // }
+    // coeff[0] = 1;
+    // let mut a = Poly::<M>::new(coeff);
+    // let mut coeff = Vec::with_capacity(n);
+    // for _ in 0..n {
+    //     coeff.push(rng.random_range(M >> 4..M) as i64);
+    // }
+    // coeff[0] = 1;
+    // let mut a = Poly::<M>::new(coeff);
+    // let mut b = a.clone();
+    // let timer = Instant::now();
+    // a = a.clone().mul_neg_self().even(n);
     // println!("{:?}", timer.elapsed());
     // let timer = Instant::now();
-    // let b = Poly::<M>::log_prod_1pxit_new(1..7, 3, n).pos_normalize();
+    // b = b.mul_neg_self_even();
     // println!("{:?}", timer.elapsed());
+    // a = a.pos_normalize();
+    // b = b.pos_normalize();
+    // println!("{:?}", a);
+    // println!("{:?}", b);
     // assert_eq!(a, b);
 
     // let z = Poly::<M>::stirling1(n);
