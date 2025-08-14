@@ -23,4 +23,4 @@ target
 
 *.data
 *.data.old
-flamegraph.svg
+**/flamegraph.svg
