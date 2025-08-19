@@ -1,4 +1,4 @@
-use super::{prime::miller_rabin, primitive::find_ntt_root, sieve};
+use super::{mult, prime::miller_rabin, primitive::find_ntt_root};
 use crate::alg::ops::inv;
 
 pub fn find_ntt_prime(n: u64, b: u64) -> u64 {
@@ -12,7 +12,7 @@ pub fn find_ntt_prime(n: u64, b: u64) -> u64 {
 
 pub fn find_ntt_prime_min_big_omega(n: u64, b: u64) -> (u64, u64) {
     let (mut cur_big_omega, mut cur_k) = (usize::MAX, 0);
-    let big_omega = sieve::big_omega(((b - 1) / n) as usize).0;
+    let big_omega = mult::big_omega(((b - 1) / n) as usize).0;
     for k in (0..(b - 1) / n).rev() {
         if miller_rabin(k * n + 1) {
             if big_omega[k as usize] < cur_big_omega

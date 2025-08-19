@@ -118,13 +118,11 @@ pub fn divisors(n: usize) -> (Vec<usize>, Vec<(usize, u32)>) {
 }
 
 // TODO: fast prime counting
-// https://codeforces.com/blog/entry/91632
 // https://usaco.guide/adv/multiplicative?lang=cpp
+// https://codeforces.com/blog/entry/91632
 pub fn pi(n: usize) -> usize {
-    1
+    unimplemented!()
 }
-
-// TODO: divisor lattice and multiple lattice as graphs
 
 #[cfg(test)]
 mod tests {

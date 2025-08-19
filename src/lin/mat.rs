@@ -454,15 +454,15 @@ impl<const M: u64> Mat<M> {
     }
 
     // https://codeforces.com/blog/entry/124815
-    // TOOD: frobenius form algorithm
+    // TODO: frobenius form algorithm
     pub fn frobenius() {}
 
     // https://judge.yosupo.jp/submission/285790
-    // TOOD: characteristic polynomial
+    // TODO: characteristic polynomial
     pub fn charpoly() {}
 
     // https://judge.yosupo.jp/submission/285768
-    // TOOD: fast pow
+    // TODO: fast pow
     pub fn fast_pow() {}
 }
 

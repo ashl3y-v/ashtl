@@ -1,4 +1,4 @@
-use super::{gcd::euclidean, poly::Affine, primitive::find_primitive_root};
+use super::{gcd::euclidean, poly::Affine, primitive};
 use std::{
     collections::HashMap,
     ops::{Div, Mul, Neg, Rem, Sub},
@@ -318,6 +318,12 @@ pub fn mod_sqrt<const M: u64>(b: u64) -> Option<u64> {
     }
 }
 
+#[inline]
+pub const fn mod_sqrt_n1<const M: u64>() -> u64 {
+    let d = const { mod_pow::<M>(primitive::find_primitive_root::<M>(), (M - 1) >> 2) };
+    if d > M >> 1 { M - d } else { d }
+}
+
 /// if odd part of k is coprime with M-1 then O(polylog M) else O(√M)
 #[inline]
 pub fn mod_k_rt<const M: u64>(mut a: u64, mut k: usize) -> Option<u64> {
@@ -342,7 +348,7 @@ pub fn mod_k_rt<const M: u64>(mut a: u64, mut k: usize) -> Option<u64> {
         let k_inv = inverse_euclidean_non_gen(k as u64, phi);
         return Some(mod_pow::<M>(a, k_inv));
     }
-    let g = find_primitive_root::<M>();
+    let g = primitive::find_primitive_root::<M>();
     let alpha = discrete_log::<M>(g, a)?;
     let (gcd, x) = (
         gcd.rem_euclid(M as i128) as usize,

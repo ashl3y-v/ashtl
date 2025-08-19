@@ -41,8 +41,6 @@ pub fn stoer_wagner<
     best
 }
 
-// TODO: implement karger-stein
-
 #[cfg(test)]
 mod tests {
     use super::*;

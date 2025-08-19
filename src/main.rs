@@ -1,9 +1,9 @@
 use ashtl::{
     alg::{
-        lattice, ntt,
+        lattice, mult, ntt,
         ops::{self, inverse_euclidean, mod_pow},
         poly::{Poly, Poly2},
-        sieve, special,
+        primitive, special,
     },
     ds::{knapsack, set},
     grph::color,
@@ -29,15 +29,23 @@ fn main() -> std::io::Result<()> {
 
     let inv = |a: i64| inverse_euclidean::<M, _>(a);
     let inv_u = |a: i64| inverse_euclidean::<M, _>(a).rem_euclid(M as i64) as u64;
-    // // let invs = inverses_n_div::<M>(n << 1);
-    let n = 1 << 4;
-    let m = 1 << 9;
+
+    // schedule:
+    // q borel -> q poch
+    // relaxed convolution
+    // composition special cases
+    // half-gcd
+    // bivariate extensions of fundamental operations https://maspypy.github.io/library/poly/2d/fps_inv_2d.hpp
+    // frobenius
+    // transposed bostan mori
+    // mcmf
+    // hungarian?
+    // dominator tree?
+    let n = 1 << 5;
+    let m = 1 << 5;
     let i = 1 << 23;
-    let k = 2 + i;
+    let k = 3;
     let q = 2;
-    // let a = Poly::<M>::new(vec![7, 3, 2, 0]);
-    // let mut w = Poly::<M>::new(vec![0; 4]);
-    // w[3] = 1;
 
     let mut coeff = Vec::with_capacity(n);
     for _ in 0..n {
@@ -49,6 +57,19 @@ fn main() -> std::io::Result<()> {
         coeff.push(rng.random_range(M >> 4..M) as i64);
     }
     let mut b = Poly::<M>::new(coeff);
+
+    // let b = Poly::<M>::new(vec![]);
+    // let timer = Instant::now();
+    // let c = a.clone().evals(&pts).neg_normalize();
+    // println!("{:?}", timer.elapsed());
+    // let timer = Instant::now();
+    // let d = c.interp(&pts).neg_normalize();
+    // println!("{:?}", timer.elapsed());
+    // println!("{:?}", &c.coeff[..10]);
+    // println!("{:?}", &d.coeff[..10]);
+    // assert_eq!(d, a);
+    // println!("{:?}", &a.neg_normalize().coeff[..10]);
+
     // let timer = Instant::now();
     // println!("{:?}", timer.elapsed());
     // let a = Poly::<M>::new(vec![0, 1]);
@@ -79,13 +100,7 @@ fn main() -> std::io::Result<()> {
     // assert_eq!(c, d);
     // println!("{:?}\n{:?}", c, d);
     // assert_eq!(c, d);
-    let c = Poly::<M>::new(vec![7, 3, 2, 5]);
-    let e = c.mono_to_binom().pos_normalize();
-    let f = e.clone().binom_to_mono().pos_normalize();
-    println!("{:?}", e);
-    println!("{:?}", f);
 
-    // println!("{:?}", b);
     // let mut coeff = Vec::with_capacity(n);
     // for _ in 0..n {
     //     coeff.push(rng.random_range(M >> 4..M) as i64);
@@ -131,9 +146,10 @@ fn main() -> std::io::Result<()> {
     // let mut b = a.clone().to_fall().evals_n_fall(n).pos_normalize();
     // println!("{:?}", timer.elapsed());
     // let timer = Instant::now();
-    // let c = Poly::<M>::new(a.clone().evals(n, |i| i as i64)).pos_normalize();
-    // println!("{:?}", timer.elapsed());
-    // assert_eq!(b, c);
+    // let c = Poly::<Mexp_ax(2,20);
+    // assert_eq!(a,b);
+    // // bet c = Poly::<Mexp_ax_new(2,20)a
+    // // bet c = Poly::<Mexp_ax_new(2,2b)a
 
     // let timer = Instant::now();
     // let mut b = a.clone().sps_pow_bin(k).pos_normalize();

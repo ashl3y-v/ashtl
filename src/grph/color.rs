@@ -1,4 +1,7 @@
-use crate::{alg::lattice, ds::set::UbIntSet};
+use crate::{
+    alg::{lattice, poly::Poly},
+    ds::set::UbIntSet,
+};
 use bit_vec::BitVec;
 use std::collections::{BinaryHeap, HashMap};
 
@@ -80,16 +83,20 @@ pub fn dsatur(adj: &[Vec<usize>]) -> (HashMap<usize, usize>, usize) {
 pub fn k_col(k: usize, adj: &[usize]) -> bool {
     let n = adj.len();
     let mut f = vec![0_i64; 1 << n];
-    'a: for i in 0..1_usize << n {
-        for v in 0..n {
-            if i & 1 << v != 0 {
-                if adj[v] & i != 0 {
-                    f[i] = 0;
-                    continue 'a;
-                }
+    for i in 0..n {
+        for j in 0..i {
+            if adj[i] & (1 << j) != 0 {
+                f[1 << i | 1 << j] = 1;
             }
         }
-        f[i] = 1;
+    }
+    lattice::subset(&mut f);
+    for i in 0..f.len() {
+        if f[i] != 0 {
+            f[i] = 0;
+        } else {
+            f[i] = 1;
+        }
     }
     lattice::xor(&mut f);
     f.iter_mut().for_each(|i| *i = i.wrapping_pow(k as u32));
@@ -108,16 +115,20 @@ pub fn k_col(k: usize, adj: &[usize]) -> bool {
 pub fn chi(adj: &[usize]) -> usize {
     let n = adj.len();
     let mut f = vec![0_i64; 1 << n];
-    'a: for i in 0..1_usize << n {
-        for v in 0..n {
-            if i & 1 << v != 0 {
-                if adj[v] & i != 0 {
-                    f[i] = 0;
-                    continue 'a;
-                }
+    for i in 0..n {
+        for j in 0..i {
+            if adj[i] & (1 << j) != 0 {
+                f[1 << i | 1 << j] = 1;
             }
         }
-        f[i] = 1;
+    }
+    lattice::subset(&mut f);
+    for i in 0..f.len() {
+        if f[i] != 0 {
+            f[i] = 0;
+        } else {
+            f[i] = 1;
+        }
     }
     let mut g = f.clone();
     lattice::xor(&mut g);
@@ -145,16 +156,20 @@ pub fn chi(adj: &[usize]) -> usize {
 pub fn clique_cover_number(adj: &[usize]) -> usize {
     let n = adj.len();
     let mut f = vec![0_i64; 1 << n];
-    'a: for i in 0..1_usize << n {
-        for v in 0..n {
-            if i & 1 << v != 0 {
-                if adj[v] & i & !(1 << v) != i & !(1 << v) {
-                    f[i] = 0;
-                    continue 'a;
-                }
+    for i in 0..n {
+        for j in 0..i {
+            if adj[i] & (1 << j) == 0 {
+                f[1 << i | 1 << j] = 1;
             }
         }
-        f[i] = 1;
+    }
+    lattice::subset(&mut f);
+    for i in 0..f.len() {
+        if f[i] != 0 {
+            f[i] = 0;
+        } else {
+            f[i] = 1;
+        }
     }
     let mut g = f.clone();
     lattice::xor(&mut g);
@@ -178,10 +193,29 @@ pub fn clique_cover_number(adj: &[usize]) -> usize {
     usize::MAX
 }
 
-// TODO: chromatic poly
-// https://judge.yosupo.jp/submission/214976
-// https://codeforces.com/blog/entry/92183
-pub fn chromatic_poly() {}
+/// O(2^n n^2 + m log m)
+pub fn chromatic_poly<const M: u64>(adj: &[usize], m: usize) -> Poly<M> {
+    let n = adj.len();
+    let mut f = vec![0_i64; 1 << n];
+    for i in 0..n {
+        for j in 0..i {
+            if adj[i] & (1 << j) != 0 {
+                f[1 << i | 1 << j] = 1;
+            }
+        }
+    }
+    lattice::subset(&mut f);
+    for i in 0..f.len() {
+        if f[i] != 0 {
+            f[i] = 0;
+        } else {
+            f[i] = 1;
+        }
+    }
+    let mut w = vec![0; 1 << n];
+    w[(1 << n) - 1] = 1;
+    Poly::<M>::new(f).sps_pow_proj(Poly::<M>::new(w), m)
+}
 
 // TODO: edge coloring
 // https://judge.yosupo.jp/submission/97319
