@@ -1,4 +1,5 @@
 // TODO: implement (extended) li chao tree
+// make it polymorphic so can support different kinds of functions
 // https://codeforces.com/blog/entry/86731
 // https://judge.yosupo.jp/submission/
 // https://judge.yosupo.jp/submission/95121

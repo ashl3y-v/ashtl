@@ -1,7 +1,7 @@
 use ashtl::{
     alg::{
         lattice, mult, ntt,
-        ops::{self, inverse_euclidean, mod_pow},
+        ops::{self, inverse_euclidean, mod_fact, mod_pow},
         poly::{Poly, Poly2},
         primitive, special,
     },
@@ -18,7 +18,7 @@ const M: u64 = (15 << 27) + 1;
 
 fn main() -> std::io::Result<()> {
     let mut rng = rand::rng();
-    // println!("{}", find_ntt_prime(1 << 27, M << 20));
+    // println!("{}", ntt::find_ntt_prime(1 << 22, M >> 2));
     // put everyone's phones in my thing
     // prufer sequences
     // get rid of stuff taking mut self and n
@@ -31,17 +31,16 @@ fn main() -> std::io::Result<()> {
     let inv_u = |a: i64| inverse_euclidean::<M, _>(a).rem_euclid(M as i64) as u64;
 
     // schedule:
-    // q borel -> q poch
+    // unlabelled rooted trees
     // relaxed convolution
-    // composition special cases
     // half-gcd
     // bivariate extensions of fundamental operations https://maspypy.github.io/library/poly/2d/fps_inv_2d.hpp
+    // hungarian
+    // dominator tree
+    // mcmf
     // frobenius
     // transposed bostan mori
-    // mcmf
-    // hungarian?
-    // dominator tree?
-    let n = 1 << 5;
+    let n = 1 << 3;
     let m = 1 << 5;
     let i = 1 << 23;
     let k = 3;
@@ -57,6 +56,27 @@ fn main() -> std::io::Result<()> {
         coeff.push(rng.random_range(M >> 4..M) as i64);
     }
     let mut b = Poly::<M>::new(coeff);
+    // let x = (0..n as i64).collect::<Vec<_>>();
+    // let mut tree = vec![Poly::<M>::new(vec![]); n.next_power_of_two() << 1];
+    // Poly::<M>::build_prod_tree(&mut tree, &x, 1, 0, n);
+    // let mut tree1 =
+    //     vec![(Poly::<M>::new(vec![]), Poly::<M>::new(vec![])); n.next_power_of_two() << 1];
+    // Poly::<M>::build_prod_tree_new(&mut tree1, &x, 1, 0, n);
+    // println!("{:?}", tree);
+    // println!("{:?}", tree1);
+
+    // let c = a.clone().evals(&x);
+    // let d = a.evals_new(&x);
+    // println!("{:?}", d);
+    // println!("{:?}\n{:?}", c, d);
+
+    // let timer = Instant::now();
+    // let c = a.clone().stirling_trans_new(n).neg_normalize();
+    // println!("{:?}", timer.elapsed());
+    // let timer = Instant::now();
+    // let d = a.stirling_trans(n).neg_normalize();
+    // println!("{:?}", timer.elapsed());
+    // assert_eq!(c, d);
 
     // let b = Poly::<M>::new(vec![]);
     // let timer = Instant::now();

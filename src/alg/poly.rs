@@ -1,15 +1,9 @@
-use crate::{
-    alg::{
-        ntt::{root_inv_pows, root_pows},
-        ops,
-    },
-    ds::knapsack,
-};
-
 use super::{
     lattice,
     mult::{self, sieve_complete},
     ntt::{intt, ntt, ntt_conv, ntt_conv_self},
+    ntt::{root_inv_pows, root_pows},
+    ops,
     ops::{
         inv, inverses, inverses_n_div, mod_fact, mod_k_rt, mod_pow, mod_pow_signed, mod_rfact,
         mod_sqrt,
@@ -18,6 +12,7 @@ use super::{
     primitive::find_primitive_root,
     special,
 };
+use crate::ds::knapsack;
 use std::{
     fmt::Debug,
     ops::{
@@ -377,11 +372,19 @@ impl<const M: u64> Poly<M> {
     /// O(n log n)
     #[inline]
     pub fn mul_t(mut self, mut rhs: Self) -> Self {
-        let (d0, d1);
-        ((self, d0), (rhs, d1)) = (self.truncate_deg_or_0(), rhs.truncate_deg_or_0());
-        let n = (d0 + 1).next_power_of_two();
+        let (m, k) = (self.len(), rhs.len());
+        let n = m.next_power_of_two();
+        println!("ntt size: {}", n);
         (self, rhs) = (self.resize(n).intt_t().normalize(), rhs.resize(n).ntt());
-        self.dot(&rhs).ntt_t().resize(d0 - d1 + 1).normalize()
+        self.dot(&rhs).ntt_t().resize(m - k + 1).normalize()
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn mul_t_no_resize(mut self, mut rhs: Self) -> Self {
+        let n = self.len().next_power_of_two();
+        (self, rhs) = (self.resize(n).intt_t().normalize(), rhs.resize(n).ntt());
+        self.dot(&rhs).ntt_t().normalize()
     }
 
     /// O(n log n)
@@ -2070,7 +2073,7 @@ impl<const M: u64> Poly<M> {
     }
 
     #[inline]
-    pub fn mulx_apic2(mut self, a: E) -> Self {
+    pub fn mulx_aic2(mut self, a: E) -> Self {
         let d;
         (self, d) = self.truncate_deg_or_0();
         let (mut cur, mut total) = (1, 1);
@@ -2086,7 +2089,7 @@ impl<const M: u64> Poly<M> {
     }
 
     #[inline]
-    pub fn mulx_apic2_ti(mut self, a: E, t: E) -> Self {
+    pub fn mulx_aic2_ti(mut self, a: E, t: E) -> Self {
         let d;
         (self, d) = self.truncate_deg_or_0();
         let (mut cur, mut total, mut ti) = (1, 1, 1);
@@ -2104,7 +2107,7 @@ impl<const M: u64> Poly<M> {
     }
 
     #[inline]
-    pub fn mulx_apip1c2(mut self, a: E) -> Self {
+    pub fn mulx_aip1c2(mut self, a: E) -> Self {
         let d;
         (self, d) = self.truncate_deg_or_0();
         let (mut cur, mut total) = (1, 1);
@@ -2150,10 +2153,10 @@ impl<const M: u64> Poly<M> {
                 z_inv = z_inv - M as E;
             }
             Self::new(vec![1; k + d.unwrap_or(0)])
-                .mulx_apic2(z)
-                .semicorr(self.mulx_apic2(z_inv))
+                .mulx_aic2(z)
+                .mul_t(self.mulx_aic2(z_inv))
                 .mod_xn(k)
-                .mulx_apic2(z_inv)
+                .mulx_aic2(z_inv)
         }
     }
 
@@ -2181,7 +2184,7 @@ impl<const M: u64> Poly<M> {
     /// ∏_{i < k} (1 + z^i t x) = ∑_{i=0}^k z^(i, 2) \[k,i\]_z t^i x^i mod x^n
     #[inline]
     pub fn prod_1pzitx(z: E, t: E, k: usize, n: usize) -> Self {
-        Self::new(vec![1; n]).kqci(k, z).mulx_apic2_ti(z, t)
+        Self::new(vec![1; n]).kqci(k, z).mulx_aic2_ti(z, t)
     }
 
     /// O(n)
@@ -2195,7 +2198,7 @@ impl<const M: u64> Poly<M> {
     /// ∏_i (1 + z^i x) mod x^n = ∑_i z^(i,2)/(z;z)_i x^i
     #[inline]
     pub fn prod_inf_1pzix(z: E, n: usize) -> Self {
-        Self::new(vec![1; n]).mulx_apic2(z).q_poch_trans(z)
+        Self::new(vec![1; n]).mulx_aic2(z).q_poch_trans(z)
     }
 
     /// O(n)
@@ -2258,7 +2261,6 @@ impl<const M: u64> Poly<M> {
     }
 
     /// O(n log^2 n)
-    #[inline]
     pub fn build_prod_tree(tree: &mut [Self], x: &[E], v: usize, l: usize, r: usize) {
         if r - l == 1 {
             tree[v] = Self::new(vec![-x[l], 1]);
@@ -2272,8 +2274,39 @@ impl<const M: u64> Poly<M> {
         }
     }
 
-    #[inline]
-    fn to_newton_tree(&self, tree: &[Self], v: usize, l: usize, r: usize) -> Self {
+    // TODO: do this
+    /// O(n log^2 n)
+    pub fn build_prod_tree_new(tree: &mut [(Self, Self)], x: &[E], v: usize, l: usize, r: usize) {
+        if r - l == 1 {
+            tree[v].0 = Self::new(vec![-x[l], 1]);
+            tree[v].1 = tree[v].0.clone().resize(2).ntt();
+        } else {
+            let m = l + (r - l >> 1);
+            Self::build_prod_tree_new(tree, x, v << 1, l, m);
+            Self::build_prod_tree_new(tree, x, v << 1 | 1, m, r);
+            tree[v].0 = (tree[v << 1].0.clone() * tree[v << 1 | 1].0.clone())
+                .truncate_deg()
+                .0;
+            tree[v << 1].1 = std::mem::take(&mut tree[v << 1].1).extend_ntt(tree[v << 1].0.clone());
+            tree[v << 1 | 1].1 =
+                std::mem::take(&mut tree[v << 1 | 1].1).extend_ntt(tree[v << 1 | 1].0.clone());
+            let c0 = tree[v << 1].0.clone().resize(r - l << 1).ntt();
+            let c1 = tree[v << 1 | 1].0.clone().resize(r - l << 1).ntt();
+            println!("r-l {}", r - l);
+            println!("c0: {:?} {:?}", tree[v << 1].1, c0);
+            println!("c1: {:?} {:?}", tree[v << 1 | 1].1, c1);
+            // assert_eq!(tree[v << 1].1, c0);
+            // assert_eq!(tree[v << 1 | 1].1, c1);
+            let z1 = tree[v << 1].1.clone().dot(&tree[v << 1 | 1].1);
+            let z0 = tree[v].0.clone().resize((r - l).next_power_of_two()).ntt();
+            // println!("{:?}\n{:?}", z0, z1);
+            tree[v].1 = z0;
+        }
+    }
+
+    // TODO: speed up newton basis conversion https://judge.yosupo.jp/submission/210799
+    /// O(n log^2 n)
+    pub fn to_newton_tree(&self, tree: &[Self], v: usize, l: usize, r: usize) -> Self {
         if r - l == 1 {
             self.clone()
         } else {
@@ -2301,7 +2334,6 @@ impl<const M: u64> Poly<M> {
     }
 
     /// O(n log^2 n)
-    #[inline]
     pub fn evals_tree(self, tree: &[Self], y: &mut [E], v: usize, l: usize, r: usize) {
         if r - l == 1 {
             y[l] = self.coeff[1];
@@ -2327,17 +2359,65 @@ impl<const M: u64> Poly<M> {
         Self::build_prod_tree(&mut tree, x, 1, 0, n);
         let d;
         (tree[1], d) = std::mem::take(&mut tree[1]).truncate_reverse();
-        let mut p = (tree[1].inv(n).unwrap() << d).mul_t(self).mod_xn(n + 1);
+        let mut p = (tree[1].inv(self.len()).unwrap() << d)
+            .mul_t(self)
+            .mod_xn(n + 1);
         p[0] = 0;
         let mut y = Self::new(vec![0; n]);
         p.evals_tree(&tree, &mut y.coeff, 1, 0, n);
         y
     }
 
+    /// O(n log^2 n)
+    pub fn evals_tree_new(self, tree: &[Self], y: &mut [E], v: usize, l: usize, r: usize) {
+        if r - l == 1 {
+            y[l] = self.coeff[1];
+        } else {
+            println!("v, r-l: {} {} {}", v, r - l, tree[v << 1 | 1].len());
+            let m = l + (r - l >> 1);
+            let mut p = self.clone().mul_t(tree[v << 1 | 1].clone()).mod_xn(r - l);
+            p[0] = 0;
+            p.evals_tree_new(tree, y, v << 1, l, m);
+            let mut q = self.mul_t(tree[v << 1].clone()).mod_xn(r - l);
+            q[0] = 0;
+            q.evals_tree_new(tree, y, v << 1 | 1, m, r);
+        }
+    }
+
+    /// O(n log^2 n)
+    // #[inline]
+    // pub fn evals_new(self, x: &[E]) -> Self {
+    //     let n = x.len();
+    //     if self.is_zero() {
+    //         return Self::new(vec![0; n]);
+    //     }
+    //     let mut tree = vec![Self::new(vec![]); n.next_power_of_two() << 1];
+    //     Self::build_prod_tree_new(&mut tree, x, 1, 0, n);
+    //     let d;
+    //     (tree[1], d) = std::mem::take(&mut tree[1]).truncate_reverse();
+    //     let mut p = (tree[1].inv(self.len()).unwrap() << d)
+    //         .mul_t(self)
+    //         .mod_xn(n + 1);
+    //     p[0] = 0;
+    //     let mut y = Self::new(vec![0; n]);
+    //     p.evals_tree_new(&tree, &mut y.coeff, 1, 0, n);
+    //     y
+    // }
+
+    // TODO: make this work, arrays too large
     /// O(M log M)
     #[inline]
     pub fn evals_z_mz(self) -> Self {
-        self.chirpz(const { find_primitive_root::<M>() as i64 }, M as usize)
+        let root = const { find_primitive_root::<M>() };
+        let mut v = self.clone().chirpz(root as E, M as usize);
+        let mut root_i = 1;
+        for i in 0..M as usize {
+            if i < root_i {
+                v.coeff.swap(i, root_i);
+            }
+            root_i = (root_i * root as usize) % M as usize;
+        }
+        v
     }
 
     /// O(n log^2 n)
@@ -2370,8 +2450,8 @@ impl<const M: u64> Poly<M> {
         p.interp_tree(&tree, &self.coeff, 1, 0, n)
     }
 
-    #[inline]
-    fn evals_t_tree(
+    /// O(n log^2 n)
+    pub fn evals_t_tree(
         &self,
         tree: &mut [Self],
         x: &[E],
@@ -2391,7 +2471,8 @@ impl<const M: u64> Poly<M> {
                 .mod_xn(n)
                 .truncate_deg()
                 .0;
-            (a * tree[v << 1 | 1].clone()).mod_xn(n) + (b * tree[v << 1].clone()).mod_xn(n)
+            (a * std::mem::take(&mut tree[v << 1 | 1])).mod_xn(n)
+                + (b * std::mem::take(&mut tree[v << 1])).mod_xn(n)
         }
     }
 
@@ -2402,6 +2483,44 @@ impl<const M: u64> Poly<M> {
         let mut tree = vec![Self::new(vec![]); n.next_power_of_two() << 1];
         let p = self.evals_t_tree(&mut tree, x, m, 1, 0, n);
         (p * tree[1].inv(m).unwrap()).mod_xn(m)
+    }
+
+    /// O(n log^2 n)
+    pub fn interp_t_tree(self, tree: &[Self], y: Self, o: &mut [E], v: usize, l: usize, r: usize) {
+        if r - l == 1 {
+            o[l] = y[0] * inv::<M>(self.coeff[1]);
+        } else {
+            let m = l + (r - l >> 1);
+            let mut p = self.clone().mul_t(tree[v << 1 | 1].clone()).mod_xn(r - l);
+            p[0] = 0;
+            p.interp_t_tree(
+                tree,
+                y.clone().mul_t(tree[v << 1 | 1].clone()),
+                o,
+                v << 1,
+                l,
+                m,
+            );
+            let mut q = self.mul_t(tree[v << 1].clone()).mod_xn(r - l);
+            q[0] = 0;
+            q.interp_t_tree(tree, y.mul_t(tree[v << 1].clone()), o, v << 1 | 1, m, r);
+        }
+    }
+
+    /// O(n log^2 n)
+    #[inline]
+    pub fn interp_t(self, x: &[E]) -> Self {
+        let n = self.len();
+        let mut tree = vec![Self::new(vec![]); n.next_power_of_two() << 1];
+        Self::build_prod_tree(&mut tree, x, 1, 0, n);
+        let q = tree[1].clone().diff();
+        let d;
+        (tree[1], d) = std::mem::take(&mut tree[1]).truncate_reverse();
+        let mut p = (tree[1].inv(n).unwrap() << d).mul_t(q).mod_xn(n + 1);
+        p[0] = 0;
+        let mut o = Self::new(vec![0; n]);
+        p.interp_t_tree(&tree, self, &mut o.coeff, 1, 0, n);
+        o
     }
 
     /// O(n log^2 n)
@@ -3514,14 +3633,14 @@ impl<const M: u64> Poly<M> {
     /// O(n log n)
     pub fn mat_rank_i_fq_k(k: u64, n: usize, q: E) -> Self {
         (Self::q_exp_x(n, q).mulx(mod_pow::<M>(q.rem_euclid(M as E) as u64, k) as E)
-            * Self::q_exp_x(n, q).mulx_apic2_ti(q, -1))
+            * Self::q_exp_x(n, q).mulx_aic2_ti(q, -1))
         .mod_xn(n)
         .kqci(k as usize, q)
     }
 
     /// O(n)
     pub fn gl_i_fq(self, q: E) -> Self {
-        self.mulx_apic2_ti(q, q - 1).inv_q_borel(q)
+        self.mulx_aic2_ti(q, q - 1).inv_q_borel(q)
     }
 
     /// O(n)
@@ -3567,14 +3686,32 @@ impl<const M: u64> Poly<M> {
 
     /// O(n log n)
     pub fn connected_graphs(n: usize) -> Self {
-        Self::exp_x(n).mulx_apic2(2).log(n).unwrap()
+        Self::exp_x(n).mulx_aic2(2).log(n).unwrap()
     }
 
     /// O(n log n)
     pub fn acyclic_digraphs(n: usize) -> Self {
-        Self::exp_x(n)
-            .mulx_apic2_ti(inv::<M>(2), -1)
+        Self::exp_x(n).mulx_aic2_ti(inv::<M>(2), -1).inv(n).unwrap()
+    }
+
+    /// O(n log n)
+    pub fn digraph_sccs(self, n: usize) -> Self {
+        (-self)
+            .exp(n)
+            .unwrap()
+            .mulx_aic2(inv::<M>(2))
             .inv(n)
+            .unwrap()
+    }
+
+    /// O(n log n)
+    pub fn strongly_connected_digraphs(n: usize) -> Self {
+        -Self::exp_x(n)
+            .mulx_aic2(2)
+            .inv(n)
+            .unwrap()
+            .mulx_aic2(2)
+            .log(n)
             .unwrap()
     }
 
@@ -3870,6 +4007,9 @@ impl<const M: u64> Poly<M> {
         Some(((self * -4 + 1).sqrt(n)? + 1).inv(n)? * 2)
     }
 
+    // TODO: unlabelled tree
+    // https://maspypy.github.io/library/graph/count/count_unlabeled_tree.hpp
+
     /// O(n log n)
     #[inline]
     pub fn bell(n: usize) -> Self {
@@ -4083,7 +4223,7 @@ impl<const M: u64> Poly<M> {
     /// O(n log n)
     #[inline]
     pub fn delta_0_i(self, n: usize) -> Self {
-        (Self::exp_x(n).n1pkmi(0) * self.mod_xn(n).borel())
+        (self.mod_xn(n).borel() * Self::exp_ax(-1, n))
             .mod_xn(n)
             .inv_borel()
             .resize(n)
@@ -4092,11 +4232,7 @@ impl<const M: u64> Poly<M> {
     /// O(n log^2 n)
     #[inline]
     pub fn stirling_trans(self, n: usize) -> Self {
-        self.mod_xn(n)
-            .borel()
-            .resize(n)
-            .comp(Self::exp_x(n) - 1)
-            .inv_borel()
+        self.mod_xn(n).borel().comp_expm1(n).inv_borel()
     }
 
     /// O(n log^2 n)
@@ -4114,9 +4250,8 @@ impl<const M: u64> Poly<M> {
     pub fn mono_to_fall(mut self) -> Self {
         let d;
         (self, d) = self.truncate_deg_or_0();
-        (Self::exp_x(d + 1) - 1)
-            .pow_proj(self.inv_borel(), d + 1)
-            .borel()
+        let x = (0..(d + 1) as E).collect::<Vec<_>>();
+        self.evals(&x).shift_t(-1).borel()
     }
 
     /// O(n log^2 n)
@@ -4134,7 +4269,8 @@ impl<const M: u64> Poly<M> {
     pub fn mono_to_binom(mut self) -> Self {
         let d;
         (self, d) = self.truncate_deg_or_0();
-        (Self::exp_x(d + 1) - 1).pow_proj(self.inv_borel(), d + 1)
+        let x = (0..(d + 1) as E).collect::<Vec<_>>();
+        self.evals(&x).shift_t(-1)
     }
 
     /// O(n log^2 n)
@@ -4157,6 +4293,16 @@ impl<const M: u64> Poly<M> {
 
     /// O(n log n)
     #[inline]
+    pub fn shift_t(mut self, a: E) -> Self {
+        let d;
+        (self, d) = self.truncate_deg_or_0();
+        (self.borel() * Self::exp_ax(a, d + 1 as usize))
+            .mod_xn(d + 1)
+            .inv_borel()
+    }
+
+    /// O(n log n)
+    #[inline]
     pub fn shift_fall(mut self, a: E) -> Self {
         let d;
         (self, d) = self.truncate_deg_or_0();
@@ -4174,6 +4320,7 @@ impl<const M: u64> Poly<M> {
         lhs.diff_mul(self)
     }
 
+    // TODO: make shift points good
     /// O(n log n)
     #[inline]
     pub fn shift_pts(self, n: usize) -> Self {
@@ -4185,10 +4332,31 @@ impl<const M: u64> Poly<M> {
             .borel()
     }
 
+    /// O(n log^2 n)
+    // https://codeforces.com/blog/entry/111399
+    // https://codeforces.com/blog/entry/138821
+    // https://qiita.com/Kiri8128/items/1738d5403764a0e26b4c
+    pub fn cdq_mul(
+        f: impl FnMut([usize; 2], &Self) -> Vec<E>,
+        g: impl FnMut([usize; 2], &Self) -> Vec<E>,
+        n: usize,
+    ) -> Self {
+        unimplemented!();
+    }
+
+    /// O(n log^2 n)
+    // TODO: CDQ exp, other fundamental operations
+    pub fn cdq_exp(
+        f: impl FnMut([usize; 2], &Self) -> Vec<E>,
+        g: impl FnMut([usize; 2], &Self) -> Vec<E>,
+        n: usize,
+    ) -> Self {
+        unimplemented!();
+    }
+
     // TODO: half-gcd algorithm
     // https://codeforces.com/blog/entry/101850
     // https://judge.yosupo.jp/submission/146008
-    // https://scrapbox.io/37zigen-43465887/half-GCD
     // https://maspypy.github.io/library/poly/poly_gcd.hpp
     /// O(n log^2 n)
     pub fn half_gcd(self) {
@@ -4413,6 +4581,24 @@ impl<const M: u64> Poly<M> {
         self = self.comp_lin(f, e).truncate_reverse().0.comp_lin(c, d);
         (self * Self::new(vec![1; n]).mulx(-d * oc).kpici(m - 1)).mod_xn(n)
             * mod_pow_signed::<M>(oc, m as u64)
+    }
+
+    /// O(n log^2 n)
+    pub fn comp_exp(self, n: usize) -> Self {
+        let l = self.len();
+        let x = (0..l as E).collect::<Vec<_>>();
+        self.evals_t(&x, n).borel()
+    }
+
+    /// O(n log^2 n)
+    pub fn comp_expm1(self, n: usize) -> Self {
+        self.shift(-1).comp_exp(n)
+    }
+
+    /// O(n log^2 n)
+    pub fn expm1_pow_proj(self, n: usize) -> Self {
+        let x = (0..n as E).collect::<Vec<_>>();
+        self.borel().evals(&x).shift_t(-1)
     }
 
     /// O(n log log n)
