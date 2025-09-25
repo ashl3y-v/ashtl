@@ -1,8 +1,9 @@
-// TODO: implement algorithm for frobenius form
-// https://codeforces.com/blog/entry/124815
-
-use crate::alg::ops::inverse_euclidean;
+use crate::alg::{
+    ops::{inv, inverse_euclidean},
+    poly::Poly,
+};
 use itertools::Itertools;
+use rand::Rng;
 use std::{
     fmt::Debug,
     ops::{AddAssign, Index, IndexMut, Mul, SubAssign},
@@ -49,12 +50,38 @@ impl<const M: u64> Mat<M> {
     }
 
     #[inline]
+    pub fn from_vec(n: usize, m: usize, s: Vec<E>) -> Self {
+        Self { n, m, elems: s }
+    }
+
+    #[inline]
     pub fn from_slice(n: usize, m: usize, s: &[E]) -> Self {
         Self {
             n,
             m,
             elems: s.to_vec(),
         }
+    }
+
+    #[inline]
+    pub fn block_diag(blocks: Vec<Self>) -> Self {
+        let mut n = 0;
+        let mut m = 0;
+        for i in 0..blocks.len() {
+            n += blocks[i].n;
+            m += blocks[i].m;
+        }
+        let mut s = Self::from_elem(n, m, 0);
+        let mut a = 0;
+        let mut b = 0;
+        for i in 0..blocks.len() {
+            for j in 0..blocks[i].n {
+                s[a][b..b + blocks[i].m].copy_from_slice(&blocks[i][j]);
+                a += 1;
+            }
+            b += blocks[i].m;
+        }
+        s
     }
 
     #[inline]
@@ -184,6 +211,17 @@ impl<const M: u64> Mat<M> {
     }
 
     #[inline]
+    pub fn neg_normalize(&mut self) -> &mut Self {
+        self.elements_mut().for_each(|i| {
+            *i = i.rem_euclid(M as E);
+            if (M as E) >> 1 < *i {
+                *i -= M as E;
+            }
+        });
+        self
+    }
+
+    #[inline]
     pub fn normalize_row(&mut self, i: usize) -> &mut Self {
         self[i].iter_mut().for_each(|v| *v %= M as E);
         self
@@ -202,7 +240,32 @@ impl<const M: u64> Mat<M> {
     }
 
     #[inline]
-    pub fn pow(self, mut rhs: u32) -> Self {
+    pub fn apply(&self, rhs: &[E]) -> Vec<E> {
+        let mut r = Vec::with_capacity(self.n);
+        for i in 0..self.n {
+            let p = self[i]
+                .iter()
+                .zip(rhs)
+                .fold(0, |acc, (&x, y)| (acc + x * y) % M as E);
+            r.push(p);
+        }
+        r
+    }
+
+    #[inline]
+    pub fn apply_t(&self, rhs: &[E]) -> Vec<E> {
+        let mut r = vec![0; self.m];
+        for i in 0..self.n {
+            let v = rhs[i] % M as E;
+            r.iter_mut()
+                .zip(&self[i])
+                .for_each(|(i, j)| *i = (*i + v * *j) % M as E);
+        }
+        r
+    }
+
+    #[inline]
+    pub fn pow(self, mut rhs: usize) -> Self {
         let mut res = Self::eye(self.n, self.m);
         let mut a = self;
         while rhs != 0 {
@@ -212,8 +275,21 @@ impl<const M: u64> Mat<M> {
             a = &a * &a;
             rhs >>= 1;
         }
-
         res
+        // if rhs <= 1 << 3 || (self.n <= 1 << 5 && rhs <= 1 << 5) {
+        //     let mut res = Self::eye(self.n, self.m);
+        //     let mut a = self;
+        //     while rhs != 0 {
+        //         if rhs & 1 != 0 {
+        //             res = &res * &a;
+        //         }
+        //         a = &a * &a;
+        //         rhs >>= 1;
+        //     }
+        //     res
+        // } else {
+        //     self.with_frob(|charp| charp.clone().xi_mod(rhs))
+        // }
     }
 
     #[inline]
@@ -231,6 +307,29 @@ impl<const M: u64> Mat<M> {
             }
         }
         c
+    }
+
+    pub fn reduce_by(a: &mut [E], b: &[E]) {
+        if let Some(piv) = b.iter().position(|&i| i != 0) {
+            let mut scale = a[piv] % M as E * inv::<M>(b[piv]);
+            scale = scale.rem_euclid(M as E);
+            if (M as E) >> 1 < scale {
+                scale -= M as E;
+            }
+            a.iter_mut()
+                .zip(b)
+                .for_each(|(i, &j)| *i = (*i - j * scale) % M as E);
+        }
+    }
+
+    pub fn add_scaled(a: &mut [E], b: &[E], mut scale: E) {
+        scale = scale.rem_euclid(M as E);
+        if (M as E) >> 1 < scale {
+            scale -= M as E;
+        }
+        a.iter_mut()
+            .zip(b)
+            .for_each(|(i, &j)| *i = (*i + j * scale) % M as E);
     }
 
     pub fn gauss<const MODE: u8>(&mut self) -> &mut Self {
@@ -453,17 +552,167 @@ impl<const M: u64> Mat<M> {
         Some([x_t, ker])
     }
 
-    // https://codeforces.com/blog/entry/124815
-    // TODO: frobenius form algorithm
-    pub fn frobenius() {}
+    pub fn minp(&self) -> Poly<M> {
+        let n = self.n;
+        debug_assert_eq!(n, self.m);
+        let mut basis: Vec<Vec<E>> = Vec::with_capacity(n);
+        let mut rng = rand::rng();
+        let start = basis.len();
+        let mut gen_block = |mut x: Vec<E>| {
+            loop {
+                let mut y = x.clone();
+                let l = y.len();
+                y.resize(l + basis.len() + 1, 0);
+                y[l + basis.len()] = 1;
+                for v in &basis {
+                    Mat::<M>::reduce_by(&mut y, &v);
+                }
+                y.iter_mut().for_each(|i| *i %= M as E);
+                if y.iter().take(n).position(|&i| i != 0).unwrap_or(n) == n {
+                    return Poly::<M>::new(y[n..].to_vec());
+                } else {
+                    basis.push(y);
+                    x = self.apply_t(&x);
+                }
+            }
+        };
+        let full_rec = gen_block((0..n).map(|_| rng.random()).collect());
+        full_rec >> start
+    }
 
-    // https://judge.yosupo.jp/submission/285790
-    // TODO: characteristic polynomial
-    pub fn charpoly() {}
+    pub fn charps(&self) -> Vec<Poly<M>> {
+        let n = self.n;
+        debug_assert_eq!(n, self.m);
+        let mut charps: Vec<Poly<M>> = Vec::new();
+        let mut basis: Vec<Vec<E>> = Vec::with_capacity(n);
+        let mut rng = rand::rng();
+        while basis.len() < n {
+            let start = basis.len();
+            let mut gen_block = |mut x: Vec<E>| {
+                loop {
+                    let mut y = x.clone();
+                    let l = y.len();
+                    y.resize(l + basis.len() + 1, 0);
+                    y[l + basis.len()] = 1;
+                    for v in &basis {
+                        Mat::<M>::reduce_by(&mut y, &v);
+                    }
+                    y.iter_mut().for_each(|i| *i %= M as E);
+                    if y.iter().take(n).position(|&i| i != 0).unwrap_or(n) == n {
+                        return Poly::<M>::new(y[n..].to_vec());
+                    } else {
+                        basis.push(y);
+                        x = self.apply_t(&x);
+                    }
+                }
+            };
+            let full_rec = gen_block((0..n).map(|_| rng.random()).collect());
+            charps.push(full_rec >> start);
+        }
+        charps
+    }
 
-    // https://judge.yosupo.jp/submission/285768
-    // TODO: fast pow
-    pub fn fast_pow() {}
+    pub fn frob(&self) -> (Vec<Poly<M>>, Self, Self) {
+        let n = self.n;
+        debug_assert_eq!(n, self.m);
+        let mut charps: Vec<Poly<M>> = Vec::new();
+        let (mut basis, mut basis_init): (Vec<Vec<E>>, Vec<Vec<E>>) =
+            (Vec::with_capacity(n), Vec::with_capacity(n));
+        fn gen_block<const M: u64>(
+            mut x: Vec<E>,
+            a: &Mat<M>,
+            basis: &mut Vec<Vec<E>>,
+            basis_init: &mut Vec<Vec<E>>,
+            n: usize,
+        ) -> Poly<M> {
+            loop {
+                let mut y = x.clone();
+                let l = y.len();
+                y.resize(l + n + 1, 0);
+                y[l + basis.len()] = 1;
+                for v in &*basis {
+                    Mat::<M>::reduce_by(&mut y, &v);
+                }
+                y.iter_mut().for_each(|i| *i %= M as E);
+                if y.iter().take(n).position(|&i| i != 0).unwrap_or(n) == n {
+                    return Poly::<M>::new(y[n..].to_vec());
+                } else {
+                    basis_init.push(x.clone());
+                    basis.push(y);
+                    x = a.apply_t(&x);
+                }
+            }
+        }
+        let mut rng = rand::rng();
+        while basis.len() < n {
+            let start = basis.len();
+            let mut full_rec = gen_block(
+                (0..n).map(|_| rng.random_range(1..M as E)).collect(),
+                self,
+                &mut basis,
+                &mut basis_init,
+                n,
+            );
+            if !full_rec.clone().mod_xn(start).is_zero() {
+                let charp = full_rec.clone() >> start;
+                let mut x = std::mem::take(&mut basis_init[start]);
+                let shift = (full_rec / charp).normalize();
+                for j in 0..shift.deg_or_0() {
+                    Self::add_scaled(&mut x, &basis_init[j], shift[j]);
+                }
+                basis.truncate(start);
+                basis_init.truncate(start);
+                full_rec = gen_block(x, self, &mut basis, &mut basis_init, n);
+            }
+            charps.push(full_rec >> start);
+        }
+        for i in 0..n {
+            for j in i + 1..n {
+                let [b_i, b_j] = unsafe { basis.get_disjoint_unchecked_mut([i, j]) };
+                Self::reduce_by(b_i, &*b_j);
+            }
+            basis[i].iter_mut().for_each(|i| *i %= M as E);
+        }
+        let t = Self::from_vec(n, n, basis_init.iter().flatten().cloned().collect());
+        let mut t_inv = Self::from_elem(n, (n << 1) + 1, 0);
+        for i in 0..n {
+            for j in 0..basis[i].len() {
+                t_inv[(i, j)] = basis[i][j];
+            }
+        }
+        t_inv.sort_classify(n, |_| {}, |_| {});
+        let mut t_inv_p = Vec::with_capacity(n * n);
+        for i in 0..n {
+            let mut r = t_inv[i][n..n << 1].to_vec();
+            let scale = inv::<M>(t_inv[(i, i)]);
+            r.iter_mut().for_each(|i| *i = *i * scale % M as E);
+            t_inv_p.extend(r);
+        }
+        t_inv = Self::from_vec(n, n, t_inv_p);
+        (charps, t, t_inv)
+    }
+
+    pub fn with_frob(&self, mut f: impl FnMut(&Poly<M>) -> Poly<M>) -> Self {
+        let (charps, t, t_inv) = self.frob();
+        let mut blocks = Vec::new();
+        for charp in charps {
+            let charp_deg = charp.deg_or_0();
+            let mut block = Self::from_elem(charp_deg, charp_deg, 0);
+            let mut f_charp = f(&charp);
+            for i in 0..charp_deg {
+                let l = block[i].len().min(f_charp.coeff.len());
+                block[i][..l].copy_from_slice(&f_charp.coeff[..l]);
+                f_charp = (f_charp << 1) % &charp;
+            }
+            blocks.push(block);
+        }
+        let s = Self::block_diag(blocks);
+        t_inv * s * t
+    }
+
+    pub fn frob_pow(&self, k: usize) -> Self {
+        self.with_frob(|charp| charp.clone().xi_mod(k))
+    }
 }
 
 impl<const M: u64> Debug for Mat<M> {

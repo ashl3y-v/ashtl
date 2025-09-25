@@ -1,3 +1,5 @@
+use crate::alg::poly::{E, Poly};
+
 use super::{gcd::euclidean, poly::Affine, primitive};
 use std::{
     collections::HashMap,
@@ -5,7 +7,11 @@ use std::{
 };
 
 pub fn mod_fact<const M: u64>(n: u64) -> u64 {
-    (1..=n).fold(1, |acc, x| acc * x % M)
+    if n <= 1 << 19 {
+        (1..=n).fold(1, |acc, x| acc * x % M)
+    } else {
+        Poly::<M>::factorial(n as usize).rem_euclid(M as E) as u64
+    }
 }
 
 pub fn mod_rfact<const M: u64>(n: u64) -> i64 {
@@ -37,6 +43,39 @@ pub fn mod_fact_alt<const M: u64>(mut n: u64) -> u64 {
     res
 }
 
+/// O(n)
+pub fn multinom(v: &[u64]) -> u64 {
+    let mut c = 1;
+    let mut m = if v.is_empty() { 1 } else { v[0] };
+    for i in 1..v.len() {
+        for j in 0..v[i] {
+            m += 1;
+            c = c * m / (j + 1);
+        }
+    }
+    c
+}
+
+/// O(n)
+pub fn perms_type<const M: u64>(v: &[u64]) -> u64 {
+    let mut n = 0;
+    for i in 0..v.len() {
+        n += v[i] * (i + 1) as u64;
+    }
+    n = mod_fact::<M>(n);
+    let mx = *v.iter().max().unwrap() as usize;
+    let mut fact = Vec::with_capacity(mx + 1);
+    fact.push(1);
+    for i in 1..=mx {
+        fact.push(fact[i - 1] * i as u64);
+    }
+    let mut m = 1;
+    for i in 0..v.len() {
+        m = m * mod_pow::<M>(i as u64 + 1, v[i]) % M * fact[v[i] as usize] % M;
+    }
+    n * inv::<M>(m as i64).rem_euclid(M as i64) as u64 % M
+}
+
 pub fn fact_mult(mut n: u64, p: u64) -> u64 {
     let mut c = 0;
     loop {
@@ -49,7 +88,7 @@ pub fn fact_mult(mut n: u64, p: u64) -> u64 {
     c
 }
 
-/// O(sum_{i=1}^{log_M n} min(k_i, n_i - k_i))
+/// O(sum_{i=1}^{log_M n} min(k_i, n_i - k_i)) = O(M log_M n)
 pub fn mod_binom<const M: u64>(mut n: u64, mut k: u64) -> u64 {
     if k > n {
         return 0;
@@ -67,6 +106,16 @@ pub fn mod_binom<const M: u64>(mut n: u64, mut k: u64) -> u64 {
         r = r * mod_rfact_u::<M>(a - b) % M * (b + 1..=a).fold(1, |acc, x| acc * x % M) % M;
     }
     r
+}
+
+pub fn mod_multinom<const M: u64>(v: &[u64]) -> u64 {
+    let mut c = 1;
+    let mut p = v[0];
+    for i in 1..v.len() {
+        p += v[i];
+        c = c * mod_binom::<M>(p, v[i]) % M;
+    }
+    c
 }
 
 pub const fn mod_pow<const M: u64>(mut a: u64, mut b: u64) -> u64 {

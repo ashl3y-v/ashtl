@@ -117,11 +117,45 @@ pub fn divisors(n: usize) -> (Vec<usize>, Vec<(usize, u32)>) {
     (result, prime_factors)
 }
 
-// TODO: fast prime counting
-// https://usaco.guide/adv/multiplicative?lang=cpp
-// https://codeforces.com/blog/entry/91632
+/// O(n^3/4 log^-1/2 n)
 pub fn pi(n: usize) -> usize {
-    unimplemented!()
+    if n == 0 || n == 1 {
+        return 0;
+    }
+    let m = n.isqrt();
+    let mut v = Vec::with_capacity(m << 1);
+    for i in 1..=m {
+        v.push(i);
+    }
+    let mut l = 0;
+    for i in (1..=m).rev() {
+        let j = n / i;
+        if j != l {
+            v.push(j);
+            l = j;
+        }
+    }
+    let get = |i| {
+        if i <= m { i - 1 } else { v.len() - n / i }
+    };
+    let l = v.len();
+    let mut dp = vec![0; l];
+    for i in 0..l {
+        dp[i] = v[i];
+    }
+    let mut a = 0;
+    for p in 2..=m {
+        if dp[get(p)] != dp[get(p - 1)] {
+            a += 1;
+            for i in (0..l).rev() {
+                if v[i] < p * p {
+                    break;
+                }
+                dp[i] -= dp[get(v[i] / p)] - a;
+            }
+        }
+    }
+    dp[get(n)] - 1
 }
 
 #[cfg(test)]

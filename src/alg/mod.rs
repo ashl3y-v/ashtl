@@ -11,5 +11,6 @@ pub mod poly;
 pub mod prime;
 pub mod primitive;
 pub mod special;
+pub mod young;
 pub mod zi;
 pub mod zsqrt;

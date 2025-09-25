@@ -1,5 +1,8 @@
 use std::collections::VecDeque;
 
+// TODO: monotone deque
+// https://codeforces.com/blog/entry/122003
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct MonotoneQueue<T, F: FnMut(&T, &T) -> bool> {
     pub q: VecDeque<T>,

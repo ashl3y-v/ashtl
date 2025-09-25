@@ -1,3 +1,5 @@
+use crate::alg::poly::Poly;
+
 use super::{
     ops::{mod_pow, mod_pow_non_const},
     prime,
@@ -397,5 +399,18 @@ pub fn divisors(n: usize) -> (Vec<Vec<usize>>, BitVec, Vec<usize>, Vec<u32>) {
         },
     );
     s.0[0] = vec![0];
+    s
+}
+
+/// O(n)
+pub fn abelian_groups<const M: u64>(n: usize) -> (Vec<usize>, BitVec, Vec<usize>, Vec<u32>) {
+    let part = Poly::<M>::partition((n.ilog2() as usize + 1) << 1);
+    let mut s = sieve(
+        n,
+        1,
+        |a, b| a * b,
+        |_, i, _| part[i as usize].rem_euclid(M as i64) as usize,
+    );
+    s.0[0] = 0;
     s
 }
