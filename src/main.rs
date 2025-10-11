@@ -36,12 +36,11 @@ fn main() -> std::io::Result<()> {
     // hungarian
     // dominator tree
     // mcmf
-    // transposed bostan mori
-    let n = 1 << 20;
-    let m = 1 << 5;
+    let n = 1 << 17;
+    let m = 1 << 20;
     let i = 1 << 23;
-    let k = 3;
-    let q = 2;
+    let k = 2;
+    let q = 4;
 
     let mut coeff = Vec::with_capacity(n);
     for _ in 0..n {
@@ -52,8 +51,12 @@ fn main() -> std::io::Result<()> {
     for _ in 0..m {
         coeff.push(rng.random_range(M >> 4..M) as i64);
     }
+    let mut b = Poly::<M>::new(coeff);
 
     let primes = mult::sieve_primes(n).0;
+
+    let a = Poly::<M>::new(vec![1; k + 1]).kqci(k, q).neg_normalize();
+    println!("{:?}", a);
 
     Ok(())
 }

@@ -266,30 +266,20 @@ impl<const M: u64> Mat<M> {
 
     #[inline]
     pub fn pow(self, mut rhs: usize) -> Self {
-        let mut res = Self::eye(self.n, self.m);
-        let mut a = self;
-        while rhs != 0 {
-            if rhs & 1 != 0 {
-                res = &res * &a;
+        if rhs <= 1 << 3 || (self.n <= 1 << 5 && rhs <= 1 << 5) {
+            let mut res = Self::eye(self.n, self.m);
+            let mut a = self;
+            while rhs != 0 {
+                if rhs & 1 != 0 {
+                    res = &res * &a;
+                }
+                a = &a * &a;
+                rhs >>= 1;
             }
-            a = &a * &a;
-            rhs >>= 1;
+            res
+        } else {
+            self.with_frob(|charp| charp.clone().xi_mod(rhs))
         }
-        res
-        // if rhs <= 1 << 3 || (self.n <= 1 << 5 && rhs <= 1 << 5) {
-        //     let mut res = Self::eye(self.n, self.m);
-        //     let mut a = self;
-        //     while rhs != 0 {
-        //         if rhs & 1 != 0 {
-        //             res = &res * &a;
-        //         }
-        //         a = &a * &a;
-        //         rhs >>= 1;
-        //     }
-        //     res
-        // } else {
-        //     self.with_frob(|charp| charp.clone().xi_mod(rhs))
-        // }
     }
 
     #[inline]
@@ -708,10 +698,6 @@ impl<const M: u64> Mat<M> {
         }
         let s = Self::block_diag(blocks);
         t_inv * s * t
-    }
-
-    pub fn frob_pow(&self, k: usize) -> Self {
-        self.with_frob(|charp| charp.clone().xi_mod(k))
     }
 }
 

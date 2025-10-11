@@ -22,12 +22,11 @@ pub fn cartesian<T: PartialOrd>(a: &[T]) -> Vec<usize> {
     p
 }
 
-// TODO: add building cartesian treap from tree
-
 #[cfg(test)]
 mod tests {
     use super::cartesian;
 
+    #[test]
     fn basic() {
         let a = vec![6, 9, 2, 4, 7, 8, 5, 8, 3, 7];
         let p = cartesian(&a);

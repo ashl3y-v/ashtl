@@ -129,6 +129,11 @@ impl<const M: u64> Poly<M> {
     }
 
     #[inline]
+    pub fn reconstruct_rat(self) -> impl Iterator<Item = Option<(i64, u64)>> {
+        self.coeff.into_iter().map(|i| ops::reconstruct_rat::<M>(i))
+    }
+
+    #[inline]
     pub fn normalize_n(mut self, n: usize) -> Self {
         self.coeff.iter_mut().take(n).for_each(|i| {
             *i = i.rem_euclid(M as E);
@@ -1909,15 +1914,15 @@ impl<const M: u64> Poly<M> {
     }
 
     /// O(n log n)
-    pub fn pows_cinv_xi(self, i: usize, n: usize) -> Self {
+    pub fn comp_inv_pows_xi(self, i: usize, n: usize) -> Self {
         let n = n.min(i);
-        let a0_inv = inv::<M>(self.coeff[1]);
-        let mut p = ((self >> 1) * a0_inv)
+        let a1_inv = inv::<M>(self.coeff[1]);
+        let mut p = ((self >> 1) * a1_inv)
             .inv_pow(i, n)
             .unwrap()
             .reverse_k(i)
             .normalize()
-            * mod_pow_signed::<M>(a0_inv, i as u64);
+            * mod_pow_signed::<M>(a1_inv, i as u64);
         let i_inv = inv::<M>(i as E) as E;
         let l = p.len();
         for j in 0..l {
@@ -1927,7 +1932,7 @@ impl<const M: u64> Poly<M> {
         p
     }
 
-    /// O(min(d,i) log min(d,i) log i) = O(d log d log i)
+    /// O(min(n,i) log min(n,i) log i) = O(n log n log i)
     #[inline]
     pub fn quo_xi(mut self, mut rhs: Self, mut i: usize) -> E {
         let tz = rhs.trailing_xk_or_0();
@@ -1980,6 +1985,11 @@ impl<const M: u64> Poly<M> {
     /// O(d log d log i)
     pub fn inv_xi(self, i: usize) -> E {
         Self::new(vec![1]).quo_xi(self, i)
+    }
+
+    /// O(d log d log i)
+    pub fn log_xi(self, i: usize) -> E {
+        self.clone().diff_x().quo_xi(self, i) * inv::<M>(i as E) % M as E
     }
 
     /// O(n log n log i)
@@ -2038,6 +2048,12 @@ impl<const M: u64> Poly<M> {
         }
         let a = q.clone().quo_xi_t_rev(i);
         (a * q).mod_xn(d).reverse_k(d - 1)
+    }
+
+    // i and j ω(deg) linear, i small pointless, j small and i large possibly useful regime
+    #[inline]
+    pub fn pow_xi(mut self, mut j: usize, mut i: usize) -> E {
+        unimplemented!()
     }
 
     #[inline]
@@ -3887,6 +3903,17 @@ impl<const M: u64> Poly<M> {
     }
 
     /// O(n log n)
+    pub fn functional_graphs_components_n(n: usize) -> Self {
+        ((Poly::<M>::exp_ax(-1, n + 1) - 1).exp(n + 1).unwrap()
+            * (-Poly::<M>::exp_ax(-1, n + 1) + 1))
+            .mod_xn(n + 1)
+            .normalize()
+            .comp_inv_pows_xi(n, n + 1)
+            .borel()
+            * Poly::<M>::factorial(n)
+    }
+
+    /// O(n log n)
     pub fn cyclotomic(n: usize) -> Self {
         if n == 0 {
             return Self::new(vec![]);
@@ -4178,7 +4205,7 @@ impl<const M: u64> Poly<M> {
         Some(((self * -4 + 1).sqrt(n)? + 1).inv(n)? * 2)
     }
 
-    // TODO: add inverse, powers, log or whatever of labelled tree genfunc
+    // TODO: add inverse or whatever of labelled tree genfunc
     /// O(n log n)
     pub fn trees_labelled(mut self, rooted: bool) -> Self {
         let n = self.len();

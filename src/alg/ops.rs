@@ -1,6 +1,9 @@
+use super::{
+    gcd::{euclidean, gcd},
+    poly::Affine,
+    primitive,
+};
 use crate::alg::poly::{E, Poly};
-
-use super::{gcd::euclidean, poly::Affine, primitive};
 use std::{
     collections::HashMap,
     ops::{Div, Mul, Neg, Rem, Sub},
@@ -409,6 +412,24 @@ pub fn mod_k_rt<const M: u64>(mut a: u64, mut k: usize) -> Option<u64> {
     let (alpha_r, phi_r) = (alpha / gcd, phi as usize / gcd);
     let beta = (alpha_r * x).rem_euclid(phi_r);
     Some(mod_pow::<M>(g, beta as u64))
+}
+
+/// O(log n)
+pub fn reconstruct_rat<const M: u64>(n: E) -> Option<(E, u64)> {
+    if n == 0 {
+        return Some((0, 1));
+    }
+    let (mut r0, mut r1) = (M as E, n);
+    let (mut t0, mut t1) = (0, 1);
+    while r1.abs() as u64 > (M >> 1).isqrt() {
+        let q = r0 / r1;
+        (r0, r1, t0, t1) = (r1, r0 - q * r1, t1, t0 - q * t1);
+    }
+    if gcd(r1, t1) == 1 {
+        Some((t1.signum() * r1, t1.abs() as u64))
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
