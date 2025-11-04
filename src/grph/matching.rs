@@ -170,6 +170,7 @@ pub fn max_coclique_bipartite(
 // https://codeforces.com/blog/entry/128703
 pub fn assignment() {}
 
+/// O(n^3)
 pub fn max_matching(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
     let mut n_matches = 0;
     let mut mate = vec![0; n + 1];

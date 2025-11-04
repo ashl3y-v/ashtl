@@ -8,6 +8,7 @@ use ashtl::{
     ds::{knapsack, set},
     grph::color,
     lin::mat::Mat,
+    tree::mergesort::MergeSortTree,
 };
 use rand::{Rng, seq::SliceRandom};
 use std::{collections::HashSet, time::Instant};
@@ -54,9 +55,6 @@ fn main() -> std::io::Result<()> {
     let mut b = Poly::<M>::new(coeff);
 
     let primes = mult::sieve_primes(n).0;
-
-    let a = Poly::<M>::new(vec![1; k + 1]).kqci(k, q).neg_normalize();
-    println!("{:?}", a);
 
     Ok(())
 }

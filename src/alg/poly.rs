@@ -1442,7 +1442,7 @@ impl<const M: u64> Poly<M> {
         }
     }
 
-    /// O(n log n) if self.coeff\[0\] != 0
+    /// O(n log n) if self.coeff\[1\] != 0
     /// O(n log n log k) = O(n log n log log n) else
     pub fn dir_pow(&self, mut k: usize, n: usize) -> Self {
         let f1 = self.coeff[1] % M as E;
@@ -1932,7 +1932,7 @@ impl<const M: u64> Poly<M> {
         p
     }
 
-    /// O(min(n,i) log min(n,i) log i) = O(n log n log i)
+    /// O(n log n log i)
     #[inline]
     pub fn quo_xi(mut self, mut rhs: Self, mut i: usize) -> E {
         let tz = rhs.trailing_xk_or_0();
@@ -2048,12 +2048,6 @@ impl<const M: u64> Poly<M> {
         }
         let a = q.clone().quo_xi_t_rev(i);
         (a * q).mod_xn(d).reverse_k(d - 1)
-    }
-
-    // i and j ω(deg) linear, i small pointless, j small and i large possibly useful regime
-    #[inline]
-    pub fn pow_xi(mut self, mut j: usize, mut i: usize) -> E {
-        unimplemented!()
     }
 
     #[inline]
@@ -2281,14 +2275,14 @@ impl<const M: u64> Poly<M> {
 
     // TODO: speed up newton basis conversion https://judge.yosupo.jp/submission/210799
     /// O(n log^2 n)
-    pub fn to_newton_tree(&self, tree: &[Self], v: usize, l: usize, r: usize) -> Self {
+    pub fn to_newton_rec(&self, tree: &[Self], v: usize, l: usize, r: usize) -> Self {
         if r - l == 1 {
             self.clone()
         } else {
             let m = l + (r - l >> 1);
             let (c, d) = self.div_mod(&tree[v << 1]);
-            let a = d.to_newton_tree(tree, v << 1, l, m);
-            let b = c.to_newton_tree(tree, v << 1 | 1, m, r) << (m - l);
+            let a = d.to_newton_rec(tree, v << 1, l, m);
+            let b = c.to_newton_rec(tree, v << 1 | 1, m, r) << (m - l);
             a + b
         }
     }
@@ -2302,14 +2296,14 @@ impl<const M: u64> Poly<M> {
             let n = d + 1;
             let mut tree = vec![Self::new(vec![]); n.next_power_of_two() << 1];
             Self::build_prod_tree(&mut tree, p, 1, 0, n);
-            self.to_newton_tree(&tree, 1, 0, n)
+            self.to_newton_rec(&tree, 1, 0, n)
         } else {
             Self::new(vec![])
         }
     }
 
     /// O(n log^2 n)
-    pub fn evals_tree(self, tree: &[(Self, Self)], y: &mut [E], v: usize, l: usize, r: usize) {
+    pub fn evals_rec(self, tree: &[(Self, Self)], y: &mut [E], v: usize, l: usize, r: usize) {
         if r - l == 1 {
             y[l] = self.coeff[1];
         } else {
@@ -2321,13 +2315,13 @@ impl<const M: u64> Poly<M> {
                 .resize(n - tree[v << 1 | 1].0.len() + 1)
                 .mod_xn(r - l);
             p[0] = 0;
-            p.evals_tree(tree, y, v << 1, l, m);
+            p.evals_rec(tree, y, v << 1, l, m);
             let mut q = self
                 .mul_t_ntt(&tree[v << 1].1)
                 .resize(n - tree[v << 1].0.len() + 1)
                 .mod_xn(r - l);
             q[0] = 0;
-            q.evals_tree(tree, y, v << 1 | 1, m, r);
+            q.evals_rec(tree, y, v << 1 | 1, m, r);
         }
     }
 
@@ -2347,7 +2341,7 @@ impl<const M: u64> Poly<M> {
             .mod_xn(n + 1);
         p[0] = 0;
         let mut y = Self::new(vec![0; n]);
-        p.evals_tree(&tree, &mut y.coeff, 1, 0, n);
+        p.evals_rec(&tree, &mut y.coeff, 1, 0, n);
         y
     }
 
@@ -2368,7 +2362,7 @@ impl<const M: u64> Poly<M> {
     }
 
     /// O(n log^2 n)
-    pub fn interp_tree(self, tree: &[(Self, Self)], y: &[E], v: usize, l: usize, r: usize) -> Self {
+    pub fn interp_rec(self, tree: &[(Self, Self)], y: &[E], v: usize, l: usize, r: usize) -> Self {
         if r - l == 1 {
             Self::new(vec![(y[l] * inv::<M>(self.coeff[1])) % M as E])
         } else {
@@ -2380,13 +2374,13 @@ impl<const M: u64> Poly<M> {
                 .resize(n - tree[v << 1 | 1].0.len() + 1)
                 .mod_xn(r - l);
             p[0] = 0;
-            let a = p.interp_tree(tree, y, v << 1, l, m);
+            let a = p.interp_rec(tree, y, v << 1, l, m);
             let mut q = self
                 .mul_t_ntt(&tree[v << 1].1)
                 .resize(n - tree[v << 1].0.len() + 1)
                 .mod_xn(r - l);
             q[0] = 0;
-            let b = q.interp_tree(tree, y, v << 1 | 1, m, r);
+            let b = q.interp_rec(tree, y, v << 1 | 1, m, r);
             if r - l <= 200 {
                 a * tree[v << 1 | 1].0.clone() + b * tree[v << 1].0.clone()
             } else {
@@ -2414,11 +2408,11 @@ impl<const M: u64> Poly<M> {
         (tree[1].0, d) = std::mem::take(&mut tree[1].0).truncate_reverse();
         let mut p = (tree[1].0.inv(n).unwrap() << d).mul_t(q).mod_xn(n + 1);
         p[0] = 0;
-        p.interp_tree(&tree, &self.coeff, 1, 0, n)
+        p.interp_rec(&tree, &self.coeff, 1, 0, n)
     }
 
     /// O(n log^2 n)
-    pub fn evals_t_tree(
+    pub fn evals_t_rec(
         &self,
         tree: &mut [Self],
         x: &[E],
@@ -2432,8 +2426,8 @@ impl<const M: u64> Poly<M> {
             Self::new(vec![self.coeff[l]])
         } else {
             let m = l + (r - l >> 1);
-            let a = self.evals_t_tree(tree, x, n, v << 1, l, m);
-            let b = self.evals_t_tree(tree, x, n, v << 1 | 1, m, r);
+            let a = self.evals_t_rec(tree, x, n, v << 1, l, m);
+            let b = self.evals_t_rec(tree, x, n, v << 1 | 1, m, r);
             tree[v] = (tree[v << 1].clone() * tree[v << 1 | 1].clone())
                 .mod_xn(n)
                 .truncate_deg()
@@ -2448,12 +2442,12 @@ impl<const M: u64> Poly<M> {
     pub fn evals_t(self, x: &[E], m: usize) -> Self {
         let n = self.len();
         let mut tree = vec![Self::new(vec![]); n.next_power_of_two() << 1];
-        let p = self.evals_t_tree(&mut tree, x, m, 1, 0, n);
+        let p = self.evals_t_rec(&mut tree, x, m, 1, 0, n);
         (p * tree[1].inv(m).unwrap()).mod_xn(m)
     }
 
     /// O(n log^2 n)
-    pub fn interp_t_tree(
+    pub fn interp_t_rec(
         self,
         tree: &[(Self, Self)],
         y: Self,
@@ -2474,7 +2468,7 @@ impl<const M: u64> Poly<M> {
                 .resize(n - tree[v << 1 | 1].0.len() + 1)
                 .mod_xn(r - l);
             p[0] = 0;
-            p.interp_t_tree(
+            p.interp_t_rec(
                 tree,
                 y.clone()
                     .mul_t_ntt(&tree[v << 1 | 1].1)
@@ -2489,7 +2483,7 @@ impl<const M: u64> Poly<M> {
                 .resize(n - tree[v << 1].0.len() + 1)
                 .mod_xn(r - l);
             q[0] = 0;
-            q.interp_t_tree(
+            q.interp_t_rec(
                 tree,
                 y.mul_t_ntt(&tree[v << 1].1)
                     .resize(k - tree[v << 1].0.len() + 1),
@@ -2513,7 +2507,7 @@ impl<const M: u64> Poly<M> {
         let mut p = (tree[1].0.inv(n).unwrap() << d).mul_t(q).mod_xn(n + 1);
         p[0] = 0;
         let mut o = Self::new(vec![0; n]);
-        p.interp_t_tree(&tree, self, &mut o.coeff, 1, 0, n);
+        p.interp_t_rec(&tree, self, &mut o.coeff, 1, 0, n);
         o
     }
 
@@ -2570,7 +2564,9 @@ impl<const M: u64> Poly<M> {
     #[inline]
     pub fn txnpz(t: E, z: E, n: usize) -> Self {
         let mut s = Self::new(vec![0; n]).push(t);
-        s[0] = z;
+        if n != 0 {
+            s[0] = z;
+        }
         s
     }
 

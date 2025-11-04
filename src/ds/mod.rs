@@ -9,3 +9,4 @@ pub mod score;
 pub mod set;
 pub mod sort;
 pub mod stack;
+pub mod suffix_max;

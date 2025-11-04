@@ -4,61 +4,65 @@ use std::{
 };
 
 pub struct DSU {
-    pub dsu: Vec<isize>,
+    pub p: Vec<isize>,
 }
 
 impl DSU {
     pub fn new(n: usize) -> Self {
-        Self { dsu: vec![-1; n] }
+        Self { p: vec![-1; n] }
     }
 
     pub fn find(&mut self, mut x: usize) -> usize {
-        while self.dsu[x] >= 0 {
-            let p = self.dsu[x] as usize;
-            if self.dsu[p] >= 0 {
-                self.dsu[x] = self.dsu[p];
+        while self.p[x] >= 0 {
+            let p = self.p[x] as usize;
+            if self.p[p] >= 0 {
+                self.p[x] = self.p[p];
             }
             x = p;
         }
         x
     }
 
-    pub fn union(&mut self, a: usize, b: usize) -> (bool, usize) {
-        let mut i = self.find(a);
-        let mut j = self.find(b);
+    pub fn same(&mut self, x: usize, y: usize) -> bool {
+        self.find(x) == self.find(y)
+    }
+
+    pub fn union(&mut self, x: usize, y: usize) -> (bool, usize) {
+        let mut i = self.find(x);
+        let mut j = self.find(y);
+        if self.p[i] > self.p[j] {
+            (i, j) = (j, i);
+        }
         if i == j {
             return (false, i);
         }
-        if self.dsu[i] > self.dsu[j] {
-            (i, j) = (j, i);
-        }
-        self.dsu[i] += self.dsu[j];
-        self.dsu[j] = i as isize;
+        self.p[i] += self.p[j];
+        self.p[j] = i as isize;
         (true, i)
     }
 
-    pub fn union_root(&mut self, a: usize, mut r: usize) -> (bool, usize) {
-        let mut i = self.find(a);
+    pub fn union_root(&mut self, x: usize, mut r: usize) -> (bool, usize) {
+        let mut i = self.find(x);
         if i == r {
             return (false, r);
         }
-        if self.dsu[i] > self.dsu[r] {
+        if self.p[i] > self.p[r] {
             (i, r) = (r, i);
         }
-        self.dsu[i] += self.dsu[r];
-        self.dsu[r] = i as isize;
+        self.p[i] += self.p[r];
+        self.p[r] = i as isize;
         (true, i)
     }
 
     pub fn size(&mut self, x: usize) -> usize {
         let r = self.find(x);
-        (-self.dsu[r]) as usize
+        (-self.p[r]) as usize
     }
 }
 
 impl Debug for DSU {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self.dsu))
+        f.write_fmt(format_args!("{:?}", self.p))
     }
 }
 
@@ -69,7 +73,7 @@ where
     type Output = T;
 
     fn index(&self, index: Idx) -> &Self::Output {
-        &self.dsu[index]
+        &self.p[index]
     }
 }
 
@@ -78,7 +82,7 @@ where
     Vec<isize>: IndexMut<Idx, Output = T>,
 {
     fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
-        &mut self.dsu[index]
+        &mut self.p[index]
     }
 }
 
@@ -86,5 +90,81 @@ where
 // https://judge.yosupo.jp/submission/214503
 // https://judge.yosupo.jp/submission/236404
 
-// TODO: persistent union find
-// https://judge.yosupo.jp/problem/persistent_unionfind
+pub struct RollbackDSU {
+    pub p: Vec<isize>,
+    pub joins: Vec<(usize, isize)>,
+}
+
+impl RollbackDSU {
+    pub fn new(n: usize) -> Self {
+        Self {
+            p: vec![-1; n],
+            joins: Vec::new(),
+        }
+    }
+
+    pub fn find(&self, mut i: usize) -> usize {
+        while self.p[i] >= 0 {
+            i = self.p[i] as usize;
+        }
+        i
+    }
+
+    pub fn same(&self, x: usize, y: usize) -> bool {
+        self.find(x) == self.find(y)
+    }
+
+    pub fn size(&self, x: usize) -> usize {
+        (-self.p[self.find(x)]) as usize
+    }
+
+    pub fn union(&mut self, x: usize, y: usize) -> (bool, usize) {
+        let (mut i, mut j) = (self.find(x), self.find(y));
+        if self.p[i] > self.p[j] {
+            (i, j) = (j, i);
+        }
+        if i == j {
+            return (false, i);
+        }
+        self.joins.push((j, self.p[j]));
+        self.p[i] += self.p[j];
+        self.p[j] = i as isize;
+        return (true, i);
+    }
+
+    pub fn rollback(&mut self, t: usize) {
+        while self.joins.len() > t
+            && let Some((i, s)) = self.joins.pop()
+        {
+            let pi = self.p[i] as usize;
+            self.p[pi] -= s;
+            self.p[i] = s;
+        }
+    }
+}
+
+impl Debug for RollbackDSU {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}, {:?}", self.p, self.joins))
+    }
+}
+
+impl<Idx, T> Index<Idx> for RollbackDSU
+where
+    Vec<isize>: Index<Idx, Output = T>,
+{
+    type Output = T;
+
+    fn index(&self, index: Idx) -> &Self::Output {
+        &self.p[index]
+    }
+}
+
+impl<Idx, T> IndexMut<Idx> for RollbackDSU
+where
+    Vec<isize>: IndexMut<Idx, Output = T>,
+{
+    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
+        &mut self.p[index]
+    }
+}

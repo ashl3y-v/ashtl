@@ -22,8 +22,8 @@ impl<T, F: FnMut(&T, &T) -> T> BIT<T, F> {
         self
     }
 
-    pub fn query(&mut self, mut i: usize, identity: T) -> T {
-        let mut res = identity;
+    pub fn query(&mut self, mut i: usize, id: T) -> T {
+        let mut res = id;
 
         while i > 0 {
             res = (self.f)(&res, &self.bit[i - 1]);

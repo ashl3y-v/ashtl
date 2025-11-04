@@ -328,3 +328,6 @@ where
 
 // TODO: persistent segment tree
 // https://usaco.guide/adv/persistent?lang=cpp
+
+// just update lazy values during path copying
+pub struct PersistentSegTree {}
