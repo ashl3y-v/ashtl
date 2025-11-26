@@ -1,23 +1,23 @@
-use bit_vec::BitVec;
+use crate::ds::bit_vec::BitVec;
 use std::ops::{Bound, RangeBounds};
 
 const NULL: usize = 0;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Node<T> {
+pub struct SplayNode<T> {
     pub v: T,
     pub l: usize,
     pub r: usize,
     pub size: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Splay<T, Push, Pull>
 where
-    Push: FnMut(usize, usize, usize, &mut [Node<T>]),
-    Pull: FnMut(usize, usize, usize, &mut [Node<T>]),
+    Push: FnMut(usize, usize, usize, &mut [SplayNode<T>]),
+    Pull: FnMut(usize, usize, usize, &mut [SplayNode<T>]),
 {
-    pub n: Vec<Node<T>>,
+    pub n: Vec<SplayNode<T>>,
     pub push: Push,
     pub pull: Pull,
     pub rt: usize,
@@ -28,13 +28,13 @@ where
 
 impl<T, Push, Pull> Splay<T, Push, Pull>
 where
-    Push: FnMut(usize, usize, usize, &mut [Node<T>]),
-    Pull: FnMut(usize, usize, usize, &mut [Node<T>]),
+    Push: FnMut(usize, usize, usize, &mut [SplayNode<T>]),
+    Pull: FnMut(usize, usize, usize, &mut [SplayNode<T>]),
 {
     #[inline]
     pub fn new(init: T, push: Push, pull: Pull) -> Self {
         Self {
-            n: vec![Node {
+            n: vec![SplayNode {
                 v: init,
                 l: NULL,
                 r: NULL,
@@ -45,7 +45,7 @@ where
             rt: NULL,
             nxt: 1,
             removed: 0,
-            open: BitVec::from_elem(1, false),
+            open: BitVec::new(1, false),
         }
     }
 
@@ -159,7 +159,7 @@ where
         }
         let nxt = self.nxt;
         if self.len() <= k {
-            let n = Node {
+            let n = SplayNode {
                 v,
                 l: self.rt,
                 r: NULL,
@@ -179,7 +179,7 @@ where
             let l = self.n[self.rt].l;
             self.n[self.rt].l = NULL;
             self.pull(self.rt);
-            let n = Node {
+            let n = SplayNode {
                 v,
                 l,
                 r: self.rt,
@@ -263,7 +263,7 @@ where
 
     pub fn range<R, F>(&mut self, range: impl RangeBounds<usize>, mut f: F) -> Option<R>
     where
-        F: FnMut(usize, &mut [Node<T>]) -> R,
+        F: FnMut(usize, &mut [SplayNode<T>]) -> R,
     {
         let l = match range.start_bound() {
             Bound::Included(l) => *l,
@@ -329,8 +329,8 @@ where
 
 impl<T: Clone, Push, Pull> Splay<T, Push, Pull>
 where
-    Push: FnMut(usize, usize, usize, &mut [Node<T>]),
-    Pull: FnMut(usize, usize, usize, &mut [Node<T>]),
+    Push: FnMut(usize, usize, usize, &mut [SplayNode<T>]),
+    Pull: FnMut(usize, usize, usize, &mut [SplayNode<T>]),
 {
     fn build<S>(&mut self, v: &[S], elem: &mut impl FnMut(&S) -> T, l: usize, r: usize) -> usize {
         if l == r {
@@ -359,7 +359,7 @@ where
         let len = v.len();
         let mut s = Splay {
             n: vec![
-                Node {
+                SplayNode {
                     v: init,
                     l: NULL,
                     r: NULL,
@@ -372,7 +372,7 @@ where
             rt: NULL,
             nxt: len,
             removed: 0,
-            open: BitVec::from_elem(len + 1, false),
+            open: BitVec::new(len + 1, false),
         };
         s.rt = s.build(v, &mut elem, 1, len + 1);
         s
@@ -538,11 +538,11 @@ mod tests {
             &[0, 1, 2, 3, 4],
             0,
             |&x| x,
-            |x, l, r, ns: &mut [Node<i32>]| {
+            |x, l, r, ns: &mut [SplayNode<i32>]| {
                 // Push operation would be implemented here
                 // For this test, we'll keep it simple
             },
-            |x, l, r, ns: &mut [Node<i32>]| {
+            |x, l, r, ns: &mut [SplayNode<i32>]| {
                 // Pull operation
             },
         );
@@ -561,10 +561,10 @@ mod tests {
             &[0, 1, 2, 3, 4],
             0,
             |&x| x,
-            |x, l, r, ns: &mut [Node<i32>]| {
+            |x, l, r, ns: &mut [SplayNode<i32>]| {
                 // Push implementation would use external storage
             },
-            |x, l, r, ns: &mut [Node<i32>]| {
+            |x, l, r, ns: &mut [SplayNode<i32>]| {
                 // Pull implementation
             },
         );
@@ -585,8 +585,8 @@ mod tests {
             &[1, 2, 3, 4, 5],
             0,
             |&x| x,
-            |x, l, r, ns: &mut [Node<i32>]| {},
-            |x, l, r, ns: &mut [Node<i32>]| {
+            |x, l, r, ns: &mut [SplayNode<i32>]| {},
+            |x, l, r, ns: &mut [SplayNode<i32>]| {
                 // Pull: calculate sum would be done here
             },
         );
@@ -596,7 +596,7 @@ mod tests {
             // This would return aggregated data in a real implementation
             // For now, just return a simple sum
             let mut total = 0;
-            fn sum_subtree(idx: usize, ns: &[Node<i32>]) -> i32 {
+            fn sum_subtree(idx: usize, ns: &[SplayNode<i32>]) -> i32 {
                 if idx == 0 {
                     return 0;
                 }
@@ -742,7 +742,7 @@ mod tests {
         assert_eq!(tree.len(), 7);
 
         // Check that the tree structure is valid by verifying sizes
-        fn check_sizes<T>(idx: usize, ns: &[Node<T>]) -> usize {
+        fn check_sizes<T>(idx: usize, ns: &[SplayNode<T>]) -> usize {
             if idx == 0 {
                 return 0;
             }

@@ -1,5 +1,5 @@
+use crate::ds::bit_vec::BitVec;
 use crate::ds::dsu::DSU;
-use bit_vec::BitVec;
 
 /// Online Bridge Tree O(n log n α(n) + m α(n))
 pub struct BridgeTree {
@@ -18,8 +18,8 @@ impl BridgeTree {
             ecc2: DSU::new(n),
             cc: DSU::new(n),
             count: 0,
-            mask: BitVec::from_elem(n, false),
-            seen: BitVec::from_elem(n, false),
+            mask: BitVec::new(n, false),
+            seen: BitVec::new(n, false),
         }
     }
 

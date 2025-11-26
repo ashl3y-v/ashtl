@@ -1,5 +1,5 @@
+use crate::ds::bit_vec::BitVec;
 use crate::geo::hilbert::hilbert;
-use bit_vec::BitVec;
 
 // Mo's algorithm using Hilbert curve
 // O(n sqrt(q))
@@ -59,7 +59,7 @@ pub fn mo_tree_paths<T, R>(
     };
     mo(
         qs,
-        |qs| (init(qs), BitVec::from_elem(et.len() / 2, false)),
+        |qs| (init(qs), BitVec::new(et.len() / 2, false)),
         &toggle,
         &toggle,
         |l, r, qi, data, s| {

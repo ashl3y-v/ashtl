@@ -1,60 +1,58 @@
-use ashtl::{
-    alg::{
-        lattice, mult, ntt,
-        ops::{self, inverse_euclidean, mod_fact, mod_pow},
-        poly::{Poly, Poly2},
-        prime, primitive, special, young,
+// SECTION: io
+
+#[derive(Default)]
+struct Scanner {
+    buffer: Vec<String>,
+}
+
+impl Scanner {
+    fn next<T: std::str::FromStr>(&mut self) -> T {
+        loop {
+            if let Some(token) = self.buffer.pop() {
+                return token.parse().ok().expect("Failed parse");
+            }
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).expect("Failed read");
+            self.buffer = input.split_whitespace().rev().map(String::from).collect();
+        }
+    }
+}
+
+use ashtl::lin::mat::Mat;
+use itertools::Itertools;
+use rand::Rng;
+use std::cmp::Ordering;
+#[allow(unused_imports)]
+use std::cmp::{max, min};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::io::{BufWriter, Write, stdin, stdout};
+use std::mem::MaybeUninit;
+use std::ops::BitXorAssign;
+use std::time::Instant;
+use std::{
+    fmt::{Debug, Display},
+    ops::{
+        Add, AddAssign, Bound, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, RangeBounds,
+        Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub, SubAssign,
     },
-    ds::{knapsack, set},
-    grph::color,
-    lin::mat::Mat,
-    tree::mergesort::MergeSortTree,
 };
-use rand::{Rng, seq::SliceRandom};
-use std::{collections::HashSet, time::Instant};
 
-// const M: u64 = (119 << 23) + 1;
-// const M: u64 = (7 << 26) + 1;
-const M: u64 = (15 << 27) + 1;
-// const M: u64 = ((1_u128 << 63) - 25) as u64;
+const M: u64 = (119 << 23) + 1;
 
-fn main() -> std::io::Result<()> {
-    let mut rng = rand::rng();
-    // println!("{}", ntt::find_ntt_prime(1 << 22, M >> 2));
-    // put everyone's phones in my thing
-    // get rid of stuff taking mut self and n
-    // make stuff use truncate_deg instead of doing stuff up to deg
-    // ntt faster
-    // println!("{}", find_ntt_prime(1 << 27, M << 2));
+use ashtl::alg::poly::Poly;
 
-    let inv = |a: i64| inverse_euclidean::<M, _>(a);
-    let inv_u = |a: i64| inverse_euclidean::<M, _>(a).rem_euclid(M as i64) as u64;
+fn main() {
+    let a = Mat::<M>::from_vec(3, 3, vec![1, -1, -1, -1, 0, 3, 1, 2, -1]);
+    let v = vec![3, 1, 7];
+    println!(
+        "{:?}",
+        Mat::<M>::minp_bb(3, |v| a.apply(&v)).neg_normalize()
+    );
+    println!("{:?}", a.minp());
 
-    // schedule:
-    // bivariate extensions of fundamental operations https://maspypy.github.io/library/poly/2d/fps_inv_2d.hpp
-    // https://robert1003.github.io/2020/01/31/cdq-divide-and-conquer.html
-    // half-gcd
-    // hungarian
-    // dominator tree
-    // mcmf
-    let n = 1 << 17;
-    let m = 1 << 20;
-    let i = 1 << 23;
-    let k = 2;
-    let q = 4;
-
-    let mut coeff = Vec::with_capacity(n);
-    for _ in 0..n {
-        coeff.push(rng.random_range(M >> 4..M) as i64);
-    }
-    let mut a = Poly::<M>::new(coeff);
-    let mut coeff = Vec::with_capacity(m);
-    for _ in 0..m {
-        coeff.push(rng.random_range(M >> 4..M) as i64);
-    }
-    let mut b = Poly::<M>::new(coeff);
-
-    let primes = mult::sieve_primes(n).0;
-
-    Ok(())
+    let x = Mat::<M>::solve_bb(v, |v| a.apply(&v));
+    let mut y = a.apply(&x);
+    y.iter_mut().for_each(|a| *a %= M as i64);
+    println!("{:?}", x);
+    println!("{:?}", y);
 }

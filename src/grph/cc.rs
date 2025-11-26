@@ -1,4 +1,4 @@
-use bit_vec::BitVec;
+use crate::ds::bit_vec::BitVec;
 use std::collections::VecDeque;
 
 /// Tarjan's SCC
@@ -12,7 +12,7 @@ pub fn scc<F: FnMut(Vec<usize>)>(g: &[Vec<usize>], mut f: F) -> Vec<usize> {
     let mut idx = 1;
     let mut comp_count = usize::MAX;
     let mut root_idx = vec![0; n];
-    let mut child = BitVec::from_elem(n, false);
+    let mut child = BitVec::new(n, false);
     let mut start = 0;
     let mut stk = Vec::with_capacity(n);
     let mut cur = 0;
@@ -214,8 +214,8 @@ where
 /// O(n^2)
 pub fn comp_cc(adj: &[Vec<usize>], mut f: impl FnMut(Vec<usize>)) {
     let n = adj.len();
-    let mut visited = BitVec::from_elem(n, false);
-    let mut temp = BitVec::from_elem(n, false);
+    let mut visited = BitVec::new(n, false);
+    let mut temp = BitVec::new(n, false);
     let mut next_unvisited = 0;
     let mut remaining: Vec<usize> = Vec::with_capacity(n);
     remaining.extend(0..n);

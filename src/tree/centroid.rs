@@ -1,4 +1,4 @@
-use bit_vec::BitVec;
+use crate::ds::bit_vec::BitVec;
 
 /// O(n log n + sum_{cd} F(cd)) where F(cd) is the cost of calling F on that centroid
 pub fn centroid_decomp(
@@ -6,7 +6,7 @@ pub fn centroid_decomp(
     mut f: impl FnMut([usize; 3], &mut BitVec, &mut [usize]),
 ) {
     let n = adj.len();
-    let mut is_removed = BitVec::from_elem(n, false);
+    let mut is_removed = BitVec::new(n, false);
     let mut ss = vec![0; n];
     let mut stk = Vec::with_capacity(n);
     let mut get_ss = |u, p, is_removed: &BitVec, ss: &mut [usize]| {
@@ -65,12 +65,14 @@ pub fn centroid_decomp(
 #[cfg(test)]
 mod tests {
     use super::centroid_decomp;
-    use bit_vec::BitVec;
+    use crate::tree::centroid::BitVec;
     use std::usize;
 
     /// Run centroid decomposition and record the parent of each centroid.
     fn build_centroid_parents(adj: &[Vec<usize>]) -> Vec<usize> {
-        let n = adj.len();
+        let len = adj.len();
+        let len = len;
+        let n = len;
         let mut parent_cd = vec![usize::MAX; n];
         // Closure f: record parent as the removed neighbor
         let mut f = |[cd, pcd, _]: [usize; 3], _: &mut BitVec, _: &mut [usize]| {

@@ -570,6 +570,83 @@ impl<const M: u64> Mat<M> {
         full_rec >> start
     }
 
+    pub fn minp_bb(n: usize, mut f: impl FnMut(Vec<E>) -> Vec<E>) -> Poly<M> {
+        let m = 2 * n + 10;
+        let mut rng = rand::rng();
+        let (mut s, c, mut v) = (
+            vec![0; m],
+            (0..n)
+                .map(|_| rng.random_range(0..M as E))
+                .collect::<Vec<_>>(),
+            (0..n)
+                .map(|_| rng.random_range(0..M as E))
+                .collect::<Vec<_>>(),
+        );
+        for k in 0..m {
+            s[k] = c.iter().zip(&v).map(|(&a, &b)| a * b % M as E).sum();
+            v = f(v);
+            v.iter_mut().for_each(|a| *a %= M as E);
+        }
+        Poly::new(s).normalize().min_rec(m).reverse()
+    }
+
+    pub fn det_bb(n: usize, mut f: impl FnMut(Vec<E>) -> Vec<E>) -> E {
+        let mut rng = rand::rng();
+        let c = (0..n)
+            .map(|_| rng.random_range(0..M as E))
+            .collect::<Vec<_>>();
+        let r = c.iter().fold(1, |a, b| a * b % M as E);
+        let g = |mut v: Vec<E>| {
+            v.iter_mut().zip(&c).for_each(|(a, b)| *a *= b);
+            f(v)
+        };
+        let p = Self::minp_bb(n, g);
+        let mut det = if p.len() == n + 1 { p[0] } else { 0 };
+        if n & 1 != 0 {
+            det = -det;
+        }
+        det % M as E * inv::<M>(r) % M as E
+    }
+
+    pub fn solve_bb(v: Vec<E>, mut f: impl FnMut(Vec<E>) -> Vec<E>) -> Vec<E> {
+        let n = v.len();
+        let m = 2 * n + 10;
+        let mut rng = rand::rng();
+        let (mut s, c, mut w) = (
+            vec![0; m],
+            (0..n)
+                .map(|_| rng.random_range(0..M as E))
+                .collect::<Vec<_>>(),
+            v.clone(),
+        );
+        for k in 0..m {
+            s[k] = c.iter().zip(&w).map(|(&a, &b)| a * b % M as E).sum();
+            w = f(w);
+            w.iter_mut().for_each(|a| *a %= M as E);
+        }
+        let p = Poly::<M>::new(s)
+            .normalize()
+            .min_rec(m)
+            .reverse()
+            .normalize();
+        let m0 = p[0];
+        let (p, d) = ((p >> 1) / -m0).truncate_deg_or_0();
+        let mut res = v.clone();
+        res.iter_mut().for_each(|a| *a = (*a * p.coeff[d]) % M as E);
+        for i in (0..d).rev() {
+            res = f(res);
+            res.iter_mut()
+                .zip(&v)
+                .for_each(|(a, b)| *a = (*a + p.coeff[i] * b) % M as E);
+        }
+        res
+    }
+
+    // https://maspypy.github.io/library/linalg/characteristic_poly.hpp
+    pub fn charp(&self) -> Poly<M> {
+        unimplemented!()
+    }
+
     pub fn charps(&self) -> Vec<Poly<M>> {
         let n = self.n;
         debug_assert_eq!(n, self.m);

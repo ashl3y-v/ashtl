@@ -1,5 +1,5 @@
+use crate::ds::bit_vec::BitVec;
 use crate::ds::score::MinScore;
-use bit_vec::BitVec;
 use std::{collections::BinaryHeap, ops::Add};
 
 /// O(n m)
@@ -32,7 +32,7 @@ pub fn spfa<T: Copy + PartialOrd + Add<T, Output = T> + Default>(
     let mut d = vec![None; n];
     d[v] = Some(T::default());
     let mut q = Vec::with_capacity(n);
-    let mut in_q = BitVec::from_elem(n, false);
+    let mut in_q = BitVec::new(n, false);
     q.push(v);
     in_q.set(v, true);
     let mut visits = vec![0; n];
@@ -65,7 +65,7 @@ pub fn recover_negative_cycle<T>(v: usize, d: &[T], p: &[usize]) -> Vec<usize> {
     let mut path = Vec::new();
     let start = v;
     let mut node = start;
-    let mut visited = BitVec::from_elem(n, false);
+    let mut visited = BitVec::new(n, false);
     loop {
         let ancestor = if p[node] == usize::MAX { node } else { p[node] };
         if ancestor == start {
@@ -126,7 +126,7 @@ pub fn dijkstra<T: Copy + PartialOrd + Add<T, Output = T> + Default>(
     adj: &[Vec<(usize, T)>],
 ) -> Vec<Option<T>> {
     let n = adj.len();
-    let mut seen = BitVec::from_elem(n, false);
+    let mut seen = BitVec::new(n, false);
     let mut scores = vec![None; n];
     let mut visit = BinaryHeap::new();
     scores[u] = Some(T::default());

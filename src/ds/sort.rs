@@ -1,4 +1,4 @@
-use bit_vec::BitVec;
+use crate::ds::bit_vec::BitVec;
 
 /// counting sort O(n + k) time O(k) space
 /// k must be a strict upper bound
@@ -21,7 +21,7 @@ pub fn counting_sort(a: &mut [usize], k: usize) -> &mut [usize] {
 /// counting sort with dedup O(n + k) time O(k) space
 /// k must be a strict upper bound
 pub fn counting_sort_dedup(a: &mut [usize], k: usize) -> usize {
-    let mut seen = BitVec::from_elem(k, false);
+    let mut seen = BitVec::new(k, false);
     for &x in &*a {
         seen.set(x, true);
     }
@@ -73,7 +73,7 @@ pub fn counting_sort_dedup_by_key<T: Clone, F: Fn(&T) -> usize>(
     k: usize,
     key: F,
 ) -> usize {
-    let mut seen = BitVec::from_elem(k, false);
+    let mut seen = BitVec::new(k, false);
     let mut repr: Vec<Option<T>> = vec![None; k];
     for x in a.iter() {
         let v = key(x);

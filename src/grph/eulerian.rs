@@ -1,10 +1,10 @@
-use bit_vec::BitVec;
+use crate::ds::bit_vec::BitVec;
 
 /// eulerian path starting from v
 pub fn eulerian_path(v: usize, m: usize, adj: &[Vec<usize>]) -> Vec<usize> {
     let n = adj.len();
     let mut stk = Vec::with_capacity(m + 1);
-    let mut done = BitVec::from_elem(n, false);
+    let mut done = BitVec::new(n, false);
     let mut path = vec![0; m + 1];
     let mut idx = m + 1;
     stk.push(v);

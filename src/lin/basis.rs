@@ -3,18 +3,18 @@ use std::{
     ops::{Add, AddAssign, BitAnd, BitAndAssign, Div, Index, IndexMut, Range, Rem},
 };
 
-type E = u128;
+type B = u128;
 
 #[derive(Clone)]
 pub struct XorBasis {
-    pub basis: [E; E::BITS as usize],
-    pub mask: E,
+    pub basis: [B; B::BITS as usize],
+    pub mask: B,
 }
 
 impl XorBasis {
     pub fn new() -> XorBasis {
         Self {
-            basis: [0; E::BITS as usize],
+            basis: [0; B::BITS as usize],
             mask: 0,
         }
     }
@@ -23,20 +23,20 @@ impl XorBasis {
         self.mask.count_ones()
     }
 
-    pub fn span_size(&self) -> E {
+    pub fn span_size(&self) -> B {
         1 << self.size()
     }
 
-    pub fn ker_size(&self, at: u32) -> E {
+    pub fn ker_size(&self, at: u32) -> B {
         1 << (at - self.size())
     }
 
     pub fn eliminate(&mut self) -> &mut Self {
-        for i in (0..E::BITS as usize).rev() {
+        for i in (0..B::BITS as usize).rev() {
             if self.mask & 1 << i == 0 {
                 continue;
             }
-            for j in i + 1..E::BITS as usize {
+            for j in i + 1..B::BITS as usize {
                 if self.mask & 1 << j != 0 && self.basis[j] & 1 << i != 0 {
                     self.basis[j] ^= self.basis[i];
                 }
@@ -45,9 +45,9 @@ impl XorBasis {
         self
     }
 
-    pub fn max_span(&self) -> E {
+    pub fn max_span(&self) -> B {
         let mut m = 0;
-        for i in (0..E::BITS as usize).rev() {
+        for i in (0..B::BITS as usize).rev() {
             if self.mask & 1 << i != 0 && m & 1 << i == 0 {
                 m ^= self.basis[i];
             }
@@ -55,9 +55,9 @@ impl XorBasis {
         m
     }
 
-    pub fn min_span(&self) -> E {
+    pub fn min_span(&self) -> B {
         let mut m = 0;
-        for i in (0..E::BITS as usize).rev() {
+        for i in (0..B::BITS as usize).rev() {
             if self.mask & 1 << i != 0 && m & 1 << i != 0 {
                 m ^= self.basis[i];
             }
@@ -65,10 +65,10 @@ impl XorBasis {
         m
     }
 
-    pub fn kth_span(&self, mut k: E) -> E {
+    pub fn kth_span(&self, mut k: B) -> B {
         let mut m = 0;
         let mut tot = self.span_size();
-        for i in (0..E::BITS as usize).rev() {
+        for i in (0..B::BITS as usize).rev() {
             if self.mask & 1 << i != 0 {
                 let low = tot / 2;
                 if (low <= k && m & 1 << i == 0) || (low > k && (m & 1 << i != 0)) {
@@ -86,7 +86,7 @@ impl XorBasis {
     pub fn span(&self) -> Vec<usize> {
         let mut span = Vec::with_capacity(self.span_size() as usize);
         span.push(0);
-        for i in 0..E::BITS {
+        for i in 0..B::BITS {
             if self.mask & 1 << i != 0 {
                 for j in 0..span.len() {
                     let s = span[j];
@@ -100,7 +100,7 @@ impl XorBasis {
 
 impl Debug for XorBasis {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for i in 0..E::BITS as usize {
+        for i in 0..B::BITS as usize {
             writeln!(f, "{:128b}", self.basis[i])?;
         }
         Ok(())
@@ -108,7 +108,7 @@ impl Debug for XorBasis {
 }
 
 impl Index<usize> for XorBasis {
-    type Output = E;
+    type Output = B;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.basis[index]
@@ -122,7 +122,7 @@ impl IndexMut<usize> for XorBasis {
 }
 
 impl Index<Range<usize>> for XorBasis {
-    type Output = [E];
+    type Output = [B];
 
     fn index(&self, index: Range<usize>) -> &Self::Output {
         &self.basis[index]
@@ -135,9 +135,9 @@ impl IndexMut<Range<usize>> for XorBasis {
     }
 }
 
-impl AddAssign<E> for XorBasis {
-    fn add_assign(&mut self, mut m: E) {
-        for i in (0..E::BITS as usize).rev() {
+impl AddAssign<B> for XorBasis {
+    fn add_assign(&mut self, mut m: B) {
+        for i in (0..B::BITS as usize).rev() {
             if m & 1 << i == 0 {
                 continue;
             }
@@ -152,7 +152,7 @@ impl AddAssign<E> for XorBasis {
 
 impl AddAssign<Self> for XorBasis {
     fn add_assign(&mut self, rhs: Self) {
-        for i in 0..E::BITS as usize {
+        for i in 0..B::BITS as usize {
             if rhs.mask & (1 << i) != 0 {
                 *self += rhs.basis[i];
             }
@@ -162,7 +162,7 @@ impl AddAssign<Self> for XorBasis {
 
 impl AddAssign<&Self> for XorBasis {
     fn add_assign(&mut self, rhs: &Self) {
-        for i in 0..E::BITS as usize {
+        for i in 0..B::BITS as usize {
             if rhs.mask & (1 << i) != 0 {
                 *self += rhs.basis[i];
             }
@@ -188,12 +188,12 @@ impl Add<&Self> for XorBasis {
     }
 }
 
-impl BitAnd<E> for &XorBasis {
+impl BitAnd<B> for &XorBasis {
     type Output = bool;
 
-    fn bitand(self, rhs: E) -> Self::Output {
+    fn bitand(self, rhs: B) -> Self::Output {
         let mut m = rhs;
-        for i in (0..E::BITS as usize).rev() {
+        for i in (0..B::BITS as usize).rev() {
             if m & 1 << i == 0 {
                 continue;
             }
@@ -206,7 +206,7 @@ impl BitAnd<E> for &XorBasis {
     }
 }
 
-impl BitAnd<&XorBasis> for E {
+impl BitAnd<&XorBasis> for B {
     type Output = bool;
 
     fn bitand(self, rhs: &XorBasis) -> Self::Output {
@@ -219,7 +219,7 @@ impl BitAnd<Self> for &XorBasis {
 
     fn bitand(self, rhs: Self) -> Self::Output {
         let mut extended = XorBasis::new();
-        let hlf = (E::BITS >> 1) as usize;
+        let hlf = (B::BITS >> 1) as usize;
         for i in 0..hlf {
             if self.mask & (1 << i) != 0 {
                 extended += self.basis[i] | (self.basis[i] << hlf);
@@ -232,7 +232,7 @@ impl BitAnd<Self> for &XorBasis {
         }
         extended.eliminate();
         let mut result = XorBasis::new();
-        for i in 0..E::BITS as usize {
+        for i in 0..B::BITS as usize {
             if extended.mask & (1 << i) != 0 {
                 let val = extended.basis[i];
                 if val < (1 << hlf) {
@@ -272,13 +272,13 @@ impl BitAndAssign<Self> for XorBasis {
     }
 }
 
-impl Div<&XorBasis> for E {
-    type Output = E;
+impl Div<&XorBasis> for B {
+    type Output = B;
 
     fn div(self, rhs: &XorBasis) -> Self::Output {
         let mut m = self;
         let mut r = 0;
-        for i in (0..E::BITS as usize).rev() {
+        for i in (0..B::BITS as usize).rev() {
             if m & 1 << i == 0 {
                 continue;
             }
@@ -292,12 +292,12 @@ impl Div<&XorBasis> for E {
     }
 }
 
-impl Rem<&XorBasis> for E {
-    type Output = E;
+impl Rem<&XorBasis> for B {
+    type Output = B;
 
     fn rem(self, rhs: &XorBasis) -> Self::Output {
         let mut m = self;
-        for i in (0..E::BITS as usize).rev() {
+        for i in (0..B::BITS as usize).rev() {
             if m & 1 << i != 0 && rhs.mask & 1 << i != 0 {
                 m ^= rhs.basis[i];
             }

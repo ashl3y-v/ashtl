@@ -180,50 +180,6 @@ where
         }
     }
 
-    pub fn descend<S>(
-        &mut self,
-        mut right: impl FnMut(usize, usize, &mut [T]) -> bool,
-        mut leaf: impl FnMut(usize, &mut [T]) -> S,
-    ) -> S {
-        let mut i = 1;
-        let mut k = self.n;
-        while i < self.n {
-            (self.push)(i, k, &mut self.t);
-            i = (i >> 1) | right(i, k, &mut self.t) as usize;
-            k >>= 1;
-        }
-        leaf(i, &mut self.t)
-    }
-
-    pub fn traverse<S: ?Sized, R>(
-        &mut self,
-        data: &S,
-        mut quit: impl FnMut(usize, usize, usize, usize, &S, &mut [T]) -> Option<R>,
-        mut rec: impl FnMut(usize, usize, &S, &mut [T], R, R, &mut Push) -> R,
-    ) -> R {
-        self.traverse_descend(1, self.n, 0, self.n, data, &mut quit, &mut rec)
-    }
-
-    fn traverse_descend<S: ?Sized, R>(
-        &mut self,
-        i: usize,
-        k: usize,
-        il: usize,
-        ir: usize,
-        data: &S,
-        quit: &mut impl FnMut(usize, usize, usize, usize, &S, &mut [T]) -> Option<R>,
-        rec: &mut impl FnMut(usize, usize, &S, &mut [T], R, R, &mut Push) -> R,
-    ) -> R {
-        if let Some(v) = quit(i, k, il, ir, data, &mut self.t) {
-            return v;
-        }
-        (self.push)(i, k, &mut self.t);
-        let im = il + (ir - il >> 1);
-        let v = self.traverse_descend(i << 1, k >> 1, il, im, data, quit, rec);
-        let w = self.traverse_descend(i << 1 | 1, k >> 1, im, ir, data, quit, rec);
-        rec(i, k, data, &mut self.t, v, w, &mut self.push)
-    }
-
     pub fn max_right<S, P>(
         &mut self,
         l: usize,

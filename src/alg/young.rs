@@ -178,27 +178,27 @@ pub fn hook_length<const M: u64>(l: &[usize]) -> usize {
 
 // O(a + b + a log^3 a + √n)
 // If a, b = O(√n), then O(√n)
-pub fn hook_length_balanced<const M: u64>(l: &[usize]) -> usize {
-    let a = l.len();
-    let mut n = 0;
-    let l = l
-        .iter()
-        .enumerate()
-        .map(|(i, &j)| {
-            n += j;
-            (j + a - i - 1) as E
-        })
-        .collect::<Vec<_>>();
-    let r = Poly::<M>::factorial(n) * Poly::<M>::vandermonde(&l) % M as E;
-    let mut d = 1;
-    let mut t = 1;
-    let mut j = 1;
-    for i in l.into_iter().rev() {
-        while j < i {
-            j += 1;
-            t = (t * j) % M as E;
-        }
-        d = (d * t) % M as E;
-    }
-    (r * inv::<M>(d)).rem_euclid(M as E) as usize
-}
+// pub fn hook_length_balanced<const M: u64>(l: &[usize]) -> usize {
+//     let a = l.len();
+//     let mut n = 0;
+//     let l = l
+//         .iter()
+//         .enumerate()
+//         .map(|(i, &j)| {
+//             n += j;
+//             (j + a - i - 1) as E
+//         })
+//         .collect::<Vec<_>>();
+//     let r = Poly::<M>::factorial(n) * Poly::<M>::vandermonde(&l) % M as E;
+//     let mut d = 1;
+//     let mut t = 1;
+//     let mut j = 1;
+//     for i in l.into_iter().rev() {
+//         while j < i {
+//             j += 1;
+//             t = (t * j) % M as E;
+//         }
+//         d = (d * t) % M as E;
+//     }
+//     (r * inv::<M>(d)).rem_euclid(M as E) as usize
+// }

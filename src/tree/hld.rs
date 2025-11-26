@@ -1,4 +1,4 @@
-use bit_vec::BitVec;
+use crate::ds::bit_vec::BitVec;
 
 /// Heavy-light decomposition
 /// MODE = 0 indicates values are on vertices, 1 is values are on edges
@@ -20,7 +20,7 @@ impl<const MODE: u8> HLD<MODE> {
         let mut tim = 0;
         let mut p = vec![usize::MAX; n];
         let mut stk = Vec::with_capacity(n);
-        let mut done = BitVec::from_elem(n, false);
+        let mut done = BitVec::new(n, false);
         stk.push((0, 0));
         while let Some((u, e)) = stk.last_mut() {
             let u = *u;

@@ -1,0 +1,562 @@
+
+/// O(n log^3 n)
+    pub fn vandermonde_tree(tree: &mut [Self], a: &[E], s: &mut E, v: usize, l: usize, r: usize) {
+        if r - l == 1 {
+            tree[v] = Self::new(vec![-a[l], 1]);
+        } else {
+            let m = l + (r - l >> 1);
+            Self::vandermonde_tree(tree, a, s, v << 1, l, m);
+            Self::vandermonde_tree(tree, a, s, v << 1 | 1, m, r);
+            let t = tree[v << 1 | 1]
+                .clone()
+                .evals(&a[l..m])
+                .coeff
+                .into_iter()
+                .fold(1, |a, b| a * b % M as E);
+            tree[v] = (std::mem::take(&mut tree[v << 1]) * std::mem::take(&mut tree[v << 1 | 1]))
+                .truncate_deg()
+                .0;
+            *s = (*s * t) % M as E;
+        }
+    }
+
+    /// O(n log^3 n)
+    #[inline]
+    pub fn vandermonde(a: &[E]) -> E {
+        let n = a.len();
+        let mut tree = vec![Self::new(vec![]); n.next_power_of_two() << 1];
+        let mut s = 1;
+        Self::vandermonde_tree(&mut tree, &a, &mut s, 1, 0, n);
+        s
+    }
+
+    /// O(p log p)
+    #[inline]
+    pub fn faulhaber_kp(k: u64, p: usize) -> E {
+        let mut a = 0;
+        let b = Self::bernoulli_plus(p + 1).inv_borel().kci(p + 1);
+        let mut kp1mr = k;
+        for i in (0..=p).rev() {
+            a += b[i] * kp1mr as E;
+            a %= M as E;
+            kp1mr = (kp1mr * k) % M;
+        }
+        a / (p as E + 1)
+    }
+
+    /// O(p log p)
+    #[inline]
+    pub fn faulhaber_xp(p: usize) -> Self {
+        let b = Self::bernoulli_plus(p + 1)
+            .inv_borel()
+            .kci(p + 1)
+            .reverse_k(p + 1);
+        let mut s = b / (p as E + 1);
+        s[0] = 0;
+        s
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn pref_x(mut self) -> Self {
+        let d;
+        (self, d) = self.truncate_deg_or_0();
+        let b = Self::bernoulli_plus(d + 1).reverse_k(d);
+        let p0 = self.coeff[0] % M as E;
+        let mut s = ((self.inv_borel() * b) >> d - 1).borel().mod_xn(d + 2);
+        s[0] = p0;
+        s
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn sum_pows_k(k: usize, n: usize) -> Self {
+        let mut e = Self::exp_x(n + 1);
+        e = ((-e.clone() + 1) >> 1).inv(n).unwrap().normalize()
+            * ((e - Self::exp_ax(k as E + 1, n + 1)) >> 1).normalize();
+        if e.is_zero() {
+            e.coeff.push(0);
+        }
+        e
+    }
+
+    /// O(n^1/2)
+    /// + O(n) for initialization
+    #[inline]
+    pub fn pent(n: usize) -> Self {
+        let mut p = vec![0; n];
+        p[0] = 1;
+        let mut i = 1;
+        let mut p0 = 1;
+        let mut p1 = 2;
+        let mut sign = 1;
+        while p0 < n {
+            sign = -sign;
+            p[p0] = sign;
+            p0 += 3 * i + 1;
+            if p1 > n {
+                continue;
+            }
+            p[p1] = sign;
+            p1 += 3 * i + 2;
+            i += 1;
+        }
+        Self::new(p)
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn log_q_fact(k: usize, n: usize) -> Self {
+        let n = (n.min((k * (k - 1) >> 1) + 1)).next_power_of_two();
+        let mut p = vec![0; n];
+        for d in 1..=k.min(n - 1) {
+            for j in (d..n).step_by(d) {
+                p[j] += d as E;
+            }
+        }
+        p.iter_mut()
+            .zip(inverses_n_div::<M>(n))
+            .for_each(|(v, j)| *v = ((k as E - *v) * j as E) % M as E);
+        Self::new(p)
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn log_q_binom(k: usize, i: usize, n: usize) -> Self {
+        let n = (n.min(i * (k - i) + 1)).next_power_of_two();
+        let mut p = vec![0; n];
+        let (alpha, beta) = if i << 1 < k { (i, k - i) } else { (k - i, i) };
+        for d in 1..=alpha.min(n - 1) {
+            for j in (d..n).step_by(d) {
+                p[j] += d as E;
+            }
+        }
+        for d in beta + 1..=k.min(n - 1) {
+            for j in (d..n).step_by(d) {
+                p[j] -= d as E;
+            }
+        }
+        Self::new(p).integr_divx()
+    }
+
+    /// O(n log n)
+    /// assumes a is sorted
+    #[inline]
+    pub fn log_q_multinom(a: &[usize], n: usize) -> Self {
+        let k = a.iter().sum::<usize>();
+        let mut d = k * (k - 1) >> 1;
+        for &k in a {
+            d -= k * (k - 1) >> 1;
+        }
+        let n = (n.min(d + 1)).next_power_of_two();
+        let mut p = vec![0; n];
+        let mut s = a.len() as E - 1;
+        let mut l = 1;
+        for i in 0..a.len() - 1 {
+            if s != 0 {
+                for d in l..=a[i] {
+                    for j in (d..n).step_by(d) {
+                        p[j] += s * d as E;
+                    }
+                }
+            }
+            l = a[i] + 1;
+            s -= 1;
+            if l >= n {
+                break;
+            }
+        }
+        for d in a[a.len() - 1] + 1..=k.min(n - 1) {
+            for j in (d..n).step_by(d) {
+                p[j] -= d as E;
+            }
+        }
+        Self::new(p).integr_divx()
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn partition(n: usize) -> Self {
+        Self::pent(n).inv(n).unwrap()
+    }
+	/// O(√n)
+    /// + O(n) for initialization
+    pub fn squares(n: usize) -> Self {
+        let mut s = Self::new(vec![0; n]);
+        s.coeff[0] = 1;
+        let r = n.isqrt();
+        for i in 1..if r * r == n { r } else { r + 1 } {
+            s.coeff[i * i] += 2;
+        }
+        s
+    }
+
+    /// O(n log n)
+    /// ((∑_i x^{i^2})^k = ∏_i (1 - x^{2i})^k (1 + x^{2i-1})^{2k})
+    pub fn log_squares_k(k: usize, n: usize) -> Self {
+        if k <= 5 {
+            return Self::squares(n).pow(k, n);
+        }
+        let n = n.next_power_of_two();
+        let mut p = vec![0; n];
+        for i in (1..n).step_by(2) {
+            let v = ((k << 1) * i) as E;
+            let mut sign = 1;
+            for j in (i..n).step_by(i) {
+                sign = -sign;
+                p[j] -= v * sign;
+            }
+        }
+        for i in (2..n).step_by(2) {
+            let v = (k * i) as E;
+            for j in (i..n).step_by(i) {
+                p[j] -= v;
+            }
+        }
+        Self::new(p).integr_divx()
+    }
+
+    /// O(n log log n)
+    pub fn log_euler_trans(self, n: usize) -> Self {
+        let n = n.next_power_of_two();
+        self.diff_x()
+            .resize(n)
+            .divisor(&mult::sieve_primes(n).0)
+            .integr_divx()
+    }
+
+    /// O(n log n)
+    pub fn unimodal_seq(n: usize) -> Self {
+        let mut p = vec![0; n];
+        let mut i = 1;
+        let mut j = 1;
+        let mut s = 1;
+        while j < n {
+            i += 1;
+            p[j] = s;
+            s = -s;
+            j += i;
+        }
+        Self::new(p) * Self::pent(n).square().inv(n).unwrap()
+    }
+
+    /// O(n log n log k)
+    pub fn sum_i_r_mod_n_kci(r: usize, n: usize, k: usize) -> u64 {
+        Self::new(vec![1, 1])
+            .pow_bin_mod_xnm1(k, n)
+            .shl_mod_xnm1(n - r, n)
+            .coeff[0]
+            .rem_euclid(M as E) as u64
+    }
+
+	/// O(n log n)
+    pub fn subspaces_fq_i(n: usize, q: E) -> Self {
+        Self::q_exp_x(n, q).square()
+    }
+
+    /// O(n log n)
+    pub fn mat_rank_i_fq_k(k: u64, n: usize, q: E) -> Self {
+        (Self::q_exp_x(n, q).mulx(mod_pow::<M>(q.rem_euclid(M as E) as u64, k) as E)
+            * Self::q_exp_x(n, q).mulx_aic2_ti(q, -1))
+        .mod_xn(n)
+        .kqci(k as usize, q)
+    }
+
+    /// O(n)
+    pub fn gl_i_fq(self, q: E) -> Self {
+        self.mulx_aic2_ti(q, q - 1).inv_q_borel(q)
+    }
+
+    /// O(n)
+    pub fn sl_i_fq(self, q: E) -> Self {
+        let mut s = self.gl_i_fq(q) / (q - 1);
+        s[0] = 1;
+        s
+    }
+
+    /// O(n)
+    pub fn pgl_i_fq(self, q: E) -> Self {
+        self.sl_i_fq(q)
+    }
+
+    /// O(n)
+    pub fn psl_i_fq(self, q: E) -> Self {
+        let mut s = self.gl_i_fq(q);
+        let qm1_inv = inv::<M>(q - 1);
+        let n = s.len();
+        let k = q.rem_euclid(M as E) as usize - 1;
+        let fs = prime::factor_mult(k);
+        s.coeff
+            .iter_mut()
+            .zip(
+                mult::sieve(
+                    n,
+                    1,
+                    |a, b| a * b,
+                    |p, k, _| {
+                        if let Ok(i) = fs.binary_search_by_key(&p, |&(p, _)| p) {
+                            mod_pow::<M>(p as u64, M - 1 - k.min(fs[i].1) as u64) as E
+                        } else {
+                            1
+                        }
+                    },
+                )
+                .0,
+            )
+            .for_each(|(i, j)| *i = *i * qm1_inv % M as E * j % M as E);
+        s.coeff[0] = 1;
+        s
+    }
+
+    /// O(n log n)
+    pub fn acyclic_graphs_labelled(n: usize) -> Self {
+        Self::new(vec![1; n]).trees_labelled(false).exp(n).unwrap()
+    }
+
+    /// O(n log n)
+    pub fn connected_digraphs_labelled(n: usize) -> Self {
+        Self::exp_x(n).mulx_aic2(2).log(n).unwrap()
+    }
+
+    /// O(n log n)
+    pub fn acyclic_digraphs_labelled(n: usize) -> Self {
+        Self::exp_x(n).mulx_aic2_ti(inv::<M>(2), -1).inv(n).unwrap()
+    }
+
+    /// O(n log n)
+    pub fn digraph_sccs_labelled(self, n: usize) -> Self {
+        (-self)
+            .exp(n)
+            .unwrap()
+            .mulx_aic2(inv::<M>(2))
+            .inv(n)
+            .unwrap()
+    }
+
+    /// O(n log n)
+    pub fn strongly_connected_digraphs_labelled(n: usize) -> Self {
+        -Self::exp_x(n)
+            .mulx_aic2(2)
+            .inv(n)
+            .unwrap()
+            .mulx_aic2(2)
+            .log(n)
+            .unwrap()
+    }
+
+    /// O(n log n)
+    pub fn functional_graphs_components_n(n: usize) -> Self {
+        ((Poly::<M>::exp_ax(-1, n + 1) - 1).exp(n + 1).unwrap()
+            * (-Poly::<M>::exp_ax(-1, n + 1) + 1))
+            .mod_xn(n + 1)
+            .normalize()
+            .comp_inv_pows_xi(n, n + 1)
+            .borel()
+            * Poly::<M>::factorial(n)
+    }
+
+    /// O(n log n)
+    pub fn cyclotomic(n: usize) -> Self {
+        if n == 0 {
+            return Self::new(vec![]);
+        } else if n == 1 {
+            return Self::new(vec![-1, 1]);
+        } else if n > 2 && n & 1 == 0 && ((n >> 1) & 1 != 0) {
+            let p = Self::cyclotomic(n >> 1);
+            return p.n1pkmi(0);
+        }
+        let d = special::totient(n as u64) as usize;
+        if d == n - 1 {
+            return Self::new(vec![1; n]);
+        }
+        let (divs, ps) = prime::divisors(n);
+        if ps.len() == 1 {
+            let (p, i) = ps[0];
+            return if i == 1 {
+                Self::new(vec![1; n])
+            } else {
+                Self::new(vec![1; p]).sub_xk_n(p.pow(i - 1), d + 1)
+            };
+        } else if ps.len() == 2 && ps[0].0 == 2 {
+            let (_, i) = ps[0];
+            let (p, j) = ps[1];
+            return Self::new(vec![1; d + 1])
+                .n1pkmi(0)
+                .sub_xk_n(2_usize.pow(i - 1) * p.pow(j - 1), d + 1);
+        }
+        let rad = ps.iter().fold(1, |acc, (p, _)| acc * p);
+        if rad != n {
+            return Self::cyclotomic(rad).sub_xk(n / rad);
+        }
+        let mut p = Self::new(vec![0; d + 1]);
+        let mut q = Self::new(vec![0; d + 1]);
+        (p[0], q[0]) = (1, 1);
+        let mobius = mult::sieve(
+            n + 1,
+            1,
+            |a, b| a * b % M as E,
+            |_, k, _| if k == 1 { -1 } else { 0 },
+        )
+        .0;
+        for i in divs {
+            if mobius[n / i] == 1 {
+                for j in (i..d + 1).rev() {
+                    p[j] -= p[j - i];
+                }
+            } else if mobius[n / i] == -1 {
+                for j in (i..d + 1).rev() {
+                    q[j] -= q[j - i];
+                }
+            }
+        }
+        p = (p * q.inv(d + 1).unwrap()).mod_xn(d + 1).neg_normalize();
+        if p.coeff[0] == -1 { -p } else { p }
+    }
+
+    /// O(n log n)
+    pub fn fibonacci_poly(mut n: u64) -> Self {
+        if n == 0 {
+            return Self::new(vec![]);
+        } else if n == 1 {
+            return Self::new(vec![1]);
+        }
+        let (mut a, mut b, mut c) = if n & 1 == 0 {
+            (
+                Self::new(vec![0]),
+                Self::new(vec![0, 1]),
+                Self::new(vec![2, 0, 1]),
+            )
+        } else {
+            (
+                Self::new(vec![1]),
+                Self::new(vec![-1]),
+                Self::new(vec![2, 0, 1]),
+            )
+        };
+        n >>= 1;
+        while n > 1 {
+            if n & 1 == 0 {
+                b = (b * c.clone() + &a).normalize();
+            } else {
+                a = (a * c.clone() + &b).normalize();
+            }
+            c = (c.square() - 2).normalize();
+            n >>= 1;
+        }
+        a * c + b
+    }
+
+    /// O(n log n)
+    pub fn lucas_poly(mut n: u64) -> Self {
+        if n == 0 {
+            return Self::new(vec![2]);
+        } else if n == 1 {
+            return Self::new(vec![0, 1]);
+        }
+        let (mut a, mut b, mut c) = if n & 1 == 0 {
+            (
+                Self::new(vec![2]),
+                Self::new(vec![-2, 0, -1]),
+                Self::new(vec![2, 0, 1]),
+            )
+        } else {
+            (
+                Self::new(vec![0, 1]),
+                Self::new(vec![0, 1]),
+                Self::new(vec![2, 0, 1]),
+            )
+        };
+        n >>= 1;
+        while n > 1 {
+            if n & 1 == 0 {
+                b = (b * c.clone() + &a).normalize();
+            } else {
+                a = (a * c.clone() + &b).normalize();
+            }
+            c = (c.square() - 2).normalize();
+            n >>= 1;
+        }
+        a * c + b
+    }
+
+    /// O(n log n)
+    pub fn chebyshev1(mut n: usize) -> Self {
+        if n == 0 {
+            return Self::new(vec![1]);
+        } else if n == 1 {
+            return Self::new(vec![0, 1]);
+        }
+        let (mut a, mut b, mut c) = (
+            Self::new(vec![1]),
+            Self::new(vec![0, -1]),
+            Self::new(vec![0, 2]),
+        );
+        while n > 1 {
+            if n & 1 == 0 {
+                b = (b * c.clone() + &a).normalize();
+            } else {
+                a = (a * c.clone() + &b).normalize();
+            }
+            c = (c.square() - 2).normalize();
+            n >>= 1;
+        }
+        a * c + b
+    }
+
+    /// O(n log n)
+    pub fn chebyshev2(mut n: u64) -> Self {
+        if n == 0 {
+            return Self::new(vec![1]);
+        } else if n == 1 {
+            return Self::new(vec![0, 2]);
+        }
+        let (mut a, mut b, mut c) = (
+            Self::new(vec![1]),
+            Self::new(vec![0]),
+            Self::new(vec![0, 2]),
+        );
+        while n > 1 {
+            if n & 1 == 0 {
+                b = (b * c.clone() + &a).normalize();
+            } else {
+                a = (a * c.clone() + &b).normalize();
+            }
+            c = (c.square() - 2).normalize();
+            n >>= 1;
+        }
+        a * c + b
+    }
+	
+	/// O(n log n)
+    #[inline]
+    pub fn binom_trans(self, n: usize) -> Self {
+        (Self::exp_x(n) * self.mod_xn(n).borel().n1pkmi(0))
+            .mod_xn(n)
+            .inv_borel()
+            .resize(n)
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn delta_0_i(self, n: usize) -> Self {
+        (self.mod_xn(n).borel() * Self::exp_ax(-1, n))
+            .mod_xn(n)
+            .inv_borel()
+            .resize(n)
+    }
+
+    /// O(n log^2 n)
+    #[inline]
+    pub fn stirling_trans(self, n: usize) -> Self {
+        self.mod_xn(n).borel().comp_expm1(n).inv_borel()
+    }
+
+    /// O(n log^2 n)
+    #[inline]
+    pub fn inv_stirling_trans(self, n: usize) -> Self {
+        self.mod_xn(n)
+            .borel()
+            .resize(n)
+            .comp(Self::log_1px(n))
+            .inv_borel()
+    }

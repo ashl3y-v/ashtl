@@ -1,8 +1,8 @@
+use crate::ds::bit_vec::BitVec;
 use crate::{
     alg::{lattice, poly::Poly},
     ds::set::UbIntSet,
 };
-use bit_vec::BitVec;
 use std::collections::{BinaryHeap, HashMap};
 
 pub fn chromatic_number(adj: &[Vec<usize>]) -> usize {
@@ -53,7 +53,7 @@ pub fn dsatur(adj: &[Vec<usize>]) -> (HashMap<usize, usize>, usize) {
     let mut q = BinaryHeap::with_capacity(n);
     let mut cols = HashMap::with_capacity(n);
     let mut adj_cols = vec![UbIntSet::new(n); n];
-    let mut seen = BitVec::from_elem(n, false);
+    let mut seen = BitVec::new(n, false);
     let mut max_col = 0;
     for u in 0..n {
         let d = adj[u].len();

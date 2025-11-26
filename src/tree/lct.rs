@@ -6,7 +6,7 @@
 // https://judge.yosupo.jp/submission/278245
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Node<T> {
+pub struct LCTNode<T> {
     pub v: T,
     pub p: usize,
     pub ch: [usize; 2],
@@ -17,11 +17,11 @@ pub struct Node<T> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LCT<T, Push, Pull, Rev>
 where
-    Pull: FnMut([usize; 3], &mut [Node<T>]),
-    Push: FnMut([usize; 3], &mut [Node<T>]),
-    Rev: FnMut(usize, &mut [Node<T>]),
+    Pull: FnMut([usize; 3], &mut [LCTNode<T>]),
+    Push: FnMut([usize; 3], &mut [LCTNode<T>]),
+    Rev: FnMut(usize, &mut [LCTNode<T>]),
 {
-    pub n: Vec<Node<T>>,
+    pub n: Vec<LCTNode<T>>,
     pub pull: Pull,
     pub push: Push,
     pub rev: Rev,
@@ -29,13 +29,13 @@ where
 
 impl<T, Push, Pull, Rev> LCT<T, Push, Pull, Rev>
 where
-    Pull: FnMut([usize; 3], &mut [Node<T>]),
-    Push: FnMut([usize; 3], &mut [Node<T>]),
-    Rev: FnMut(usize, &mut [Node<T>]),
+    Pull: FnMut([usize; 3], &mut [LCTNode<T>]),
+    Push: FnMut([usize; 3], &mut [LCTNode<T>]),
+    Rev: FnMut(usize, &mut [LCTNode<T>]),
 {
     pub fn new(init: T, pull: Pull, push: Push, rev: Rev) -> Self {
         Self {
-            n: vec![Node {
+            n: vec![LCTNode {
                 v: init,
                 p: 0,
                 ch: [0; 2],
@@ -50,7 +50,7 @@ where
 
     pub fn with_capacity(capacity: usize, init: T, pull: Pull, push: Push, rev: Rev) -> Self {
         let mut nodes = Vec::with_capacity(capacity + 1);
-        nodes.push(Node {
+        nodes.push(LCTNode {
             v: init,
             p: 0,
             ch: [0; 2],
@@ -66,7 +66,7 @@ where
     }
 
     pub fn add_node(&mut self, v: T) -> usize {
-        self.n.push(Node {
+        self.n.push(LCTNode {
             v,
             p: 0,
             ch: [0, 0],
@@ -214,7 +214,7 @@ where
     pub fn update<R>(
         &mut self,
         mut u: usize,
-        mut f: impl FnMut(usize, [usize; 2], &mut [Node<T>]) -> R,
+        mut f: impl FnMut(usize, [usize; 2], &mut [LCTNode<T>]) -> R,
     ) -> R {
         u += 1;
         self.splay(u);
@@ -224,7 +224,7 @@ where
     pub fn query_root<R>(
         &mut self,
         mut u: usize,
-        mut f: impl FnMut(usize, [usize; 2], &mut [Node<T>]) -> R,
+        mut f: impl FnMut(usize, [usize; 2], &mut [LCTNode<T>]) -> R,
     ) -> R {
         u += 1;
         self.make_root(u);
@@ -235,7 +235,7 @@ where
         &mut self,
         mut u: usize,
         mut v: usize,
-        mut f: impl FnMut(usize, [usize; 2], usize, [usize; 2], &mut [Node<T>]) -> R,
+        mut f: impl FnMut(usize, [usize; 2], usize, [usize; 2], &mut [LCTNode<T>]) -> R,
     ) -> R {
         u += 1;
         v += 1;
@@ -275,18 +275,18 @@ mod tests {
 
     fn create_simple_lct() -> LCT<
         i32,
-        fn([usize; 3], &mut [Node<i32>]),
-        fn([usize; 3], &mut [Node<i32>]),
-        fn(usize, &mut [Node<i32>]),
+        fn([usize; 3], &mut [LCTNode<i32>]),
+        fn([usize; 3], &mut [LCTNode<i32>]),
+        fn(usize, &mut [LCTNode<i32>]),
     > {
         LCT::new(0, |_, _| {}, |_, _| {}, |_, _| {})
     }
 
     fn create_sum_lct() -> LCT<
         (i32, i32),
-        fn([usize; 3], &mut [Node<(i32, i32)>]),
-        fn([usize; 3], &mut [Node<(i32, i32)>]),
-        fn(usize, &mut [Node<(i32, i32)>]),
+        fn([usize; 3], &mut [LCTNode<(i32, i32)>]),
+        fn([usize; 3], &mut [LCTNode<(i32, i32)>]),
+        fn(usize, &mut [LCTNode<(i32, i32)>]),
     > {
         LCT::new(
             (0, 0),

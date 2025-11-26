@@ -1,12 +1,11 @@
 use super::{
     gcd::{euclidean, gcd},
-    poly::Affine,
+    poly::{Affine, E, Poly},
     primitive,
 };
-use crate::alg::poly::{E, Poly};
 use std::{
     collections::HashMap,
-    ops::{Div, Mul, Neg, Rem, Sub},
+    ops::{Div, Mul, MulAssign, Neg, Rem, Sub},
 };
 
 pub fn mod_fact<const M: u64>(n: u64) -> u64 {
@@ -332,6 +331,17 @@ pub fn discrete_log<const M: u64>(a: u64, b: u64) -> Option<usize> {
         giant_step = (giant_step * a_m) % M;
     }
     None
+}
+
+impl<const M: u64> MulAssign<&Self> for Affine<M> {
+    fn mul_assign(&mut self, rhs: &Self) {
+        (self.a, self.b) = (
+            self.a * rhs.a % M + self.b * rhs.b % M * self.c % M,
+            self.a * rhs.b % M + self.b * rhs.a % M,
+        );
+        self.a %= M;
+        self.b %= M;
+    }
 }
 
 #[inline]

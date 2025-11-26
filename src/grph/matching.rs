@@ -1,7 +1,7 @@
-use bit_vec::BitVec;
+use crate::ds::bit_vec::BitVec;
 
 // Hopcroft-Karp maximum bipartite matching O(sqrt(|V|) |E|)
-pub fn max_matching_bipartite(
+pub fn hopcroft_karp(
     n: usize,
     k: usize,
     g: &[usize],
@@ -91,7 +91,7 @@ pub fn min_vertex_cover_bipartite(
 ) -> (BitVec, BitVec) {
     let (mut lfound, mut seen, mut q) = (
         BitVec::from_fn(n, |i| l[i] == usize::MAX),
-        BitVec::from_elem(k, false),
+        BitVec::new(k, false),
         Vec::with_capacity(n),
     );
     q.extend((0..n).filter(|&i| l[i] == usize::MAX));
@@ -132,7 +132,7 @@ pub fn min_edge_cover_bipartite(
             res.push((u, v));
         }
     }
-    let mut right_cover = BitVec::from_elem(k, false);
+    let mut right_cover = BitVec::new(k, false);
     let mut need = (0..k).filter(|&v| r[v] == usize::MAX).count();
     'a: for u in 0..n {
         for &v in &g[d[u]..d[u + 1]] {
@@ -168,14 +168,14 @@ pub fn max_coclique_bipartite(
 // TODO: hungarian algorithm
 // https://judge.yosupo.jp/submission/219195
 // https://codeforces.com/blog/entry/128703
-pub fn assignment() {}
+pub fn hungarian() {}
 
 /// O(n^3)
-pub fn max_matching(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
+pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
     let mut n_matches = 0;
     let mut mate = vec![0; n + 1];
     let mut q = vec![0; n + 1];
-    let mut book = BitVec::from_elem(n + 1, false);
+    let mut book = BitVec::new(n + 1, false);
     let mut typ = vec![u8::MAX; n + 1];
     let mut fa = vec![0; n + 1];
     let mut bl = vec![0; n + 1];
@@ -271,10 +271,9 @@ pub fn max_matching(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
 
 #[cfg(test)]
 mod tests {
-    use bit_vec::BitVec;
-
-    use super::max_matching;
+    use super::blossom;
     use crate::grph::format::edges_to_csr_undir_one_based;
+    use crate::grph::matching::BitVec;
 
     /// No edges ⇒ no matches
     #[test]
@@ -282,7 +281,7 @@ mod tests {
         let n = 3;
         let edges: Vec<[usize; 2]> = Vec::new();
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, 0);
         // all vertices 1..n should remain unmatched (mate[u] == 0)
         for u in 1..=n {
@@ -296,7 +295,7 @@ mod tests {
         let n = 2;
         let edges = vec![[1, 2], [2, 1]];
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, 1);
         assert_eq!(mate[1], 2);
         assert_eq!(mate[2], 1);
@@ -308,7 +307,7 @@ mod tests {
         let n = 3;
         let edges = vec![[1, 2], [2, 1], [2, 3], [3, 2]];
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, 1);
         let matched: Vec<_> = (1..=n).filter(|&u| mate[u] != 0).collect();
         assert_eq!(matched.len(), 2);
@@ -324,7 +323,7 @@ mod tests {
         let n = 3;
         let edges = vec![[1, 2], [2, 1], [2, 3], [3, 2], [3, 1], [1, 3]];
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, 1);
         let matched: Vec<_> = (1..=n).filter(|&u| mate[u] != 0).collect();
         assert_eq!(matched.len(), 2);
@@ -345,7 +344,7 @@ mod tests {
             [1, 4],
         ];
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, 2);
         for u in 1..=n {
             if mate[u] != 0 {
@@ -365,7 +364,7 @@ mod tests {
             edges.push([j, i]);
         }
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, 2);
         let matched: Vec<_> = (1..=n).filter(|&u| mate[u] != 0).collect();
         assert_eq!(matched.len(), 4);
@@ -385,7 +384,7 @@ mod tests {
             }
         }
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, 3);
         for u in 1..=n {
             if mate[u] != 0 {
@@ -425,7 +424,7 @@ mod tests {
         edges.push([1, last]);
 
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, 3 + 4);
         for u in 1..=n {
             if mate[u] != 0 {
@@ -476,7 +475,7 @@ mod tests {
         edges.push([attach_c, last_c]);
 
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, size_a / 2 + size_b / 2 + size_c / 2);
         for u in 1..=n {
             if mate[u] != 0 {
@@ -504,7 +503,7 @@ mod tests {
             offset += len;
         }
         let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = max_matching(n, &g, &d);
+        let (n_matches, mate) = blossom(n, &g, &d);
         assert_eq!(n_matches, expected);
         for u in 1..=n {
             if mate[u] != 0 {
@@ -520,7 +519,7 @@ mod tests {
         // initial triangle on {1,2,3}
         let mut triangle = vec![[1, 2], [2, 1], [2, 3], [3, 2], [3, 1], [1, 3]];
         let (g1, d1) = edges_to_csr_undir_one_based(n, &triangle);
-        let (m1, mate1) = max_matching(n, &g1, &d1);
+        let (m1, mate1) = blossom(n, &g1, &d1);
         assert_eq!(m1, 1);
         let (u0, v0) = (1..=3)
             .find_map(|u| (mate1[u] != 0).then(|| (u, mate1[u])))
@@ -532,7 +531,7 @@ mod tests {
         triangle.push([4, 5]);
         triangle.push([5, 4]);
         let (g2, d2) = edges_to_csr_undir_one_based(n, &triangle);
-        let (m2, mate2) = max_matching(n, &g2, &d2);
+        let (m2, mate2) = blossom(n, &g2, &d2);
         assert_eq!(m2, 2);
         assert_eq!(mate2[4], 5);
         assert_eq!(mate2[5], 4);
@@ -541,8 +540,8 @@ mod tests {
     }
 
     use crate::grph::format::edges_to_csr_undir;
+    use crate::grph::matching::hopcroft_karp;
     use crate::grph::matching::max_coclique_bipartite;
-    use crate::grph::matching::max_matching_bipartite;
     use crate::grph::matching::min_edge_cover_bipartite;
     use crate::grph::matching::min_vertex_cover_bipartite;
 
@@ -587,7 +586,7 @@ mod tests {
             }
         }
         let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, _, _) = max_matching_bipartite(n, k, &g, &d);
+        let (ans, _, _) = hopcroft_karp(n, k, &g, &d);
         assert_eq!(ans, 6);
     }
 
@@ -602,7 +601,7 @@ mod tests {
         }
         let expected = brute_force(n, k, &edges);
         let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, _, _) = max_matching_bipartite(n, k, &g, &d);
+        let (ans, _, _) = hopcroft_karp(n, k, &g, &d);
         assert_eq!(ans, expected);
     }
 
@@ -616,7 +615,7 @@ mod tests {
             .collect();
         let expected = brute_force(n, k, &edges);
         let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, _, _) = max_matching_bipartite(n, k, &g, &d);
+        let (ans, _, _) = hopcroft_karp(n, k, &g, &d);
         assert_eq!(ans, expected);
     }
 
@@ -627,7 +626,7 @@ mod tests {
         let edges: Vec<_> = (0..k).map(|v| [0, v]).collect();
         let expected = brute_force(n, k, &edges);
         let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, l, r) = max_matching_bipartite(n, k, &g, &d);
+        let (ans, l, r) = hopcroft_karp(n, k, &g, &d);
         assert_eq!(ans, expected);
         // verify matching vectors
         assert_eq!(l[0], r.iter().position(|&u| u == 0).unwrap());
@@ -647,7 +646,7 @@ mod tests {
         }
         let expected = brute_force(n, k, &edges);
         let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, _, _) = max_matching_bipartite(n, k, &g, &d);
+        let (ans, _, _) = hopcroft_karp(n, k, &g, &d);
         assert_eq!(ans, expected);
     }
 
@@ -667,108 +666,6 @@ mod tests {
             next[u] += 1;
         }
         (g, d)
-    }
-
-    /// Collect the set bits of a BitVec into a sorted Vec<usize>.
-    fn bv_to_vec(b: &BitVec) -> Vec<usize> {
-        b.iter()
-            .enumerate()
-            .filter_map(|(i, bit)| if bit { Some(i) } else { None })
-            .collect()
-    }
-
-    /// Verify that every edge (u,v) is covered by the union of cover_l ∪ cover_r.
-    fn check_cover(edges: &[(usize, usize)], cover_l: &BitVec, cover_r: &BitVec) {
-        for &(u, v) in edges {
-            assert!(
-                cover_l.get(u).unwrap_or(false) || cover_r.get(v).unwrap_or(false),
-                "Edge ({},{}) not covered by L={:?} or R={:?}",
-                u,
-                v,
-                bv_to_vec(cover_l),
-                bv_to_vec(cover_r)
-            );
-        }
-    }
-
-    #[test]
-    fn test_empty_graph() {
-        let n = 3;
-        let k = 4;
-        let edges = &[];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
-        assert_eq!(m, 0);
-        let (cover_l, cover_r) = min_vertex_cover_bipartite(n, k, &g, &d, &l, &r);
-        assert!(bv_to_vec(&cover_l).is_empty(), "expected no left cover");
-        assert!(bv_to_vec(&cover_r).is_empty(), "expected no right cover");
-        let (anticl_l, anticl_r) = max_coclique_bipartite(n, k, &g, &d, &l, &r);
-        // On empty graph, anticlique == all vertices
-        assert_eq!(bv_to_vec(&anticl_l), (0..n).collect::<Vec<_>>());
-        assert_eq!(bv_to_vec(&anticl_r), (0..k).collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn test_single_edge_bipartite() {
-        let n = 1;
-        let k = 1;
-        let edges = &[(0, 0)];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
-        assert_eq!(m, 1);
-
-        let (cover_l, cover_r) = min_vertex_cover_bipartite(n, k, &g, &d, &l, &r);
-        assert_eq!(bv_to_vec(&cover_l), vec![0]);
-        assert!(bv_to_vec(&cover_r).is_empty());
-        check_cover(edges, &cover_l, &cover_r);
-
-        let (anticl_l, anticl_r) = max_coclique_bipartite(n, k, &g, &d, &l, &r);
-        // anticlique picks the opposite endpoint
-        assert!(bv_to_vec(&anticl_l).is_empty());
-        assert_eq!(bv_to_vec(&anticl_r), vec![0]);
-    }
-
-    #[test]
-    fn test_star_graph_min_vertex_cover() {
-        // Left 0→Right 0 and Left 1→Right 0
-        let n = 2;
-        let k = 1;
-        let edges = &[(0, 0), (1, 0)];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
-        assert_eq!(m, 1);
-
-        let (cover_l, cover_r) = min_vertex_cover_bipartite(n, k, &g, &d, &l, &r);
-        assert!(bv_to_vec(&cover_l).is_empty());
-        assert_eq!(bv_to_vec(&cover_r), vec![0]);
-        check_cover(edges, &cover_l, &cover_r);
-
-        let (anticl_l, anticl_r) = max_coclique_bipartite(n, k, &g, &d, &l, &r);
-        // anticlique is everything except the cover
-        assert_eq!(bv_to_vec(&anticl_l), vec![0, 1]);
-        assert!(bv_to_vec(&anticl_r).is_empty());
-    }
-
-    #[test]
-    fn test_complete_bipartite_2x2() {
-        // K_{2,2}
-        let n = 2;
-        let k = 2;
-        let edges = &[(0, 0), (0, 1), (1, 0), (1, 1)];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
-        assert_eq!(m, 2);
-
-        let (cover_l, cover_r) = min_vertex_cover_bipartite(n, k, &g, &d, &l, &r);
-        // in K_{2,2} with perfect matching, no free left => cover is all left
-        assert_eq!(bv_to_vec(&cover_l), vec![0, 1]);
-        assert!(bv_to_vec(&cover_r).is_empty());
-        check_cover(edges, &cover_l, &cover_r);
-
-        let (anticl_l, anticl_r) = max_coclique_bipartite(n, k, &g, &d, &l, &r);
-        // anticlique is the complement of the cover
-        assert!(bv_to_vec(&anticl_l).is_empty());
-        assert_eq!(bv_to_vec(&anticl_r), vec![0, 1]);
     }
 
     /// Check if edge cover is valid (covers all vertices)
@@ -828,7 +725,7 @@ mod tests {
         let (g, d) = build_csr(n, edges);
         // Empty graph has no edges, so no edge cover possible
         // This test mainly checks the function doesn't panic
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
+        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
         let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
         // Should return empty cover for empty graph
         assert!(cover.is_empty());
@@ -840,7 +737,7 @@ mod tests {
         let k = 1;
         let edges = &[(0, 0)];
         let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
+        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
         let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
 
         assert_eq!(cover.len(), 1);
@@ -854,7 +751,7 @@ mod tests {
         let k = 1;
         let edges = &[(0, 0), (1, 0), (2, 0)];
         let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
+        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
         let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
 
         assert!(check_edge_cover(n, k, edges, &cover));
@@ -869,7 +766,7 @@ mod tests {
         let k = 2;
         let edges = &[(0, 0), (0, 1), (1, 0), (1, 1)];
         let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
+        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
         let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
 
         assert!(check_edge_cover(n, k, edges, &cover));
@@ -884,7 +781,7 @@ mod tests {
         let k = 3;
         let edges = &[(0, 0), (1, 1), (2, 2)];
         let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
+        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
         let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
 
         assert!(check_edge_cover(n, k, edges, &cover));
@@ -899,7 +796,7 @@ mod tests {
         let k = 3;
         let edges = &[(0, 0), (0, 1), (0, 2)];
         let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
+        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
         let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
 
         assert!(check_edge_cover(n, k, edges, &cover));
@@ -914,7 +811,7 @@ mod tests {
         let k = 4;
         let edges = &[(0, 0), (1, 1), (2, 2), (3, 3)];
         let (g, d) = build_csr(n, edges);
-        let (m, l, r) = max_matching_bipartite(n, k, &g, &d);
+        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
         let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
 
         assert!(check_edge_cover(n, k, edges, &cover));

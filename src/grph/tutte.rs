@@ -1,5 +1,5 @@
+use crate::ds::bit_vec::BitVec;
 use crate::{alg::ops::inverse_euclidean, lin::mat::Mat};
-use bit_vec::BitVec;
 use rand::Rng;
 
 type E = i64;
@@ -49,7 +49,7 @@ pub fn max_matching<const M: u64>(n: usize, es: &[[usize; 2]]) -> Vec<[usize; 2]
         }
     }
     let m = current_n;
-    let mut has = BitVec::from_elem(m, true);
+    let mut has = BitVec::new(m, true);
     let mut ret = Vec::new();
     for _ in 0..m >> 1 {
         let mut fi = usize::MAX;

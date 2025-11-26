@@ -1,4 +1,5 @@
 pub mod array;
+pub mod bit_vec;
 pub mod dsu;
 pub mod first_one;
 pub mod heap;
