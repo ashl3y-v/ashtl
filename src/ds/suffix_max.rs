@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 
-pub struct SuffixMax<K, V> {
+use crate::ds::dsu::DSU;
+
+pub struct MaxGe<K, V> {
     m: BTreeMap<K, V>,
 }
 
-impl<K: Copy + Ord, V: Copy + Ord> SuffixMax<K, V> {
+impl<K: Copy + Ord, V: Copy + Ord> MaxGe<K, V> {
     pub fn new() -> Self {
         Self { m: BTreeMap::new() }
     }
@@ -30,5 +32,45 @@ impl<K: Copy + Ord, V: Copy + Ord> SuffixMax<K, V> {
 
     pub fn query(&self, a: K) -> Option<V> {
         self.m.range(&a..).next().map(|(_, &b)| b)
+    }
+}
+
+/// O(α(n))
+pub struct SuffixMax<T> {
+    n: usize,
+    a: Vec<T>,
+    dsu: DSU,
+    st: Vec<(usize, T)>,
+}
+
+impl<T: Clone + PartialOrd> SuffixMax<T> {
+    pub fn new() -> Self {
+        Self {
+            n: 0,
+            a: Vec::new(),
+            dsu: DSU::new(0),
+            st: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, x: T) {
+        let p = self.n;
+        self.n += 1;
+        self.dsu.resize(self.n);
+        self.a.push(x.clone());
+        while let Some((i, v)) = self.st.last()
+            && v <= &x
+        {
+            self.dsu.union(p, *i);
+            self.st.pop();
+        }
+        let r = self.dsu.find(p);
+        self.st.push((r, x.clone()));
+        self.a[r] = x;
+    }
+
+    pub fn query(&mut self, i: usize) -> &T {
+        debug_assert!(i < self.n);
+        &self.a[self.dsu.find(i)]
     }
 }

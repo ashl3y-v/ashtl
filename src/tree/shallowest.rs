@@ -1,38 +1,31 @@
-// SECTION: io
-
-#[derive(Default)]
-struct Scanner {
-    buffer: Vec<String>,
-}
-
-impl Scanner {
-    fn next<T: std::str::FromStr>(&mut self) -> T {
-        loop {
-            if let Some(token) = self.buffer.pop() {
-                return token.parse().ok().expect("Failed parse");
+/// O(n)
+pub fn greedy_labelling(adj: &[Vec<usize>]) -> Vec<usize> {
+    let n = adj.len();
+    let mut forbidden = vec![0; n];
+    fn dfs(u: usize, p: usize, adj: &[Vec<usize>], forbidden: &mut [usize]) {
+        let mut forbidden_once = 0;
+        let mut forbidden_twice = 0;
+        for &v in &adj[u] {
+            if v != p {
+                dfs(v, u, adj, forbidden);
+                let forbidden_by_v = forbidden[v] + 1;
+                forbidden_twice |= forbidden_once & forbidden_by_v;
+                forbidden_once |= forbidden_by_v;
             }
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input).expect("Failed read");
-            self.buffer = input.split_whitespace().rev().map(String::from).collect();
         }
+        let mask = if forbidden_twice == 0 {
+            0
+        } else {
+            (1 << forbidden_twice.ilog2() + 1) - 1
+        };
+        forbidden[u] = forbidden_once | mask;
     }
+    dfs(0, usize::MAX, adj, &mut forbidden);
+    forbidden
+        .iter()
+        .map(|&mask| (mask + 1).trailing_zeros() as usize)
+        .collect()
 }
-
-#[allow(unused_imports)]
-use std::cmp::Ordering;
-use std::cmp::{max, min};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::io::{BufWriter, Write, stdin, stdout};
-use std::time::Instant;
-use std::{
-    fmt::{Debug, Display},
-    ops::{
-        Add, AddAssign, Bound, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, RangeBounds,
-        Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub, SubAssign,
-    },
-};
-
-const M: u64 = (119 << 23) + 1;
 
 // https://codeforces.com/blog/entry/125018
 /// O(n)
@@ -104,20 +97,4 @@ pub fn shallowest_decomposition(
         &mut f,
     );
     decomposition_root
-}
-
-fn main() {
-    let mut scan = Scanner::default();
-    let mut out = BufWriter::new(stdout().lock());
-    // let n: usize = scan.next();
-    // let mut adj = vec![vec![]; n];
-    // for _ in 0..n - 1 {
-    //     let (a, b): (usize, usize) = (scan.next(), scan.next());
-    //     adj[a - 1].push(b - 1);
-    //     adj[b - 1].push(a - 1);
-    // }
-
-    // let mut s = String::new();
-    // writeln!(out, "{}", &s[..s.len() - 1]).unwrap();
-    use ashtl::alg::poly::Poly;
 }

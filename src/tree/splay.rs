@@ -87,7 +87,7 @@ where
         r
     }
 
-    fn splay(&mut self, x: usize, mut k: usize) -> usize {
+    pub fn splay(&mut self, x: usize, mut k: usize) -> usize {
         self.push(x);
         let l = self.n[x].l;
         let size = self.n[l].size;

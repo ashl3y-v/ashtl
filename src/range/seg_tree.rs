@@ -277,13 +277,15 @@ where
 
 // TODO: sparse segment tree
 // https://usaco.guide/plat/sparse-segtree?lang=cpp
+// https://maspypy.github.io/library/ds/segtree/dynamic_segtree.hpp
+// https://maspypy.github.io/library/ds/segtree/dynamic_lazy_segtree.hpp
 
 // TODO: wide segment tree
 // https://judge.yosupo.jp/submission/254992
 // https://en.algorithmica.org/hpc/data-structures/segment-trees/
 
-// TODO: persistent segment tree
-// https://usaco.guide/adv/persistent?lang=cpp
+// TODO: 2d segtree
+// https://maspypy.github.io/library/ds/segtree/segtree_2d.hpp
 
-// just update lazy values during path copying
-pub struct PersistentSegTree {}
+// TODO: xor segtree
+// https://maspypy.github.io/library/ds/segtree/xor_segtree.hpp

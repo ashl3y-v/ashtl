@@ -182,6 +182,9 @@ impl<F: Copy + Default + Ord + AddAssign + SubAssign> PushRelabel<F> {
     }
 }
 
+// TODO: path decomposition
+// https://maspypy.github.io/library/flow/maxflow.hpp
+
 // TODO: add dinic's implementation
 
 // TODO: min-cost max flow
@@ -193,6 +196,9 @@ impl<F: Copy + Default + Ord + AddAssign + SubAssign> PushRelabel<F> {
 
 // TODO: flow with demands
 // https://usaco.guide/adv/flow-lb?lang=cpp
+
+// TODO: DAG path cover
+// https://maspypy.github.io/library/graph/dag_path_cover.hpp
 
 #[cfg(test)]
 mod tests {

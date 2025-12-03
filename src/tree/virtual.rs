@@ -33,7 +33,7 @@ pub fn vtree(
 
 #[cfg(test)]
 mod tests {
-    use super::{super::ancestor::LCA, vtree};
+    use super::{super::lca::LCA, vtree};
     use std::cmp::Ordering;
 
     /// Helper to build an LCA instance given p, dfs, pos, depth

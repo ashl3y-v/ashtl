@@ -10,20 +10,20 @@ pub fn find_ntt_prime(n: u64, b: u64) -> u64 {
     0
 }
 
-// pub fn find_ntt_prime_min_big_omega(n: u64, b: u64) -> (u64, u64) {
-//     let (mut cur_big_omega, mut cur_k) = (usize::MAX, 0);
-//     let big_omega = mult::big_omega(((b - 1) / n) as usize).0;
-//     for k in (0..(b - 1) / n).rev() {
-//         if miller_rabin(k * n + 1) {
-//             if big_omega[k as usize] < cur_big_omega
-//                 || (big_omega[k as usize] == cur_big_omega && k > cur_k)
-//             {
-//                 (cur_big_omega, cur_k) = (big_omega[k as usize], k);
-//             }
-//         }
-//     }
-//     return (cur_big_omega as u64, cur_k);
-// }
+pub fn find_ntt_prime_min_big_omega(n: u64, b: u64) -> (u64, u64) {
+    let (mut cur_big_omega, mut cur_k) = (usize::MAX, 0);
+    let big_omega = mult::sieve_complete(((b - 1) / n) as usize, 0, |a, b| a + b, |_, _| 1).0;
+    for k in (0..(b - 1) / n).rev() {
+        if miller_rabin(k * n + 1) {
+            if big_omega[k as usize] < cur_big_omega
+                || (big_omega[k as usize] == cur_big_omega && k > cur_k)
+            {
+                (cur_big_omega, cur_k) = (big_omega[k as usize], k);
+            }
+        }
+    }
+    return (cur_big_omega as u64, cur_k);
+}
 
 pub const fn root_pows<const M: u64>() -> [u64; 32] {
     let mut x = const { find_ntt_root::<M>() };

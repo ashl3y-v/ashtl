@@ -210,6 +210,11 @@ impl<T: Copy> Zi<T> {
     // TODO: sum of two squares
     // https://judge.yosupo.jp/submission/235398
     // https://codeforces.com/blog/entry/116519
+    // https://maspypy.github.io/library/nt/gaussian_integers.hpp
+    // https://maspypy.github.io/library/nt/two_square.hpp
+
+    // TODO: sum of three squares
+    // https://maspypy.github.io/library/nt/three_square.hpp
 }
 
 #[cfg(test)]

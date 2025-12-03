@@ -73,6 +73,15 @@ pub fn scc<F: FnMut(Vec<usize>)>(g: &[Vec<usize>], mut f: F) -> Vec<usize> {
     root_idx
 }
 
+// TODO: condensation
+// https://maspypy.github.io/library/graph/strongly_connected_component.hpp
+
+// TODO: incremental SCC
+// https://maspypy.github.io/library/graph/incremental_scc.hpp
+
+// TODO: reachability
+// https://maspypy.github.io/library/graph/reachability.hpp
+
 // TODO: improve two cc
 // https://judge.yosupo.jp/submission/287412
 pub fn cc2<F>(n: usize, adj: &[Vec<usize>], mut f: F)
@@ -256,6 +265,7 @@ pub fn comp_cc(adj: &[Vec<usize>], mut f: impl FnMut(Vec<usize>)) {
 
 // TODO: two ecc
 // https://judge.yosupo.jp/submission/106412
+// https://maspypy.github.io/library/graph/two_edge_component.hpp
 pub fn ecc2() {}
 
 // TODO: three ecc

@@ -266,20 +266,34 @@ impl<const M: u64> Mat<M> {
 
     #[inline]
     pub fn pow(self, mut rhs: usize) -> Self {
-        if rhs <= 1 << 3 || (self.n <= 1 << 5 && rhs <= 1 << 5) {
-            let mut res = Self::eye(self.n, self.m);
-            let mut a = self;
-            while rhs != 0 {
-                if rhs & 1 != 0 {
-                    res = &res * &a;
-                }
-                a = &a * &a;
-                rhs >>= 1;
+        // if rhs <= 1 << 3 || (self.n <= 1 << 5 && rhs <= 1 << 5) {
+        //     let mut res = Self::eye(self.n, self.m);
+        //     let mut a = self;
+        //     while rhs != 0 {
+        //         if rhs & 1 != 0 {
+        //             res = &res * &a;
+        //         }
+        //         a = &a * &a;
+        //         rhs >>= 1;
+        //     }
+        //     res
+        // } else {
+        self.with_frob(|charp| charp.clone().xi_mod(rhs))
+        // }
+    }
+
+    #[inline]
+    pub fn pow_bin(self, mut rhs: usize) -> Self {
+        let mut res = Self::eye(self.n, self.m);
+        let mut a = self;
+        while rhs != 0 {
+            if rhs & 1 != 0 {
+                res = &res * &a;
             }
-            res
-        } else {
-            self.with_frob(|charp| charp.clone().xi_mod(rhs))
+            a = &a * &a;
+            rhs >>= 1;
         }
+        res
     }
 
     #[inline]
@@ -486,6 +500,28 @@ impl<const M: u64> Mat<M> {
         (det, rk, inv)
     }
 
+    pub fn adjugate(&self) -> Self {
+        let n = self.n;
+        let mut rng = rand::rng();
+        let a = Self::from_fn(n + 1, n + 1, |(i, j)| {
+            if i == n && j == n {
+                0
+            } else if i == n || j == n {
+                rng.random_range(0..M as E)
+            } else {
+                self[i][j]
+            }
+        });
+        let (d, _, a) = a.inv(|_| {}, |_| {});
+        if d == 0 {
+            Self::from_vec(n, n, vec![0; n * n])
+        } else {
+            Self::from_fn(n, n, |(i, j)| {
+                (a[n][n] * a[i][j] - a[i][n] * a[n][j]) % M as E * d % M as E
+            })
+        }
+    }
+
     pub fn ker(&self, mut f: impl FnMut(usize), mut g: impl FnMut(usize)) -> Self {
         let mut a = self.clone();
         let mut pivots = Vec::with_capacity(a.m);
@@ -642,9 +678,82 @@ impl<const M: u64> Mat<M> {
         res
     }
 
-    // https://maspypy.github.io/library/linalg/characteristic_poly.hpp
-    pub fn charp(&self) -> Poly<M> {
-        unimplemented!()
+    pub fn hessenberg(&mut self) {
+        let n = self.n;
+        debug_assert_eq!(n, self.m);
+        for k in 0..n - 2 {
+            for i in k + 1..n {
+                if self[i][k] != 0 {
+                    if i != k + 1 {
+                        for j in 0..n {
+                            self.elems.swap(i * n + j, (k + 1) * n + j);
+                        }
+                        for j in 0..n {
+                            self.elems.swap(j * n + i, j * n + k + 1);
+                        }
+                    }
+                    break;
+                }
+            }
+            if self[k + 1][k] == 0 {
+                continue;
+            }
+            for i in k + 2..n {
+                let c = self[i][k] * inv::<M>(self[k + 1][k]) % M as E;
+                for j in 0..n {
+                    self[i][j] = (self[i][j] - self[k + 1][j] * c) % M as E;
+                }
+                for j in 0..n {
+                    self[j][k + 1] = (self[j][k + 1] + self[j][i] * c) % M as E;
+                }
+            }
+        }
+    }
+
+    /// O(n^3)
+    pub fn charp(mut self) -> Poly<M> {
+        let n = self.n;
+        debug_assert_eq!(n, self.m);
+        self.hessenberg();
+        let mut dp = vec![vec![]; n + 1];
+        dp[0] = vec![1];
+        for k in 0..n {
+            dp[k + 1].resize(k + 2, 0);
+            for i in 0..dp[k].len() {
+                dp[k + 1][i + 1] += dp[k][i];
+            }
+            let c = self[k][k] % M as E;
+            for i in 0..dp[k].len() {
+                dp[k + 1][i] = (dp[k + 1][i] - dp[k][i] * c) % M as E;
+            }
+            let mut prod = 1;
+            for i in (0..k).rev() {
+                prod = prod * self[i + 1][i] % M as E;
+                let c = prod * self[i][k] % M as E;
+                for j in 0..dp[i].len() {
+                    dp[k + 1][j] = (dp[k + 1][j] - dp[i][j] * c) % M as E;
+                }
+            }
+        }
+        Poly::<M>::new(std::mem::take(&mut dp[n]))
+    }
+
+    /// O(n^3)
+    pub fn det_aff(mut self, mut rhs: Self) -> Poly<M> {
+        let n = self.n;
+        debug_assert_eq!(n, self.m);
+        let a = rand::rng().random_range(1..M as E);
+        self.elems
+            .iter_mut()
+            .zip(&rhs.elems)
+            .for_each(|(i, j)| *i = (*i + a * j) % M as E);
+        let (d, _, inv) = self.inv(|_| {}, |_| {});
+        if d == 0 {
+            return Poly::<M>::new(vec![0; n + 1]);
+        }
+        rhs = rhs * inv;
+        rhs.elems.iter_mut().for_each(|a| *a = -*a);
+        (rhs.charp().reverse() * d).shift(-a)
     }
 
     pub fn charps(&self) -> Vec<Poly<M>> {
@@ -679,26 +788,28 @@ impl<const M: u64> Mat<M> {
         charps
     }
 
+    // https://maspypy.github.io/library/linalg/diagonalize_triangular_matrix.hpp
+
+    // https://codeforces.com/blog/entry/124815
+    /// O(n^3)
     pub fn frob(&self) -> (Vec<Poly<M>>, Self, Self) {
         let n = self.n;
         debug_assert_eq!(n, self.m);
         let mut charps: Vec<Poly<M>> = Vec::new();
         let (mut basis, mut basis_init): (Vec<Vec<E>>, Vec<Vec<E>>) =
             (Vec::with_capacity(n), Vec::with_capacity(n));
-        fn gen_block<const M: u64>(
-            mut x: Vec<E>,
-            a: &Mat<M>,
-            basis: &mut Vec<Vec<E>>,
-            basis_init: &mut Vec<Vec<E>>,
-            n: usize,
-        ) -> Poly<M> {
+        let gen_block = |mut x: Vec<E>,
+                         a: &Self,
+                         basis: &mut Vec<Vec<E>>,
+                         basis_init: &mut Vec<Vec<E>>,
+                         n: usize| {
             loop {
                 let mut y = x.clone();
                 let l = y.len();
                 y.resize(l + n + 1, 0);
                 y[l + basis.len()] = 1;
                 for v in &*basis {
-                    Mat::<M>::reduce_by(&mut y, &v);
+                    Self::reduce_by(&mut y, &v);
                 }
                 y.iter_mut().for_each(|i| *i %= M as E);
                 if y.iter().take(n).position(|&i| i != 0).unwrap_or(n) == n {
@@ -709,7 +820,7 @@ impl<const M: u64> Mat<M> {
                     x = a.apply_t(&x);
                 }
             }
-        }
+        };
         let mut rng = rand::rng();
         while basis.len() < n {
             let start = basis.len();
@@ -776,11 +887,16 @@ impl<const M: u64> Mat<M> {
         let s = Self::block_diag(blocks);
         t_inv * s * t
     }
+
+    // TODO: hafnian
+    // https://maspypy.github.io/library/linalg/hafnian.hpp
+    pub fn hafnian(mut self) -> Poly<M> {
+        unimplemented!()
+    }
 }
 
 impl<const M: u64> Debug for Mat<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}×{} matrix mod {}:", self.n, self.m, M)?;
         for i in 0..self.n {
             writeln!(f, "{:?}", &self[i])?;
         }
@@ -911,7 +1027,7 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 if i == j {
-                    assert_eq!(b[(i, j)], 1024 % M as i64);
+                    assert_eq!(b[(i, j)].rem_euclid(M as i64), 1024 % M as i64);
                 } else {
                     assert_eq!(b[(i, j)], 0);
                 }

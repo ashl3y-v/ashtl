@@ -222,6 +222,7 @@ pub fn chromatic_poly<const M: u64>(adj: &[usize], m: usize) -> Poly<M> {
 // https://judge.yosupo.jp/submission/228343
 // https://codeforces.com/blog/entry/75431
 // https://github.com/kth-competitive-programming/kactl/blob/eab6492ce9c8549832484f47276739ff120477b3/content/graph/EdgeColoring.h#L16
+// https://maspypy.github.io/library/graph/bipartite_edge_coloring.hpp
 pub fn edge_color() {}
 
 #[cfg(test)]

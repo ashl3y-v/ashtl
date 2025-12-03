@@ -127,6 +127,9 @@ where
     }
 }
 
+// TODO: xor disjoint sparse table
+// https://maspypy.github.io/library/ds/sparse_table/xor_disjoint_sparse_table.hpp
+
 #[cfg(test)]
 mod tests {
     use super::*;

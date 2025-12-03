@@ -13,6 +13,6 @@ pub mod ds;
 pub mod flat;
 pub mod geo;
 pub mod grph;
-pub mod lin;
 pub mod range;
+pub mod string;
 pub mod tree;

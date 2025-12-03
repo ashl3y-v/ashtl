@@ -48,9 +48,9 @@ pub fn build_jmp(par: &[usize], dfs: &[usize], depth: &[usize]) -> Vec<usize> {
             jmp[v] = v;
         } else {
             let pj = jmp[p];
-            let ppj = jmp[pj];
-            if depth[p] - depth[pj] == depth[pj] - depth[ppj] {
-                jmp[v] = ppj;
+            let pjj = jmp[pj];
+            if depth[p] - depth[pj] == depth[pj] - depth[pjj] {
+                jmp[v] = pjj;
             } else {
                 jmp[v] = p;
             }

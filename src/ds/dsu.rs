@@ -58,6 +58,10 @@ impl DSU {
         let r = self.find(x);
         (-self.p[r]) as usize
     }
+
+    pub fn resize(&mut self, n: usize) {
+        self.p.resize(n, -1);
+    }
 }
 
 impl Debug for DSU {
@@ -89,6 +93,11 @@ where
 // TODO: DSU with potential
 // https://judge.yosupo.jp/submission/214503
 // https://judge.yosupo.jp/submission/236404
+// https://maspypy.github.io/library/ds/unionfind/potentialized_unionfind.hpp
+// https://maspypy.github.io/library/ds/unionfind/rollback_potentialized_unionfind.hpp
+
+// TODO: range parallel dsu
+// https://maspypy.github.io/library/ds/unionfind/parallel_unionfind.hpp
 
 pub struct RollbackDSU {
     pub p: Vec<isize>,

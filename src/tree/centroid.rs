@@ -55,9 +55,6 @@ pub fn centroid_decomp(
     }
 }
 
-// TODO: shallowest decomposition tree
-// https://codeforces.com/blog/entry/125018
-
 // TODO: contour
 // https://judge.yosupo.jp/submission/260870
 // https://judge.yosupo.jp/submission/260575

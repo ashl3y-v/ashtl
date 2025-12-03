@@ -1,8 +1,8 @@
 /// O(n log n)
-pub fn interval_cover<T: Copy + Ord>(goal: (T, T), intervals: &[(T, T)]) -> Vec<usize> {
+pub fn interval_cover<T: Copy + PartialOrd>(goal: (T, T), intervals: &[(T, T)]) -> Vec<usize> {
     let (g_x, g_y) = goal;
     let mut s: Vec<usize> = (0..intervals.len()).collect();
-    s.sort_unstable_by(|&a, &b| intervals[a].cmp(&intervals[b]));
+    s.sort_unstable_by(|&a, &b| intervals[a].partial_cmp(&intervals[b]).unwrap());
     let mut result = Vec::new();
     let mut cur = g_x;
     let mut at = 0;

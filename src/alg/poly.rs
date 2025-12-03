@@ -6,6 +6,10 @@ use super::{
         self, inv, inverses, inverses_n_div, mod_k_rt, mod_pow, mod_pow_signed, mod_rfact, mod_sqrt,
     },
 };
+use crate::{
+    alg::{prime, special},
+    string,
+};
 use rand::Rng;
 use std::{
     collections::LinkedList,
@@ -2140,21 +2144,7 @@ impl<const M: u64> Poly<M> {
     /// O(n)
     pub fn autocorrelation(s: &str) -> Self {
         let n = s.len();
-        let s = s.chars().collect::<Vec<_>>();
-        let mut z = vec![0; n];
-        let (mut l, mut r) = (0, 0);
-        for i in 1..n {
-            if i < r {
-                z[i] = (r - i).min(z[i - l]);
-            }
-            while i + z[i] < n && s[z[i]] == s[i + z[i]] {
-                z[i] += 1;
-            }
-            if i + z[i] > r {
-                l = i;
-                r = i + z[i];
-            }
-        }
+        let z = string::z::z(&s);
         let mut p = vec![0; n];
         p[0] = 1;
         for i in 1..n {
@@ -2313,6 +2303,139 @@ impl<const M: u64> Poly<M> {
             }
             a * Self::factorial(m * m) % M as E
         }
+    }
+
+    /// O(n log^3 n)
+    pub fn vandermonde_tree(tree: &mut [Self], a: &[E], s: &mut E, v: usize, l: usize, r: usize) {
+        if r - l == 1 {
+            tree[v] = Self::new(vec![-a[l], 1]);
+        } else {
+            let m = l + (r - l >> 1);
+            Self::vandermonde_tree(tree, a, s, v << 1, l, m);
+            Self::vandermonde_tree(tree, a, s, v << 1 | 1, m, r);
+            let t = tree[v << 1 | 1]
+                .clone()
+                .evals(&a[l..m])
+                .coeff
+                .into_iter()
+                .fold(1, |a, b| a * b % M as E);
+            tree[v] = (std::mem::take(&mut tree[v << 1]) * std::mem::take(&mut tree[v << 1 | 1]))
+                .truncate_deg()
+                .0;
+            *s = (*s * t) % M as E;
+        }
+    }
+
+    /// O(n log^3 n)
+    #[inline]
+    pub fn vandermonde(a: &[E]) -> E {
+        let n = a.len();
+        let mut tree = vec![Self::new(vec![]); n.next_power_of_two() << 1];
+        let mut s = 1;
+        Self::vandermonde_tree(&mut tree, &a, &mut s, 1, 0, n);
+        s
+    }
+
+    /// O(n log n)
+    pub fn cyclotomic(n: usize) -> Self {
+        if n == 0 {
+            return Self::new(vec![]);
+        } else if n == 1 {
+            return Self::new(vec![-1, 1]);
+        } else if n > 2 && n & 1 == 0 && ((n >> 1) & 1 != 0) {
+            let p = Self::cyclotomic(n >> 1);
+            return p.n1pkmi(0);
+        }
+        let d = special::totient(n as u64) as usize;
+        if d == n - 1 {
+            return Self::new(vec![1; n]);
+        }
+        let (divs, ps) = prime::divisors(n);
+        if ps.len() == 1 {
+            let (p, i) = ps[0];
+            return if i == 1 {
+                Self::new(vec![1; n])
+            } else {
+                Self::new(vec![1; p]).sub_xk_n(p.pow(i - 1), d + 1)
+            };
+        } else if ps.len() == 2 && ps[0].0 == 2 {
+            let (_, i) = ps[0];
+            let (p, j) = ps[1];
+            return Self::new(vec![1; d + 1])
+                .n1pkmi(0)
+                .sub_xk_n(2_usize.pow(i - 1) * p.pow(j - 1), d + 1);
+        }
+        let rad = ps.iter().fold(1, |acc, (p, _)| acc * p);
+        if rad != n {
+            return Self::cyclotomic(rad).sub_xk(n / rad);
+        }
+        let mut p = Self::new(vec![0; d + 1]);
+        let mut q = Self::new(vec![0; d + 1]);
+        (p[0], q[0]) = (1, 1);
+        let mobius = mult::sieve(
+            n + 1,
+            1,
+            |a, b| a * b % M as E,
+            |_, k, _| if k == 1 { -1 } else { 0 },
+        )
+        .0;
+        for i in divs {
+            if mobius[n / i] == 1 {
+                for j in (i..d + 1).rev() {
+                    p[j] -= p[j - i];
+                }
+            } else if mobius[n / i] == -1 {
+                for j in (i..d + 1).rev() {
+                    q[j] -= q[j - i];
+                }
+            }
+        }
+        p = (p * q.inv(d + 1).unwrap()).mod_xn(d + 1).neg_normalize();
+        if p.coeff[0] == -1 { -p } else { p }
+    }
+
+    /// O(n log n)
+    pub fn chebyshev1(mut n: usize) -> Self {
+        if n == 0 {
+            return Self::new(vec![1]);
+        } else if n == 1 {
+            return Self::new(vec![0, 1]);
+        }
+        let (mut a, mut b, mut c) = (
+            Self::new(vec![1]),
+            Self::new(vec![0, -1]),
+            Self::new(vec![0, 2]),
+        );
+        while n > 1 {
+            if n & 1 == 0 {
+                b = (b * c.clone() + &a).normalize();
+            } else {
+                a = (a * c.clone() + &b).normalize();
+            }
+            c = (c.square() - 2).normalize();
+            n >>= 1;
+        }
+        a * c + b
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn pref(mut self) -> Self {
+        let d;
+        (self, d) = self.truncate_deg_or_0();
+        let mut b = Self::bernoulli(d + 1);
+        b[1] = -b[1];
+        b = b.reverse_k(d);
+        let p0 = self.coeff[0] % M as E;
+        let mut s = ((self.inv_borel() * b) >> d - 1).borel().mod_xn(d + 2);
+        s[0] = p0;
+        s
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn bernoulli(n: usize) -> Self {
+        (Self::exp_x(n + 1) >> 1).inv(n).unwrap()
     }
 
     /// O(k log_k n)
@@ -2993,6 +3116,9 @@ impl<const M: u64> Poly<M> {
         w
     }
 
+    // TODO: p recursive sequences
+    // https://maspypy.github.io/library/seq/p_recursive.hpp
+
     /// O(n log^2 n)
     pub fn pow_proj(mut self, mut w: Self) -> Self {
         debug_assert_eq!(self.coeff.len(), w.coeff.len());
@@ -3088,6 +3214,7 @@ impl<const M: u64> Poly<M> {
             .mulx(ic)
     }
 
+    // https://arxiv.org/abs/2404.05177
     /// O(n log^2 n)
     pub fn comp(mut self, mut rhs: Self) -> Self {
         let m = self.len();
@@ -3208,6 +3335,20 @@ impl<const M: u64> Poly<M> {
     pub fn comp_log_1px(self, n: usize) -> Self {
         let x = (0..n as E).collect::<Vec<_>>();
         self.inv_borel().resize(n).interp_t(&x).shift(1)
+    }
+
+    /// O(n log n)
+    pub fn xp1ox_pow_proj(self) -> Self {
+        let mut p = self.shift_t(-1).truncate_reverse().0.shift_t(inv::<M>(2));
+        let l = p.len() + 1 >> 1;
+        for i in 0..l {
+            p[i] = p[i << 1];
+        }
+        p.mod_xn(l)
+            .shift_t(-inv::<M>(4))
+            .truncate_reverse()
+            .0
+            .shift_t(2)
     }
 
     /// O(n log^2 n)
@@ -3536,6 +3677,7 @@ impl<const M: u64> Poly<M> {
         }
     }
 
+    // https://codeforces.com/blog/entry/92183
     /// O(2^n n^2) if rhs.coeff\[0\] == 0
     /// O(2^n n^2 + d log d) else
     pub fn comp_sps(mut self, mut rhs: Self) -> Self {
@@ -3585,6 +3727,11 @@ impl<const M: u64> Poly<M> {
         }
         c.inv_borel()
     }
+
+    // TOOD: online SPS operations
+    // https://maspypy.github.io/library/setfunc/online/online_or_convolution.hpp
+    // https://maspypy.github.io/library/setfunc/online/online_subset_mobius.hpp
+    // https://maspypy.github.io/library/setfunc/online/online_subset_zeta.hpp
 }
 
 impl<const M: u64> Debug for Poly<M> {

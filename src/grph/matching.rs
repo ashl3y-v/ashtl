@@ -168,6 +168,7 @@ pub fn max_coclique_bipartite(
 // TODO: hungarian algorithm
 // https://judge.yosupo.jp/submission/219195
 // https://codeforces.com/blog/entry/128703
+// https://maspypy.github.io/library/flow/hungarian.hpp
 pub fn hungarian() {}
 
 /// O(n^3)
@@ -268,6 +269,13 @@ pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
 
 // TODO: weighted blossom
 // https://judge.yosupo.jp/submission/295392
+
+// TODO: O(m √n log ?) maximum matching
+// https://arxiv.org/pdf/1703.03998
+// https://judge.yosupo.jp/submission/51928
+
+// TODO: stable matching
+// https://maspypy.github.io/library/graph/stable_matching.hpp
 
 #[cfg(test)]
 mod tests {

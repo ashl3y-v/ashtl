@@ -1,3 +1,4 @@
+pub mod closest_pair;
 pub mod constant_intervals;
 pub mod convex_hull;
 pub mod hilbert;
@@ -7,6 +8,6 @@ pub mod lagrange;
 pub mod line;
 pub mod line_container;
 pub mod line_deque;
-pub mod pair;
 pub mod point;
+pub mod polygon;
 pub mod slope;

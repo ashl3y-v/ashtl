@@ -1,4 +1,4 @@
-use crate::{alg::poly::Poly, ds::queue::MonotoneQueue};
+use crate::{alg::poly::Poly, ds::scan::MonotoneQueue};
 
 /// O(n max w_i)
 pub fn subset_sum(w: &[u64], t: u64) -> u64 {

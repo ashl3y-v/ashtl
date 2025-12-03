@@ -1,5 +1,5 @@
+use crate::alg::{mat::Mat, ops::inverse_euclidean};
 use crate::ds::bit_vec::BitVec;
-use crate::{alg::ops::inverse_euclidean, lin::mat::Mat};
 use rand::Rng;
 
 type E = i64;

@@ -17,6 +17,9 @@ pub fn topo_sort(adj: &[Vec<usize>]) -> Vec<usize> {
     q
 }
 
+// TODO: topological order with minimum inversions
+// https://maspypy.github.io/library/graph/optimal_product_on_tree.hpp
+
 #[cfg(test)]
 mod tests {
     use super::topo_sort;

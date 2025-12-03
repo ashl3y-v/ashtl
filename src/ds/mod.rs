@@ -1,13 +1,12 @@
-pub mod array;
 pub mod bit_vec;
+pub mod common_interval;
 pub mod dsu;
 pub mod first_one;
-pub mod heap;
 pub mod knapsack;
 pub mod matroid;
-pub mod queue;
+pub mod persistent;
+pub mod scan;
 pub mod score;
 pub mod set;
 pub mod sort;
-pub mod stack;
 pub mod suffix_max;

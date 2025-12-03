@@ -76,6 +76,12 @@ pub fn mo_tree_paths<T, R>(
     .0
 }
 
+// TODO: 3d mo
+// https://maspypy.github.io/library/ds/offline_query/mo_3d.hpp
+
+// TODO: rollback mo
+// https://maspypy.github.io/library/ds/offline_query/rollback_mo.hpp
+
 #[cfg(test)]
 mod tests {
     use super::{mo, mo_tree_paths};

@@ -1,7 +1,7 @@
 use super::point::Point;
 use std::ops::{Mul, Sub};
 
-pub fn convex_hull<T: Clone + Ord + Default + Mul<T, Output = T> + Sub<T, Output = T>>(
+pub fn convex_hull<T: Clone + PartialOrd + Default + Mul<T, Output = T> + Sub<T, Output = T>>(
     pts: &mut [Point<T>],
 ) -> Vec<Point<T>> {
     let n = pts.len();
@@ -10,7 +10,7 @@ pub fn convex_hull<T: Clone + Ord + Default + Mul<T, Output = T> + Sub<T, Output
         hull.extend_from_slice(pts);
         return hull;
     }
-    pts.sort_unstable();
+    pts.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     for i in 0..n {
         while hull.len() > 1
             && hull[hull.len() - 2]
