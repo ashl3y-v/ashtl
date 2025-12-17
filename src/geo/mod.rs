@@ -1,3 +1,4 @@
+pub mod all_pairs;
 pub mod closest_pair;
 pub mod constant_intervals;
 pub mod convex_hull;
