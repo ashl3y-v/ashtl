@@ -1,6 +1,6 @@
 use super::{
+    fps::{Affine, E, Poly},
     gcd::{euclidean, gcd},
-    poly::{Affine, E, Poly},
     primitive,
 };
 use std::{

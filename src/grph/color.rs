@@ -1,6 +1,6 @@
 use crate::ds::bit_vec::BitVec;
 use crate::{
-    alg::{lattice, poly::Poly},
+    alg::{fps::Poly, lattice},
     ds::set::UbIntSet,
 };
 use std::collections::{BinaryHeap, HashMap};

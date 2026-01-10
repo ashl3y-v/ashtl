@@ -1,11 +1,6 @@
 // https://maspypy.github.io/library/
-// https://codeforces.com/blog/entry/49691
-// https://codeforces.com/blog/entry/47764
-// https://codeforces.com/blog/entry/86306
-// https://codeforces.com/blog/entry/8219
-// https://cp-algorithms.com/dynamic_programming/knuth-optimization.html
-// https://usaco.guide/adv/dp-more?lang=cpp
-// https://usaco.guide/adv/fracturing-search?lang=cpp
+// https://noshi91.github.io/Library/
+// https://blog.niuez.net/cp-cpp-library/
 
 pub mod alg;
 pub mod arr;

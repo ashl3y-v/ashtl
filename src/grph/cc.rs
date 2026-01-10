@@ -272,9 +272,6 @@ pub fn ecc2() {}
 // https://judge.yosupo.jp/submission/248134
 pub fn ecc3() {}
 
-// TODO: O(1) amortized decremental connectivity?
-// https://courses.csail.mit.edu/6.851/spring21/lectures/L20.html?notes=5
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;

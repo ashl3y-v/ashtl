@@ -1,6 +1,7 @@
 pub mod crt;
 pub mod fft;
 pub mod floor_sum;
+pub mod fps;
 pub mod gcd;
 pub mod gray;
 pub mod lattice;
@@ -10,9 +11,9 @@ pub mod montgomery;
 pub mod mult;
 pub mod ntt;
 pub mod ops;
-pub mod poly;
 pub mod prime;
 pub mod primitive;
+pub mod siedel;
 pub mod special;
 pub mod stern_brocot;
 pub mod tutte;

@@ -1,6 +1,6 @@
 use crate::alg::{
+    fps::{E, Poly},
     ops::{self, inv},
-    poly::{E, Poly},
 };
 
 /// O(a + b) = O(n)

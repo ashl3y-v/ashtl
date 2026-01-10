@@ -1,6 +1,6 @@
 use crate::alg::{
+    fps::Poly,
     ops::{inv, inverse_euclidean},
-    poly::Poly,
 };
 use itertools::Itertools;
 use rand::Rng;

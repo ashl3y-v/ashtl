@@ -1,5 +1,5 @@
+use crate::alg::fps::E;
 use crate::alg::mat::Mat;
-use crate::alg::poly::E;
 
 pub fn count_eulerian_dense<const M: u64>(adj: &[Vec<usize>]) -> usize {
     let n = adj.len();

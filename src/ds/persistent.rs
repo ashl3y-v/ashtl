@@ -20,7 +20,21 @@ pub struct PersistentArray<T> {
 }
 
 impl<T: Clone> PersistentArray<T> {
-    pub fn new(a: &[T]) -> (Self, usize) {
+    pub fn new(n: usize) -> (Self, usize) {
+        (
+            Self {
+                n,
+                v: vec![ArrayNode {
+                    v: None,
+                    l: NULL,
+                    r: NULL,
+                }],
+            },
+            0,
+        )
+    }
+
+    pub fn from_slice(a: &[T]) -> (Self, usize) {
         let mut s = Self {
             n: a.len(),
             v: Vec::new(),
@@ -41,7 +55,7 @@ impl<T: Clone> PersistentArray<T> {
         self.v.len() - 1
     }
 
-    pub fn query(&self, mut rt: usize, i: usize) -> &T {
+    pub fn query(&self, mut rt: usize, i: usize) -> Option<&T> {
         let (mut l, mut r) = (0, self.n);
         while r - l > 1 {
             let m = l + (r - l >> 1);
@@ -50,8 +64,11 @@ impl<T: Clone> PersistentArray<T> {
             } else {
                 (rt, l) = (self.v[rt].r, m);
             }
+            if rt == NULL {
+                return None;
+            }
         }
-        self.v[rt].v.as_ref().unwrap()
+        self.v[rt].v.as_ref()
     }
 
     pub fn update(&mut self, rt: usize, i: usize, v: T) -> usize {
@@ -65,19 +82,39 @@ impl<T: Clone> PersistentArray<T> {
         } else {
             let m = l + (r - l >> 1);
             if i < m {
-                let l = self.update_rec(self.v[rt].l, i, l, m, v);
+                let cl = if self.v[rt].l == NULL {
+                    self.v.push(ArrayNode {
+                        v: None,
+                        l: NULL,
+                        r: NULL,
+                    });
+                    self.v.len() - 1
+                } else {
+                    self.v[rt].l
+                };
+                let cl = self.update_rec(cl, i, l, m, v);
                 self.v.push(ArrayNode {
                     v: None,
-                    l: l,
+                    l: cl,
                     r: self.v[rt].r,
                 });
                 self.v.len() - 1
             } else {
-                let r = self.update_rec(self.v[rt].r, i, m, r, v);
+                let cr = if self.v[rt].r == NULL {
+                    self.v.push(ArrayNode {
+                        v: None,
+                        l: NULL,
+                        r: NULL,
+                    });
+                    self.v.len() - 1
+                } else {
+                    self.v[rt].r
+                };
+                let cr = self.update_rec(cr, i, m, r, v);
                 self.v.push(ArrayNode {
                     v: None,
                     l: self.v[rt].l,
-                    r,
+                    r: cr,
                 });
                 self.v.len() - 1
             }

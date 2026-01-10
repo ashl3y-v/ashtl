@@ -1,7 +1,10 @@
+pub mod aho_corasick;
 pub mod hash;
+pub mod lyndon;
 pub mod palindrome;
 pub mod pattern;
 pub mod periodic;
 pub mod suffix;
 pub mod trie;
+pub mod wildcard;
 pub mod z;

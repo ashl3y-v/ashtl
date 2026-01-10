@@ -22,7 +22,7 @@ impl Scanner {
 use std::cmp::Ordering;
 use std::cmp::{max, min};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::io::{BufWriter, Write, stdin, stdout};
+use std::io::{BufRead, BufWriter, Write, stdin, stdout};
 use std::time::Instant;
 use std::{
     fmt::{Debug, Display},
@@ -34,90 +34,28 @@ use std::{
 
 const M: u64 = (119 << 23) + 1;
 
-// https://codeforces.com/blog/entry/125018
-/// O(n)
-pub fn shallowest_decomposition(
-    adj: &[Vec<usize>],
-    root: usize,
-    mut f: impl FnMut([usize; 3], &mut [usize]),
-) -> usize {
-    let n = adj.len();
-    let mut stacks: Vec<Vec<usize>> = vec![vec![]; n.ilog2() as usize + 1];
-    let mut forbidden = vec![0; n];
-    fn extract_chain(
-        mut labels: usize,
-        mut u: usize,
-        stacks: &mut [Vec<usize>],
-        forbidden: &mut [usize],
-        f: &mut impl FnMut([usize; 3], &mut [usize]),
-    ) {
-        while labels != 0 {
-            let label = labels.ilog2() as usize;
-            labels ^= 1 << label;
-            if let Some(v) = stacks[label].pop() {
-                f([v, u, labels], forbidden);
-                u = v;
-            }
-        }
-    }
-    fn dfs(
-        u: usize,
-        p: usize,
-        adj: &[Vec<usize>],
-        forbidden: &mut [usize],
-        stacks: &mut [Vec<usize>],
-        f: &mut impl FnMut([usize; 3], &mut [usize]),
-    ) {
-        let mut forbidden_once = 0;
-        let mut forbidden_twice = 0;
-        for &v in &adj[u] {
-            if v != p {
-                dfs(v, u, adj, forbidden, stacks, f);
-                let forbidden_by_v = forbidden[v] + 1;
-                forbidden_twice |= forbidden_once & forbidden_by_v;
-                forbidden_once |= forbidden_by_v;
-            }
-        }
-        let mask = if forbidden_twice == 0 {
-            0
-        } else {
-            (1 << forbidden_twice.ilog2() + 1) - 1
-        };
-        forbidden[u] = forbidden_once | mask;
-        let label = (forbidden[u] + 1).trailing_zeros() as usize;
-        stacks[label].push(u);
-        for &v in adj[u].iter().rev() {
-            if v != p {
-                let labels = (forbidden[v] + 1) & ((1 << label) - 1);
-                extract_chain(labels, u, stacks, forbidden, f);
-            }
-        }
-    }
-    dfs(root, usize::MAX, adj, &mut forbidden, &mut stacks, &mut f);
-    let max_label = (forbidden[root] + 1).ilog2() as usize;
-    let decomposition_root = stacks[max_label].pop().unwrap();
-    extract_chain(
-        (forbidden[root] + 1) & ((1 << max_label) - 1),
-        decomposition_root,
-        &mut stacks,
-        &mut forbidden,
-        &mut f,
-    );
-    decomposition_root
-}
+use ashtl::string::suffix::sa;
+use std::io;
 
 fn main() {
-    let mut scan = Scanner::default();
-    let mut out = BufWriter::new(stdout().lock());
-    // let n: usize = scan.next();
-    // let mut adj = vec![vec![]; n];
-    // for _ in 0..n - 1 {
-    //     let (a, b): (usize, usize) = (scan.next(), scan.next());
-    //     adj[a - 1].push(b - 1);
-    //     adj[b - 1].push(a - 1);
-    // }
+    let stdin = io::stdin();
+    let mut input = stdin.lock().lines();
+    let mut out = io::BufWriter::new(io::stdout());
 
-    // let mut s = String::new();
-    // writeln!(out, "{}", &s[..s.len() - 1]).unwrap();
-    use ashtl::alg::poly::Poly;
+    if let Some(Ok(line)) = input.next() {
+        let s = line.trim().as_bytes();
+        if s.is_empty() {
+            return;
+        }
+
+        let sa = sa::suffix_sort(s);
+
+        for (i, &val) in sa.iter().enumerate() {
+            if i > 0 {
+                write!(out, " ").ok();
+            }
+            write!(out, "{}", val).ok();
+        }
+        writeln!(out).ok();
+    }
 }
