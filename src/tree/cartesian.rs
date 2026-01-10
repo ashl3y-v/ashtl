@@ -1,35 +1,98 @@
-pub fn cartesian<T: PartialOrd>(a: &[T]) -> Vec<usize> {
-    let n = a.len();
-    let mut p = vec![usize::MAX; n];
-    let mut stk = Vec::with_capacity(n);
-    for i in 0..n {
-        let mut last = usize::MAX;
-        while let Some(&l) = stk.last() {
-            if a[l] < a[i] {
-                break;
-            }
-            last = l;
-            stk.pop();
-        }
-        if let Some(&l) = stk.last() {
-            p[i] = l;
-        }
-        if last != usize::MAX {
-            p[last] = i;
-        }
-        stk.push(i);
-    }
-    p
+#[derive(Debug, Clone)]
+pub struct CartesianTree<T> {
+    pub n: usize,
+    pub a: Vec<T>,
+    pub range: Vec<(usize, usize)>,
+    pub lch: Vec<usize>,
+    pub rch: Vec<usize>,
+    pub par: Vec<usize>,
+    pub root: usize,
+    pub is_min: bool,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::cartesian;
+impl<T> CartesianTree<T>
+where
+    T: Copy + Ord,
+{
+    pub fn new(a: &[T]) -> Self {
+        Self::with_direction(a, true)
+    }
 
-    #[test]
-    fn basic() {
-        let a = vec![6, 9, 2, 4, 7, 8, 5, 8, 3, 7];
-        let p = cartesian(&a);
-        assert_eq!(p, [2, 0, 18446744073709551615, 8, 6, 4, 3, 6, 2, 8]);
+    pub fn with_direction(a: &[T], is_min: bool) -> Self {
+        let n = a.len();
+        let mut range = vec![(0, 0); n];
+        let mut lch = vec![usize::MAX; n];
+        let mut rch = vec![usize::MAX; n];
+        let mut par = vec![usize::MAX; n];
+        if n == 1 {
+            return CartesianTree {
+                n,
+                a: a.to_vec(),
+                range: vec![(0, 1)],
+                lch,
+                rch,
+                par,
+                root: 0,
+                is_min,
+            };
+        }
+        let is_sm = |i: usize, j: usize| -> bool {
+            if is_min {
+                a[i] < a[j] || (a[i] == a[j] && i < j)
+            } else {
+                a[i] > a[j] || (a[i] == a[j] && i < j)
+            }
+        };
+        let mut st: Vec<usize> = Vec::with_capacity(n);
+        for i in 0..n {
+            while let Some(&last) = st.last() {
+                if is_sm(i, last) {
+                    lch[i] = last;
+                    par[last] = i;
+                    st.pop();
+                } else {
+                    break;
+                }
+            }
+            range[i].0 = if let Some(&last) = st.last() {
+                last + 1
+            } else {
+                0
+            };
+            st.push(i);
+        }
+        st.clear();
+        let mut root = 0;
+        for i in (0..n).rev() {
+            while let Some(&last) = st.last() {
+                if is_sm(i, last) {
+                    rch[i] = last;
+                    par[last] = i;
+                    st.pop();
+                } else {
+                    break;
+                }
+            }
+            range[i].1 = if let Some(&last) = st.last() { last } else { n };
+            st.push(i);
+            if par[i] == usize::MAX {
+                root = i;
+            }
+        }
+        CartesianTree {
+            n,
+            a: a.to_vec(),
+            range,
+            lch,
+            rch,
+            par,
+            root,
+            is_min,
+        }
+    }
+
+    pub fn range(&self, i: usize) -> (usize, usize, T) {
+        let (l, r) = self.range[i];
+        (l, r, self.a[i])
     }
 }

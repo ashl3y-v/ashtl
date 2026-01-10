@@ -34,28 +34,27 @@ use std::{
 
 const M: u64 = (119 << 23) + 1;
 
-use ashtl::string::suffix::sa;
 use std::io;
 
 fn main() {
-    let stdin = io::stdin();
-    let mut input = stdin.lock().lines();
-    let mut out = io::BufWriter::new(io::stdout());
+    // let stdin = io::stdin();
+    // let mut input = stdin.lock().lines();
+    // let mut out = io::BufWriter::new(io::stdout());
 
-    if let Some(Ok(line)) = input.next() {
-        let s = line.trim().as_bytes();
-        if s.is_empty() {
-            return;
-        }
+    // if let Some(Ok(line)) = input.next() {
+    //     let s = line.trim().as_bytes();
+    //     if s.is_empty() {
+    //         return;
+    //     }
 
-        let sa = sa::suffix_sort(s);
+    //     let sa = sa::suffix_sort(s);
 
-        for (i, &val) in sa.iter().enumerate() {
-            if i > 0 {
-                write!(out, " ").ok();
-            }
-            write!(out, "{}", val).ok();
-        }
-        writeln!(out).ok();
-    }
+    //     for (i, &val) in sa.iter().enumerate() {
+    //         if i > 0 {
+    //             write!(out, " ").ok();
+    //         }
+    //         write!(out, "{}", val).ok();
+    //     }
+    //     writeln!(out).ok();
+    // }
 }
