@@ -11,7 +11,7 @@ pub struct SplayNode<T> {
     pub size: usize,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Splay<T, Push, Pull>
 where
     Push: FnMut(usize, usize, usize, &mut [SplayNode<T>]),

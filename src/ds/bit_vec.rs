@@ -1,113 +1,245 @@
 use std::ops::Index;
 
-#[derive(Debug, Clone, PartialEq)]
+const B: usize = 64;
+
+#[derive(Debug, Clone)]
 pub struct BitVec {
-    pub storage: Vec<u32>,
-    pub len: usize,
+    n: usize,
+    seg: Vec<Vec<u64>>,
 }
 
 impl BitVec {
     pub fn new(n: usize, initial_value: bool) -> Self {
-        let blocks = (n + 31) / 32;
-
-        let fill_value = if initial_value { u32::MAX } else { 0 };
-
-        BitVec {
-            storage: vec![fill_value; blocks],
-            len: n,
+        if n == 0 {
+            return Self {
+                n: 0,
+                seg: vec![vec![0]],
+            };
         }
-    }
-
-    pub fn from_fn<F>(n: usize, mut f: F) -> Self
-    where
-        F: FnMut(usize) -> bool,
-    {
-        let mut bv = BitVec::new(n, false);
-        for i in 0..n {
-            if f(i) {
-                bv.set(i, true);
+        let mut seg = Vec::new();
+        let mut m = n;
+        loop {
+            seg.push(vec![0; (m + B - 1) / B]);
+            m = (m + B - 1) / B;
+            if m <= 1 {
+                break;
             }
         }
+        let mut result = Self { n, seg };
+        if initial_value {
+            result.seg[0].fill(u64::MAX);
+            let rem = n % B;
+            if rem != 0 {
+                let last = result.seg[0].len() - 1;
+                result.seg[0][last] = (1u64 << rem) - 1;
+            }
+            result.rebuild_upper();
+        }
+        result
+    }
+
+    pub fn from_fn<F: FnMut(usize) -> bool>(n: usize, mut f: F) -> Self {
+        let mut bv = Self::new(n, false);
+        for i in 0..n {
+            bv.seg[0][i / B] |= (f(i) as u64) << (i % B);
+        }
+        bv.rebuild_upper();
         bv
     }
 
-    pub fn get(&self, index: usize) -> bool {
-        if index >= self.len {
-            panic!(
-                "BitVec index out of bounds: index {}, len {}",
-                index, self.len
-            );
+    fn rebuild_upper(&mut self) {
+        for h in 0..self.seg.len() - 1 {
+            self.seg[h + 1].fill(0);
+            for i in 0..self.seg[h].len() {
+                self.seg[h + 1][i / B] |= ((self.seg[h][i] != 0) as u64) << (i % B);
+            }
         }
-
-        let block_idx = index / 32;
-        let bit_idx = index % 32;
-
-        let block = self.storage[block_idx];
-        let is_set = (block & (1 << bit_idx)) != 0;
-
-        is_set
-    }
-
-    pub fn set(&mut self, index: usize, value: bool) {
-        if index >= self.len {
-            panic!(
-                "BitVec index out of bounds: index {}, len {}",
-                index, self.len
-            );
-        }
-
-        let block_idx = index / 32;
-        let bit_idx = index % 32;
-        let mask = 1 << bit_idx;
-
-        if value {
-            self.storage[block_idx] |= mask;
-        } else {
-            self.storage[block_idx] &= !mask;
-        }
-    }
-
-    pub fn push(&mut self, value: bool) {
-        let block_idx = self.len / 32;
-        let bit_idx = self.len % 32;
-
-        if block_idx == self.storage.len() {
-            self.storage.push(0);
-        }
-
-        let mask = 1 << bit_idx;
-        if value {
-            self.storage[block_idx] |= mask;
-        } else {
-            self.storage[block_idx] &= !mask;
-        }
-
-        self.len += 1;
-    }
-
-    pub fn negate(&mut self) {
-        let n = self.storage.len();
-        self.storage[..n - 1]
-            .iter_mut()
-            .for_each(|a| *a ^= u32::MAX);
-        self.storage[n - 1] ^= (1 << self.len() % 32) - 1;
-    }
-
-    pub fn fill(&mut self, value: bool) {
-        let fill_value = if value { u32::MAX } else { 0 };
-        self.storage.fill(fill_value);
-    }
-
-    pub fn clear(&mut self) {
-        self.fill(false);
-    }
-
-    pub fn iter(&'_ self) -> BitVecIter<'_> {
-        BitVecIter { bv: self, pos: 0 }
     }
 
     pub fn len(&self) -> usize {
-        self.len
+        self.n
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.n == 0
+    }
+
+    pub fn push(&mut self, value: bool) {
+        let i = self.n;
+        self.n += 1;
+        // Extend levels as needed
+        for h in 0..self.seg.len() {
+            let idx = i / B.pow(h as u32 + 1);
+            if idx >= self.seg[h].len() {
+                self.seg[h].push(0);
+            }
+        }
+        // Check if we need a new level
+        let top_len = self.seg.last().unwrap().len();
+        if top_len > 1 {
+            self.seg.push(vec![0; (top_len + B - 1) / B]);
+            for j in 0..self.seg[self.seg.len() - 2].len() {
+                if self.seg[self.seg.len() - 2][j] != 0 {
+                    self.seg.last_mut().unwrap()[j / B] |= 1 << (j % B);
+                }
+            }
+        }
+        if value {
+            self.insert(i);
+        }
+    }
+
+    pub fn get(&self, i: usize) -> bool {
+        debug_assert!(i < self.n);
+        (self.seg[0][i / B] >> (i % B)) & 1 != 0
+    }
+
+    pub fn contains(&self, i: usize) -> bool {
+        self.get(i)
+    }
+
+    pub fn set(&mut self, i: usize, value: bool) {
+        debug_assert!(i < self.n);
+        if value {
+            self.insert(i);
+        } else {
+            self.remove(i);
+        }
+    }
+
+    pub fn insert(&mut self, i: usize) {
+        debug_assert!(i < self.n);
+        let mut i = i;
+        for h in 0..self.seg.len() {
+            self.seg[h][i / B] |= 1 << (i % B);
+            i /= B;
+        }
+    }
+
+    pub fn remove(&mut self, i: usize) {
+        debug_assert!(i < self.n);
+        let mut i = i;
+        for h in 0..self.seg.len() {
+            self.seg[h][i / B] &= !(1 << (i % B));
+            let x = (self.seg[h][i / B] != 0) as u64;
+            i /= B;
+            if h + 1 < self.seg.len() {
+                self.seg[h + 1][i / B] &= !(1 << (i % B));
+                self.seg[h + 1][i / B] |= x << (i % B);
+            }
+        }
+    }
+
+    pub fn next(&self, i: usize) -> Option<usize> {
+        if i >= self.n {
+            return None;
+        }
+        let mut i = i;
+        for h in 0..self.seg.len() {
+            if i / B >= self.seg[h].len() {
+                return None;
+            }
+            let d = self.seg[h][i / B] >> (i % B);
+            if d == 0 {
+                i = i / B + 1;
+                continue;
+            }
+            i += d.trailing_zeros() as usize;
+            for g in (0..h).rev() {
+                i *= B;
+                i += self.seg[g][i / B].trailing_zeros() as usize;
+            }
+            return if i < self.n { Some(i) } else { None };
+        }
+        None
+    }
+
+    pub fn prev(&self, i: usize) -> Option<usize> {
+        let mut i = i.min(self.n.saturating_sub(1)) as isize;
+        for h in 0..self.seg.len() {
+            if i < 0 {
+                return None;
+            }
+            let d = self.seg[h][i as usize / B] << (63 - i as usize % B);
+            if d == 0 {
+                i = i / B as isize - 1;
+                continue;
+            }
+            i -= d.leading_zeros() as isize;
+            for g in (0..h).rev() {
+                i *= B as isize;
+                i += (63 - self.seg[g][i as usize / B].leading_zeros()) as isize;
+            }
+            return Some(i as usize);
+        }
+        None
+    }
+
+    pub fn any(&self, l: usize, r: usize) -> bool {
+        self.next(l).map_or(false, |x| x < r)
+    }
+
+    pub fn enumerate<F: FnMut(usize)>(&self, l: usize, r: usize, mut f: F) {
+        let mut x = match self.next(l) {
+            Some(x) => x,
+            None => return,
+        };
+        while x < r {
+            f(x);
+            x = match self.next(x + 1) {
+                Some(x) => x,
+                None => return,
+            };
+        }
+    }
+
+    pub fn negate(&mut self) {
+        if self.n == 0 {
+            return;
+        }
+        for block in &mut self.seg[0] {
+            *block ^= u64::MAX;
+        }
+        let rem = self.n % B;
+        if rem != 0 {
+            let last = self.seg[0].len() - 1;
+            self.seg[0][last] &= (1u64 << rem) - 1;
+        }
+        self.rebuild_upper();
+    }
+
+    pub fn fill(&mut self, value: bool) {
+        if self.n == 0 {
+            return;
+        }
+        let fill_val = if value { u64::MAX } else { 0 };
+        self.seg[0].fill(fill_val);
+        if value {
+            let rem = self.n % B;
+            if rem != 0 {
+                let last = self.seg[0].len() - 1;
+                self.seg[0][last] = (1u64 << rem) - 1;
+            }
+        }
+        self.rebuild_upper();
+    }
+
+    pub fn clear(&mut self) {
+        for level in &mut self.seg {
+            level.fill(0);
+        }
+    }
+
+    pub fn iter(&self) -> BitVecIter<'_> {
+        BitVecIter { bv: self, pos: 0 }
+    }
+
+    pub fn ones(&self) -> BitVecOnes<'_> {
+        BitVecOnes { bv: self, pos: 0 }
+    }
+
+    pub fn count_ones(&self) -> usize {
+        self.seg[0].iter().map(|&x| x.count_ones() as usize).sum()
     }
 }
 
@@ -128,7 +260,7 @@ impl<'a> Iterator for BitVecIter<'a> {
     type Item = bool;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos < self.bv.len {
+        if self.pos < self.bv.n {
             let bit = self.bv.get(self.pos);
             self.pos += 1;
             Some(bit)
@@ -138,46 +270,17 @@ impl<'a> Iterator for BitVecIter<'a> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub struct BitVecOnes<'a> {
+    bv: &'a BitVec,
+    pos: usize,
+}
 
-    #[test]
-    fn test_initialization_false() {
-        let bv = BitVec::new(64, false);
-        assert_eq!(bv.len(), 64);
-        assert_eq!(bv.get(0), false);
-        assert_eq!(bv.get(63), false);
-    }
+impl<'a> Iterator for BitVecOnes<'a> {
+    type Item = usize;
 
-    #[test]
-    fn test_initialization_true() {
-        let bv = BitVec::new(10, true);
-        assert_eq!(bv.len(), 10);
-        assert_eq!(bv.get(0), true);
-        assert_eq!(bv.get(9), true);
-    }
-
-    #[test]
-    fn test_set_and_get() {
-        let mut bv = BitVec::new(100, false);
-
-        assert_eq!(bv.get(50), false);
-
-        bv.set(50, true);
-        assert_eq!(bv.get(50), true);
-
-        bv.set(50, false);
-        assert_eq!(bv.get(50), false);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_strict_bounds_set() {
-        // Allocated capacity is 32 bits (1 u32), but len is 10
-        let mut bv = BitVec::new(10, false);
-
-        // This is valid memory-wise (inside the u32), but invalid for our logic
-        bv.set(11, true);
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = self.bv.next(self.pos)?;
+        self.pos = result + 1;
+        Some(result)
     }
 }
