@@ -1,3 +1,4 @@
+pub mod cont_frac;
 pub mod crt;
 pub mod fft;
 pub mod floor_sum;

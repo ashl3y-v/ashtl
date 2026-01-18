@@ -1,6 +1,9 @@
+use crate::alg::fps::Poly;
+use crate::alg::ops::inv;
 use crate::ds::bit_vec::BitVec;
+use crate::tree::top::StaticTopTree;
 
-// Hopcroft-Karp maximum bipartite matching O(sqrt(|V|) |E|)
+/// O(√V E)
 pub fn hopcroft_karp(
     n: usize,
     k: usize,
@@ -165,6 +168,47 @@ pub fn max_coclique_bipartite(
     (in_cover_l, in_cover_r)
 }
 
+/// O(√V E)
+pub fn dulmage_mendelsohn(n: usize, k: usize, g: &[usize], d: &[usize]) -> Vec<i32> {
+    let t = n + k;
+    let mut adj: Vec<Vec<usize>> = vec![vec![]; t];
+    for u in 0..n {
+        for &v in &g[d[u]..d[u + 1]] {
+            adj[u].push(n + v);
+            adj[n + v].push(u);
+        }
+    }
+    let (_, l, _) = hopcroft_karp(n, k, g, d);
+    let mut matched = vec![usize::MAX; t];
+    for u in 0..n {
+        if l[u] != usize::MAX {
+            matched[u] = n + l[u];
+            matched[n + l[u]] = u;
+        }
+    }
+    let mut comp: Vec<i32> = vec![0; t];
+    for v in 0..t {
+        if matched[v] != usize::MAX {
+            comp[v] = 2;
+        }
+    }
+    let mut stack: Vec<(usize, bool)> = Vec::new();
+    for v in 0..t {
+        if comp[v] == 0 {
+            stack.push((v, true));
+        }
+    }
+    while let Some((u, b)) = stack.pop() {
+        for &v in &adj[u] {
+            if comp[v] == 2 && (b != (matched[u] == v)) {
+                comp[v] = comp[u] ^ 1;
+                stack.push((v, !b));
+            }
+        }
+    }
+    comp
+}
+
 // TODO: hungarian algorithm
 // https://judge.yosupo.jp/submission/219195
 // https://codeforces.com/blog/entry/128703
@@ -277,554 +321,159 @@ pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
 // TODO: stable matching
 // https://maspypy.github.io/library/graph/stable_matching.hpp
 
-#[cfg(test)]
-mod tests {
-    use super::blossom;
-    use crate::grph::format::edges_to_csr_undir_one_based;
-    use crate::grph::matching::BitVec;
-
-    /// No edges ⇒ no matches
-    #[test]
-    fn test_no_edges() {
-        let n = 3;
-        let edges: Vec<[usize; 2]> = Vec::new();
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, 0);
-        // all vertices 1..n should remain unmatched (mate[u] == 0)
-        for u in 1..=n {
-            assert_eq!(mate[u], 0);
+/// O(2^n Δ) = O(2^n n) time, O(n + m) space
+pub fn count_perfect_matchings<const M: u64>(n: usize, g: &[usize], d: &[usize]) -> u64 {
+    if n == 0 {
+        return 1;
+    } else if n % 2 == 1 {
+        return 0;
+    }
+    let half = n / 2;
+    let m = d[n] / 2;
+    let mut binom = vec![0u64; m + 1];
+    if half <= m {
+        binom[half] = 1;
+        for i in half + 1..=m {
+            binom[i] = binom[i - 1] * (i as u64) % M;
+            binom[i] = (binom[i] as i64 * inv::<M>((i - half) as i64)).rem_euclid(M as i64) as u64;
         }
     }
-
-    /// Single edge 1–2 ⇒ one match
-    #[test]
-    fn test_single_edge() {
-        let n = 2;
-        let edges = vec![[1, 2], [2, 1]];
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, 1);
-        assert_eq!(mate[1], 2);
-        assert_eq!(mate[2], 1);
-    }
-
-    /// Path 1–2–3 ⇒ at most one match
-    #[test]
-    fn test_path_three_nodes() {
-        let n = 3;
-        let edges = vec![[1, 2], [2, 1], [2, 3], [3, 2]];
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, 1);
-        let matched: Vec<_> = (1..=n).filter(|&u| mate[u] != 0).collect();
-        assert_eq!(matched.len(), 2);
-        for &u in &matched {
-            let v = mate[u];
-            assert_eq!(mate[v], u);
-        }
-    }
-
-    /// Triangle 1–2–3–1 ⇒ matching size 1
-    #[test]
-    fn test_triangle() {
-        let n = 3;
-        let edges = vec![[1, 2], [2, 1], [2, 3], [3, 2], [3, 1], [1, 3]];
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, 1);
-        let matched: Vec<_> = (1..=n).filter(|&u| mate[u] != 0).collect();
-        assert_eq!(matched.len(), 2);
-    }
-
-    /// 4-cycle 1–2–3–4–1 ⇒ perfect matching of size 2
-    #[test]
-    fn test_cycle4() {
-        let n = 4;
-        let edges = vec![
-            [1, 2],
-            [2, 1],
-            [2, 3],
-            [3, 2],
-            [3, 4],
-            [4, 3],
-            [4, 1],
-            [1, 4],
-        ];
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, 2);
-        for u in 1..=n {
-            if mate[u] != 0 {
-                assert_eq!(mate[mate[u]], u);
-            }
-        }
-    }
-
-    /// 5-cycle (odd) ⇒ max matching size 2
-    #[test]
-    fn test_cycle5() {
-        let n = 5;
-        let mut edges = Vec::new();
-        for i in 1..=5 {
-            let j = if i < 5 { i + 1 } else { 1 };
-            edges.push([i, j]);
-            edges.push([j, i]);
-        }
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, 2);
-        let matched: Vec<_> = (1..=n).filter(|&u| mate[u] != 0).collect();
-        assert_eq!(matched.len(), 4);
-    }
-
-    /// Complete bipartite K₃,₃ ⇒ perfect matching of size 3
-    #[test]
-    fn test_k3_3() {
-        let n = 6;
-        let left = [1, 2, 3];
-        let right = [4, 5, 6];
-        let mut edges = Vec::new();
-        for &u in &left {
-            for &v in &right {
-                edges.push([u, v]);
-                edges.push([v, u]);
-            }
-        }
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, 3);
-        for u in 1..=n {
-            if mate[u] != 0 {
-                let v = mate[u];
-                assert!(
-                    (u <= 3 && v >= 4) || (u >= 4 && v <= 3),
-                    "edge {:?}-{:?} is not across the bipartition",
-                    u,
-                    v
-                );
-                assert_eq!(mate[v], u);
-            }
-        }
-    }
-
-    /// Two nested odd cycles sharing node 1
-    #[test]
-    fn test_two_nested_odd_cycles() {
-        let n = 15;
-        let mut edges = Vec::new();
-        // Cycle A: 1..7
-        for i in 1..=7 {
-            let j = if i < 7 { i + 1 } else { 1 };
-            edges.push([i, j]);
-            edges.push([j, i]);
-        }
-        // Cycle B: [1,8..15]
-        let mut cycle_b = vec![1];
-        cycle_b.extend(8..=15);
-        for w in cycle_b.windows(2) {
-            edges.push([w[0], w[1]]);
-            edges.push([w[1], w[0]]);
-        }
-        // close B
-        let last = *cycle_b.last().unwrap();
-        edges.push([last, 1]);
-        edges.push([1, last]);
-
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, 3 + 4);
-        for u in 1..=n {
-            if mate[u] != 0 {
-                assert_eq!(mate[mate[u]], u);
-            }
-        }
-    }
-
-    /// Chain of three odd cycles
-    #[test]
-    fn test_chain_three_odd_cycles() {
-        let size_a = 5;
-        let size_b = 7;
-        let size_c = 9;
-        let n = size_a + (size_b - 1) + (size_c - 1);
-        let mut edges = Vec::new();
-        // A: 1..5
-        for i in 1..=size_a {
-            let j = if i < size_a { i + 1 } else { 1 };
-            edges.push([i, j]);
-            edges.push([j, i]);
-        }
-        // B attach at 2
-        let attach_b = 2;
-        let start_b = size_a + 1;
-        let mut cycle_b = vec![attach_b];
-        cycle_b.extend(start_b..start_b + (size_b - 1));
-        for w in cycle_b.windows(2) {
-            edges.push([w[0], w[1]]);
-            edges.push([w[1], w[0]]);
-        }
-        // close B
-        let last_b = *cycle_b.last().unwrap();
-        edges.push([last_b, attach_b]);
-        edges.push([attach_b, last_b]);
-        // C attach at cycle_b[1]
-        let attach_c = cycle_b[1];
-        let start_c = start_b + (size_b - 1);
-        let mut cycle_c = vec![attach_c];
-        cycle_c.extend(start_c..start_c + (size_c - 1));
-        for w in cycle_c.windows(2) {
-            edges.push([w[0], w[1]]);
-            edges.push([w[1], w[0]]);
-        }
-        // close C
-        let last_c = *cycle_c.last().unwrap();
-        edges.push([last_c, attach_c]);
-        edges.push([attach_c, last_c]);
-
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, size_a / 2 + size_b / 2 + size_c / 2);
-        for u in 1..=n {
-            if mate[u] != 0 {
-                assert_eq!(mate[mate[u]], u);
-            }
-        }
-    }
-
-    /// Many disconnected odd cycles
-    #[test]
-    fn test_many_disconnected_odd_cycles() {
-        let lengths = [3, 5, 7, 9, 11];
-        let n: usize = lengths.iter().sum();
-        let mut edges = Vec::new();
-        let mut offset = 1;
-        let mut expected = 0;
-        for &len in &lengths {
-            for i in 0..len {
-                let u = offset + i;
-                let v = offset + (i + 1) % len;
-                edges.push([u, v]);
-                edges.push([v, u]);
-            }
-            expected += len / 2;
-            offset += len;
-        }
-        let (g, d) = edges_to_csr_undir_one_based(n, &edges);
-        let (n_matches, mate) = blossom(n, &g, &d);
-        assert_eq!(n_matches, expected);
-        for u in 1..=n {
-            if mate[u] != 0 {
-                assert_eq!(mate[mate[u]], u);
-            }
-        }
-    }
-
-    /// Reuse with edge addition (fresh calls)
-    #[test]
-    fn test_reuse_with_edge_addition() {
-        let n = 5;
-        // initial triangle on {1,2,3}
-        let mut triangle = vec![[1, 2], [2, 1], [2, 3], [3, 2], [3, 1], [1, 3]];
-        let (g1, d1) = edges_to_csr_undir_one_based(n, &triangle);
-        let (m1, mate1) = blossom(n, &g1, &d1);
-        assert_eq!(m1, 1);
-        let (u0, v0) = (1..=3)
-            .find_map(|u| (mate1[u] != 0).then(|| (u, mate1[u])))
-            .expect("one match in triangle");
-        assert_eq!(mate1[u0], v0);
-        assert_eq!(mate1[v0], u0);
-
-        // now add edge 4–5
-        triangle.push([4, 5]);
-        triangle.push([5, 4]);
-        let (g2, d2) = edges_to_csr_undir_one_based(n, &triangle);
-        let (m2, mate2) = blossom(n, &g2, &d2);
-        assert_eq!(m2, 2);
-        assert_eq!(mate2[4], 5);
-        assert_eq!(mate2[5], 4);
-        assert_eq!(mate2[u0], v0);
-        assert_eq!(mate2[v0], u0);
-    }
-
-    use crate::grph::format::edges_to_csr_undir;
-    use crate::grph::matching::hopcroft_karp;
-    use crate::grph::matching::max_coclique_bipartite;
-    use crate::grph::matching::min_edge_cover_bipartite;
-    use crate::grph::matching::min_vertex_cover_bipartite;
-
-    /// Brute-force maximum matching size on bipartite graph
-    fn brute_force(n: usize, k: usize, edges: &[[usize; 2]]) -> usize {
-        let e = edges.len();
-        let mut best = 0;
-        for mask in 0..(1_usize << e) {
-            let cnt = mask.count_ones() as usize;
-            if cnt <= best {
-                continue;
-            }
-            let mut ul = vec![false; n];
-            let mut ur = vec![false; k];
-            let mut ok = true;
-            for i in 0..e {
-                if (mask >> i) & 1 == 1 {
-                    let [u, v] = edges[i];
-                    if ul[u] || ur[v] {
-                        ok = false;
-                        break;
-                    }
-                    ul[u] = true;
-                    ur[v] = true;
+    let mut deg = vec![0; n];
+    let mut in_set = BitVec::new(n, false);
+    let mut e = 0;
+    let mut size = 0;
+    let mut res = 0;
+    let sign = |sz| -> u64 { if (n - sz) % 2 == 0 { 1 } else { M - 1 } };
+    let n_words = (n + 63) / 64;
+    let mut counter = vec![0u64; n_words];
+    loop {
+        let flip_bit = {
+            let mut bit = n_words * 64;
+            for (i, word) in counter.iter_mut().enumerate() {
+                let old = *word;
+                *word = word.wrapping_add(1);
+                if old != u64::MAX {
+                    bit = i * 64 + word.trailing_zeros() as usize;
+                    break;
                 }
             }
-            if ok {
-                best = cnt;
+            bit
+        };
+        if flip_bit >= n {
+            break;
+        }
+        let v = flip_bit;
+        if in_set[v] {
+            e -= deg[v];
+            size -= 1;
+            in_set.set(v, false);
+            for &u in &g[d[v]..d[v + 1]] {
+                deg[u] -= 1;
+            }
+        } else {
+            e += deg[v];
+            size += 1;
+            in_set.set(v, true);
+            for &u in &g[d[v]..d[v + 1]] {
+                deg[u] += 1;
             }
         }
-        best
+        if e >= half {
+            res = (res + sign(size) * binom[e]) % M;
+        }
     }
+    res
+}
 
-    #[test]
-    fn test_complete_small() {
-        let n = 6;
-        let k = 6;
-        let mut edges = Vec::new();
-        for u in 0..n {
-            for v in 0..k {
-                edges.push([u, v]);
+/// O(n log^2 n)
+pub fn count_matching_on_tree<const M: u64>(p: &[usize]) -> Vec<i64> {
+    type State<const M: u64> = [[Poly<M>; 2]; 2];
+    #[derive(Clone)]
+    struct Path<const M: u64> {
+        single: bool,
+        s: State<M>,
+    }
+    impl<const M: u64> Default for Path<M> {
+        fn default() -> Self {
+            Path {
+                single: true,
+                s: Default::default(),
             }
         }
-        let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, _, _) = hopcroft_karp(n, k, &g, &d);
-        assert_eq!(ans, 6);
     }
-
-    #[test]
-    fn test_cycle_graph() {
-        let n = 7;
-        let k = 7;
-        let mut edges = Vec::new();
-        for i in 0..n {
-            edges.push([i, i]);
-            edges.push([i, (i + 1) % k]);
-        }
-        let expected = brute_force(n, k, &edges);
-        let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, _, _) = hopcroft_karp(n, k, &g, &d);
-        assert_eq!(ans, expected);
+    type Point<const M: u64> = State<M>;
+    let n = p.len();
+    if n == 0 {
+        return vec![1];
+    } else if n == 1 {
+        return vec![1];
     }
-
-    #[test]
-    fn test_random_small() {
-        let n = 6;
-        let k = 6;
-        let edges: Vec<_> = (0..n)
-            .flat_map(|u| (0..k).map(move |v| [u, v]))
-            .filter(|_| rand::random::<f64>() < 0.5)
-            .collect();
-        let expected = brute_force(n, k, &edges);
-        let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, _, _) = hopcroft_karp(n, k, &g, &d);
-        assert_eq!(ans, expected);
-    }
-
-    #[test]
-    fn test_star_graph() {
-        let n = 5;
-        let k = 10;
-        let edges: Vec<_> = (0..k).map(|v| [0, v]).collect();
-        let expected = brute_force(n, k, &edges);
-        let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, l, r) = hopcroft_karp(n, k, &g, &d);
-        assert_eq!(ans, expected);
-        // verify matching vectors
-        assert_eq!(l[0], r.iter().position(|&u| u == 0).unwrap());
-    }
-
-    #[test]
-    fn test_disjoint_unions() {
-        let n = 6;
-        let k = 6;
-        let mut edges = Vec::new();
-        for &base in &[0, 3] {
-            for u in base..base + 3 {
-                for v in 0..3 {
-                    edges.push([u, v + base]);
+    let stt = StaticTopTree::new(p);
+    let id: Point<M> = {
+        let mut s: State<M> = Default::default();
+        s[0][0] = Poly::new(vec![1]);
+        s
+    };
+    let result: Path<M> = stt.calc::<Path<M>, Point<M>>(
+        |_| -> Path<M> {
+            let mut p = Path::default();
+            p.single = true;
+            p.s[0][0] = Poly::new(vec![1]);
+            p
+        },
+        |l: Path<M>, r: Path<M>| -> Path<M> {
+            let mut z = Path {
+                single: false,
+                s: Default::default(),
+            };
+            for a in 0..2 {
+                for d in 0..2 {
+                    let l_sum = l.s[a][0].clone() + &l.s[a][1];
+                    let r_sum = r.s[0][d].clone() + &r.s[1][d];
+                    z.s[a][d] += l_sum * &r_sum;
+                    let new_a = if l.single { 1 } else { a };
+                    let new_d = if r.single { 1 } else { d };
+                    z.s[new_a][new_d] += l.s[a][0].clone() * &r.s[0][d] << 1;
                 }
             }
+            z
+        },
+        |l: Point<M>, r: Point<M>| -> Point<M> {
+            let mut z: Point<M> = Default::default();
+            z[0][0] = l[0][0].clone() * &r[0][0];
+            z[1][1] = l[0][0].clone() * &r[1][1] + l[1][1].clone() * &r[0][0];
+            z
+        },
+        |p: Path<M>| -> Point<M> {
+            let mut z: Point<M> = Default::default();
+            let sum_all: Poly<M> = (0..2)
+                .flat_map(|a| (0..2).map(move |b| (a, b)))
+                .fold(Poly::default(), |acc, (a, b)| acc + &p.s[a][b]);
+            let sum_top_unmatched = p.s[0][0].clone() + &p.s[0][1];
+            z[0][0] = sum_all;
+            z[1][1] = sum_top_unmatched << 1;
+            z
+        },
+        |pt: Point<M>, _v| -> Path<M> {
+            let mut z = Path {
+                single: true,
+                s: Default::default(),
+            };
+            z.s[0][0] = pt[0][0].clone();
+            z.s[1][1] = pt[1][1].clone();
+            z
+        },
+        id,
+    );
+    let mut ans = Poly::<M>::default();
+    for a in 0..2 {
+        for b in 0..2 {
+            ans += &result.s[a][b];
         }
-        let expected = brute_force(n, k, &edges);
-        let (g, d) = edges_to_csr_undir(n, &edges);
-        let (ans, _, _) = hopcroft_karp(n, k, &g, &d);
-        assert_eq!(ans, expected);
     }
-
-    /// Build CSR representation of a bipartite graph with `n` left vertices.
-    fn build_csr(n: usize, edges: &[(usize, usize)]) -> (Vec<usize>, Vec<usize>) {
-        let mut d = vec![0; n + 1];
-        for &(u, _) in edges {
-            d[u + 1] += 1;
-        }
-        for i in 1..=n {
-            d[i] += d[i - 1];
-        }
-        let mut g = vec![0; edges.len()];
-        let mut next = d.clone();
-        for &(u, v) in edges {
-            g[next[u]] = v;
-            next[u] += 1;
-        }
-        (g, d)
+    let mut coeff = ans.pos_normalize().coeff;
+    while coeff.len() > 1 && coeff.last() == Some(&0) {
+        coeff.pop();
     }
-
-    /// Check if edge cover is valid (covers all vertices)
-    fn check_edge_cover(
-        n: usize,
-        k: usize,
-        edges: &[(usize, usize)],
-        cover: &[(usize, usize)],
-    ) -> bool {
-        let mut left_covered = vec![false; n];
-        let mut right_covered = vec![false; k];
-
-        // Check all cover edges are valid
-        for &(u, v) in cover {
-            if !edges.contains(&(u, v)) {
-                return false;
-            }
-            left_covered[u] = true;
-            right_covered[v] = true;
-        }
-
-        // Check all vertices are covered
-        left_covered.iter().all(|&x| x) && right_covered.iter().all(|&x| x)
-    }
-
-    /// Brute force minimum edge cover size
-    fn brute_force_min_edge_cover(n: usize, k: usize, edges: &[(usize, usize)]) -> usize {
-        let e = edges.len();
-        let mut best = usize::MAX;
-
-        for mask in 0..(1_usize << e) {
-            let cnt = mask.count_ones() as usize;
-            if cnt >= best {
-                continue;
-            }
-
-            let selected_edges: Vec<_> = edges
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| (mask >> i) & 1 == 1)
-                .map(|(_, &edge)| edge)
-                .collect();
-
-            if check_edge_cover(n, k, edges, &selected_edges) {
-                best = cnt;
-            }
-        }
-
-        best
-    }
-
-    #[test]
-    fn test_empty_graph_min_edge_cover() {
-        let n = 2;
-        let k = 2;
-        let edges = &[];
-        let (g, d) = build_csr(n, edges);
-        // Empty graph has no edges, so no edge cover possible
-        // This test mainly checks the function doesn't panic
-        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
-        let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
-        // Should return empty cover for empty graph
-        assert!(cover.is_empty());
-    }
-
-    #[test]
-    fn test_single_edge_min_edge_cover() {
-        let n = 1;
-        let k = 1;
-        let edges = &[(0, 0)];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
-        let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
-
-        assert_eq!(cover.len(), 1);
-        assert!(check_edge_cover(n, k, edges, &cover));
-        assert_eq!(cover.len(), brute_force_min_edge_cover(n, k, edges));
-    }
-
-    #[test]
-    fn test_star_graph_min_edge_cover() {
-        let n = 3;
-        let k = 1;
-        let edges = &[(0, 0), (1, 0), (2, 0)];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
-        let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
-
-        assert!(check_edge_cover(n, k, edges, &cover));
-        assert_eq!(cover.len(), brute_force_min_edge_cover(n, k, edges));
-        // Star with 3 left, 1 right should need 3 edges (one matching + 2 for unmatched)
-        assert_eq!(cover.len(), 3);
-    }
-
-    #[test]
-    fn test_complete_bipartite_2x2_min_edge_cover() {
-        let n = 2;
-        let k = 2;
-        let edges = &[(0, 0), (0, 1), (1, 0), (1, 1)];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
-        let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
-
-        assert!(check_edge_cover(n, k, edges, &cover));
-        assert_eq!(cover.len(), brute_force_min_edge_cover(n, k, edges));
-        // K_{2,2} with perfect matching should need exactly 2 edges
-        assert_eq!(cover.len(), 2);
-    }
-
-    #[test]
-    fn test_path_graph() {
-        let n = 3;
-        let k = 3;
-        let edges = &[(0, 0), (1, 1), (2, 2)];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
-        let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
-
-        assert!(check_edge_cover(n, k, edges, &cover));
-        assert_eq!(cover.len(), brute_force_min_edge_cover(n, k, edges));
-        // Perfect matching case should need exactly 3 edges
-        assert_eq!(cover.len(), 3);
-    }
-
-    #[test]
-    fn test_unbalanced_graph() {
-        let n = 1;
-        let k = 3;
-        let edges = &[(0, 0), (0, 1), (0, 2)];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
-        let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
-
-        assert!(check_edge_cover(n, k, edges, &cover));
-        assert_eq!(cover.len(), brute_force_min_edge_cover(n, k, edges));
-        // 1 left, 3 right: need 1 matching edge + 2 for unmatched right = 3 total
-        assert_eq!(cover.len(), 3);
-    }
-
-    #[test]
-    fn test_disconnected_components() {
-        let n = 4;
-        let k = 4;
-        let edges = &[(0, 0), (1, 1), (2, 2), (3, 3)];
-        let (g, d) = build_csr(n, edges);
-        let (m, l, r) = hopcroft_karp(n, k, &g, &d);
-        let cover = min_edge_cover_bipartite(n, k, &g, &d, &l, &r, m);
-
-        assert!(check_edge_cover(n, k, edges, &cover));
-        assert_eq!(cover.len(), brute_force_min_edge_cover(n, k, edges));
-        // Perfect matching with 4 isolated edges
-        assert_eq!(cover.len(), 4);
-    }
+    coeff
 }

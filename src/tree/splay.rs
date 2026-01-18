@@ -340,7 +340,7 @@ where
             self.pull(l);
             l
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             self.n[m].v = elem(&v[m - 1]);
             self.n[m].l = self.build(v, elem, l, m);
             self.n[m].r = self.build(v, elem, m + 1, r);

@@ -187,7 +187,8 @@ impl<F: Copy + Default + Ord + AddAssign + SubAssign> PushRelabel<F> {
 
 // TODO: add dinic's implementation
 
-// TODO: min-cost max flow
+// TODO: cost scaling min-cost max flow
+// TODO: capacity scaling min-cost max flow
 // https://koosaga.com/289
 // https://ideone.com/q6PWgB
 // https://judge.yosupo.jp/submission/218137
@@ -199,6 +200,11 @@ impl<F: Copy + Default + Ord + AddAssign + SubAssign> PushRelabel<F> {
 
 // TODO: DAG path cover
 // https://maspypy.github.io/library/graph/dag_path_cover.hpp
+
+// TODO: hungarian algorithm
+// https://codeforces.com/blog/entry/128703
+// https://cp-algorithms.com/graph/hungarian-algorithm.html
+// https://cp-algorithms.com/graph/Assignment-problem-min-flow.html
 
 #[cfg(test)]
 mod tests {

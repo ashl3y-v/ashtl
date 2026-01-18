@@ -64,7 +64,7 @@ impl<const M: u64> RollingPoly<M> {
         let len = (r0 - l0).min(r1 - l1);
         let (mut l, mut r) = (0, len + 1);
         while r - l > 1 {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             if self.query(p0, l0, l0 + m) == self.query(p1, l1, l1 + m) {
                 l = m;
             } else {

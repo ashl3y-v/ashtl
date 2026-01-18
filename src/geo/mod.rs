@@ -1,4 +1,5 @@
 pub mod all_pairs;
+pub mod circle;
 pub mod closest_pair;
 pub mod constant_intervals;
 pub mod convex_hull;
@@ -8,6 +9,7 @@ pub mod interval_cover;
 pub mod line;
 pub mod line_container;
 pub mod line_deque;
+pub mod min_enclosing_circle;
 pub mod point;
 pub mod polygon;
 pub mod slope;

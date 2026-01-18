@@ -8,6 +8,9 @@ use std::{
     ops::{Div, Mul, MulAssign, Neg, Rem, Sub},
 };
 
+// TODO: faster operations with preprocessing
+// https://maspypy.github.io/library/mod/modfast.hpp
+
 pub fn mod_fact<const M: u64>(n: u64) -> u64 {
     if n <= 1 << 19 {
         (1..=n).fold(1, |acc, x| acc * x % M)

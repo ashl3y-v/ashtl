@@ -34,9 +34,11 @@ use std::{
 
 const M: u64 = (119 << 23) + 1;
 
+use ashtl::string::palindrome::Eertree;
+use ashtl::string::suffix_array::SuffixArray;
+use ashtl::string::suffix_automaton::SuffixAutomaton;
+use ashtl::string::suffix_tree::SuffixTree;
 use std::io;
-
-use ashtl::string::suffix::{SuffixArray, SuffixTree};
 
 fn main() {
     let stdin = io::stdin();
@@ -44,25 +46,28 @@ fn main() {
     let mut out = io::BufWriter::new(io::stdout());
 
     if let Some(Ok(line)) = input.next() {
-        let s = line.trim().as_bytes();
+        let s = line.trim();
         if s.is_empty() {
             return;
         }
+        let s_old = s.clone();
+        let s = s.as_bytes();
 
-        let sa = SuffixArray::new(s);
-        println!("suffix array: {:?}", sa);
-        let lcp = sa.lcp(&s);
-        println!("lcp: {:?}", lcp);
-        let st = SuffixTree::new(&sa.sa, &lcp);
-        println!("{} {}", st.adj.len(), s.len());
-        println!("suffix tree: {:?}", st);
-
-        for (i, &val) in sa.sa.iter().enumerate() {
-            if i > 0 {
-                write!(out, " ").ok();
-            }
-            write!(out, "{}", val).ok();
+        let mut tree = Eertree::new(5);
+        let mut last_node = 0;
+        for _ in 0..5 {
+            last_node = tree.add('a');
         }
-        writeln!(out).ok();
+        // Should have: 'a', 'aa', 'aaa', 'aaaa', 'aaaaa' (nodes 3-7)
+        // Total: nodes 1, 2, 3, 4, 5, 6, 7, 8 = 8 nodes, sz = 8
+        println!("{:?}", tree);
+
+        //     for (i, &val) in sa.sa.iter().enumerate() {
+        //         if i > 0 {
+        //             write!(out, " ").ok();
+        //         }
+        //         write!(out, "{}", val).ok();
+        //     }
+        //     writeln!(out).ok();
     }
 }

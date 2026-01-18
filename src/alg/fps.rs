@@ -1859,7 +1859,7 @@ impl<const M: u64> Poly<M> {
         if r - l == 1 {
             tree[v] = Self::new(vec![-x[l], 1]);
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             Self::build_prod_tree(tree, x, v << 1, l, m);
             Self::build_prod_tree(tree, x, v << 1 | 1, m, r);
             tree[v] = (tree[v << 1].clone() * tree[v << 1 | 1].clone())
@@ -1874,7 +1874,7 @@ impl<const M: u64> Poly<M> {
             tree[v].0 = Self::new(vec![-x[l], 1]);
             tree[v].1 = tree[v].0.clone().ntt();
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             Self::build_prod_tree_ntt(tree, x, v << 1, l, m);
             Self::build_prod_tree_ntt(tree, x, v << 1 | 1, m, r);
             tree[v << 1].1 = std::mem::take(&mut tree[v << 1].1).extend_ntt(tree[v << 1].0.clone());
@@ -1892,7 +1892,7 @@ impl<const M: u64> Poly<M> {
         if r - l == 1 {
             self.clone()
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             let (c, d) = self.div_mod(&tree[v << 1]);
             let a = d.to_newton_rec(tree, v << 1, l, m);
             let b = c.to_newton_rec(tree, v << 1 | 1, m, r) << (m - l);
@@ -1920,7 +1920,7 @@ impl<const M: u64> Poly<M> {
         if r - l == 1 {
             y[l] = self.coeff[1];
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             let n = self.len();
             let mut p = self
                 .clone()
@@ -1963,7 +1963,7 @@ impl<const M: u64> Poly<M> {
         if r - l == 1 {
             Self::new(vec![(y[l] * inv::<M>(self.coeff[1])) % M as E])
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             let n = self.len();
             let mut p = self
                 .clone()
@@ -2022,7 +2022,7 @@ impl<const M: u64> Poly<M> {
             tree[v] = Self::new(vec![1, -x[l]]);
             Self::new(vec![self.coeff[l]])
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             let a = self.evals_t_rec(tree, x, n, v << 1, l, m);
             let b = self.evals_t_rec(tree, x, n, v << 1 | 1, m, r);
             tree[v] = (tree[v << 1].clone() * tree[v << 1 | 1].clone())
@@ -2056,7 +2056,7 @@ impl<const M: u64> Poly<M> {
         if r - l == 1 {
             o[l] = y[0] * inv::<M>(self.coeff[1]);
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             let n = self.len();
             let k = y.len();
             let mut p = self
@@ -2310,7 +2310,7 @@ impl<const M: u64> Poly<M> {
         if r - l == 1 {
             tree[v] = Self::new(vec![-a[l], 1]);
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             Self::vandermonde_tree(tree, a, s, v << 1, l, m);
             Self::vandermonde_tree(tree, a, s, v << 1 | 1, m, r);
             let t = tree[v << 1 | 1]
@@ -2828,7 +2828,7 @@ impl<const M: u64> Poly<M> {
             f(l, a, b, c);
             return;
         }
-        let m = l + (r - l >> 1);
+        let m = l.midpoint(r);
         Self::cdq_mul_rec(f, a, b, c, l, m, k);
         let x = Self::new(a[l..m].to_vec());
         let y = Self::new(b[0..m.min(r - l)].to_vec());

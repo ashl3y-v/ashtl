@@ -47,7 +47,7 @@ impl<T: Clone> PersistentArray<T> {
         if r - l == 1 {
             self.v.push(ArrayNode::new(a[l].clone(), NULL, NULL));
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             let l = self.build(l, m, a);
             let r = self.build(m, r, a);
             self.v.push(ArrayNode { v: None, l, r });
@@ -58,7 +58,7 @@ impl<T: Clone> PersistentArray<T> {
     pub fn query(&self, mut rt: usize, i: usize) -> Option<&T> {
         let (mut l, mut r) = (0, self.n);
         while r - l > 1 {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             if i < m {
                 (rt, r) = (self.v[rt].l, m);
             } else {
@@ -80,7 +80,7 @@ impl<T: Clone> PersistentArray<T> {
             self.v.push(ArrayNode::new(v, NULL, NULL));
             self.v.len() - 1
         } else {
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             if i < m {
                 let cl = if self.v[rt].l == NULL {
                     self.v.push(ArrayNode {
@@ -177,7 +177,7 @@ impl<T: Clone + PartialOrd> PersistentLeftist<T> {
             if l + 1 == r {
                 return l;
             }
-            let m = l + (r - l >> 1);
+            let m = l.midpoint(r);
             let lh = rec(s, l, m);
             let rh = rec(s, m, r);
             meld(s, lh, rh)

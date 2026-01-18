@@ -1,6 +1,6 @@
 use std::ops::Add;
 
-use crate::arr::smawk::smawk;
+use crate::opt::smawk::smawk;
 
 /// O(n)
 pub fn min_plus_cvx_cvx(a: &[i64], b: &[i64]) -> Vec<i64> {

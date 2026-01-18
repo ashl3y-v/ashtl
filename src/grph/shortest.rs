@@ -204,8 +204,165 @@ pub fn recover_path(u: usize, v: usize, p: &[Vec<usize>]) -> Vec<usize> {
     path
 }
 
-// TODO: eppstein's algorithm
+/// O(n^2 log n + n m)
+pub fn johnson(adj: &[Vec<(usize, i64)>]) -> Option<Vec<Vec<i64>>> {
+    let n = adj.len();
+    if n == 0 {
+        return Some(vec![]);
+    }
+    let mut h = vec![0; n];
+    for _ in 0..n {
+        let mut updated = false;
+        for u in 0..n {
+            if h[u] != i64::MAX {
+                for &(v, w) in &adj[u] {
+                    let nd = h[u].saturating_add(w);
+                    if nd < h[v] {
+                        h[v] = nd;
+                        updated = true;
+                    }
+                }
+            }
+        }
+        if !updated {
+            break;
+        }
+    }
+    for u in 0..n {
+        for &(v, w) in &adj[u] {
+            if h[u] != i64::MAX && h[u].saturating_add(w) < h[v] {
+                return None;
+            }
+        }
+    }
+    let mut dist = vec![vec![i64::MAX; n]; n];
+    for src in 0..n {
+        let mut d = vec![i64::MAX; n];
+        let mut seen = BitVec::new(n, false);
+        let mut pq = BinaryHeap::new();
+        d[src] = 0;
+        pq.push(MinScore(0, src));
+        while let Some(MinScore(du, u)) = pq.pop() {
+            if seen[u] {
+                continue;
+            }
+            seen.set(u, true);
+            for &(v, w) in &adj[u] {
+                if seen[v] {
+                    continue;
+                }
+                let w_reweighted = w + h[u] - h[v];
+                let dv = du + w_reweighted;
+                if dv < d[v] {
+                    d[v] = dv;
+                    pq.push(MinScore(dv, v));
+                }
+            }
+        }
+        for v in 0..n {
+            if d[v] != i64::MAX {
+                dist[src][v] = d[v] - h[src] + h[v];
+            }
+        }
+    }
+    Some(dist)
+}
 
-// https://codeforces.com/blog/entry/102085
-/// O(m log m + k log k)
-pub fn eppstein<T>(adj: &[Vec<(usize, T)>], s: usize, t: usize, k: usize) {}
+/// O((m + n) log n + k log k)
+pub fn eppstein(adj: &[Vec<(usize, i64)>], s: usize, t: usize, k: usize) -> Vec<i64> {
+    if k == 0 {
+        return vec![];
+    }
+    let n = adj.len();
+    let mut radj: Vec<Vec<(usize, i64)>> = vec![vec![]; n];
+    for u in 0..n {
+        for &(v, w) in &adj[u] {
+            radj[v].push((u, w));
+        }
+    }
+    let mut dist = vec![i64::MAX; n];
+    let mut tree_edge: Vec<Option<(usize, i64)>> = vec![None; n];
+    dist[t] = 0;
+    let mut pq = BinaryHeap::new();
+    pq.push(MinScore(0, t));
+    while let Some(MinScore(d, v)) = pq.pop() {
+        if d != dist[v] {
+            continue;
+        }
+        for &(u, w) in &radj[v] {
+            let nd = d + w;
+            if nd < dist[u] {
+                dist[u] = nd;
+                tree_edge[u] = Some((v, w));
+                pq.push(MinScore(nd, u));
+            }
+        }
+    }
+    if dist[s] == i64::MAX {
+        return vec![];
+    }
+    let mut nodes: Vec<(i64, usize, usize, usize)> = vec![(0, 0, 0, 0)];
+    fn meld(n: &mut Vec<(i64, usize, usize, usize)>, a: usize, b: usize) -> usize {
+        if a == 0 {
+            return b;
+        } else if b == 0 {
+            return a;
+        }
+        let (mut a, mut b) = (a, b);
+        if n[a].0 > n[b].0 {
+            std::mem::swap(&mut a, &mut b);
+        }
+        let (val, dest, left, right) = n[a];
+        let new_right = meld(n, right, b);
+        n.push((val, dest, new_right, left));
+        n.len() - 1
+    }
+    fn insert(n: &mut Vec<(i64, usize, usize, usize)>, r: usize, val: i64, dest: usize) -> usize {
+        n.push((val, dest, 0, 0));
+        meld(n, r, n.len() - 1)
+    }
+    let mut heap_root = vec![0; n];
+    let mut order: Vec<usize> = (0..n).filter(|&u| dist[u] < i64::MAX).collect();
+    order.sort_by_key(|&u| dist[u]);
+    for u in order {
+        let mut root = if let Some((next, _)) = tree_edge[u] {
+            heap_root[next]
+        } else {
+            0
+        };
+        for &(v, w) in &adj[u] {
+            if dist[v] == i64::MAX {
+                continue;
+            }
+            if tree_edge[u] == Some((v, w)) {
+                continue;
+            }
+            let delta = w + dist[v] - dist[u];
+            root = insert(&mut nodes, root, delta, v);
+        }
+        heap_root[u] = root;
+    }
+    let mut res = Vec::with_capacity(k);
+    let mut epq: BinaryHeap<MinScore<i64, usize>> = BinaryHeap::new();
+    nodes.push((dist[s], s, 0, 0));
+    let init = nodes.len() - 1;
+    epq.push(MinScore(dist[s], init));
+    while let Some(MinScore(len, idx)) = epq.pop() {
+        if res.len() >= k {
+            break;
+        }
+        res.push(len);
+        let (val, dest, left, right) = nodes[idx];
+        if left != 0 {
+            epq.push(MinScore(len - val + nodes[left].0, left));
+        }
+        if right != 0 {
+            epq.push(MinScore(len - val + nodes[right].0, right));
+        }
+        let h = heap_root[dest];
+        if h != 0 {
+            epq.push(MinScore(len + nodes[h].0, h));
+        }
+    }
+    res
+}

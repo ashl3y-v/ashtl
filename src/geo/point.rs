@@ -58,6 +58,18 @@ impl Point<f64> {
 }
 
 impl Point<f32> {
+    pub fn dist_to(&self, rhs: Self) -> f32 {
+        (rhs - *self).dist2().sqrt()
+    }
+}
+
+impl Point<f64> {
+    pub fn dist_to(&self, rhs: Self) -> f64 {
+        (rhs - *self).dist2().sqrt()
+    }
+}
+
+impl Point<f32> {
     pub fn angle(&self) -> f32 {
         f32::atan2(self.y, self.x)
     }

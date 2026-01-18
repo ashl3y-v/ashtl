@@ -91,3 +91,6 @@ pub fn counting_sort_dedup_by_key<T: Clone, F: Fn(&T) -> usize>(
     }
     i
 }
+
+// TODO: order statistic
+// https://cp-algorithms.com/sequences/k-th.html

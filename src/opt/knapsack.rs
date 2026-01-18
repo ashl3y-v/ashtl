@@ -1,4 +1,4 @@
-use crate::{alg::fps::Poly, arr::min_plus::max_plus_cvx, ds::scan::MonotoneQueue};
+use crate::{alg::fps::Poly, ds::scan::MonotoneQueue, opt::min_plus::max_plus_cvx};
 
 /// O(n M)
 pub fn subset_sum(w: &[u64], t: u64) -> u64 {
