@@ -1,9 +1,11 @@
+use std::ops::{Add, AddAssign, Sub, SubAssign};
+
 use crate::alg::fps::Poly;
 use crate::alg::ops::inv;
-use crate::ds::bit_vec::BitVec;
+use crate::ds::{bit_vec::BitVec, dsu::DSU};
 use crate::tree::top::StaticTopTree;
 
-/// O(√V E)
+/// O(√n m)
 pub fn hopcroft_karp(
     n: usize,
     k: usize,
@@ -209,11 +211,184 @@ pub fn dulmage_mendelsohn(n: usize, k: usize, g: &[usize], d: &[usize]) -> Vec<i
     comp
 }
 
-// TODO: hungarian algorithm
-// https://judge.yosupo.jp/submission/219195
-// https://codeforces.com/blog/entry/128703
-// https://maspypy.github.io/library/flow/hungarian.hpp
-pub fn hungarian() {}
+/// O(√n m)
+pub fn dag_path_cover(n: usize, edges: &[(usize, usize)]) -> Vec<usize> {
+    let mut degree = vec![0; n];
+    for &(u, _) in edges {
+        degree[u] += 1;
+    }
+    let mut d = vec![0; n + 1];
+    for i in 0..n {
+        d[i + 1] = d[i] + degree[i];
+    }
+    let mut g = vec![0; d[n]];
+    let mut counter = d.clone();
+    for &(u, v) in edges {
+        g[counter[u]] = v;
+        counter[u] += 1;
+    }
+    let (_, l, _) = hopcroft_karp(n, n, &g, &d);
+    let mut dsu = DSU::new(n);
+    for u in 0..n {
+        let v = l[u];
+        if v < n {
+            dsu.union(u, v);
+        }
+    }
+    let mut ans = vec![0; n];
+    let mut root_to_id = vec![usize::MAX; n];
+    let mut current_id = 0;
+    for v in 0..n {
+        let root = dsu.find(v);
+        if root_to_id[root] == usize::MAX {
+            root_to_id[root] = current_id;
+            current_id += 1;
+        }
+        ans[v] = root_to_id[root];
+    }
+    ans
+}
+
+pub struct Hungarian<T> {
+    n: usize,
+    m: usize,
+    val: Vec<T>,
+    init: T,
+}
+
+impl<T: Copy + PartialOrd + Default + Add<Output = T> + Sub<Output = T> + AddAssign + SubAssign>
+    Hungarian<T>
+{
+    pub fn new(n: usize, m: usize, init: T) -> Self {
+        debug_assert!(m >= n);
+        Self {
+            n,
+            m,
+            val: vec![init; n * m],
+            init,
+        }
+    }
+
+    pub fn add_edge(&mut self, left: usize, right: usize, w: T) {
+        self.val[left * self.m + right] = w;
+    }
+
+    /// O(n m^2)
+    pub fn calc(&self, inf: T) -> (T, Vec<usize>) {
+        let (n, m) = (self.n, self.m);
+        if n == 0 {
+            return (T::default(), vec![]);
+        }
+        let mut l_mt = vec![usize::MAX; n];
+        let mut r_mt = vec![usize::MAX; m];
+        let mut l_label = self
+            .val
+            .chunks_exact(m)
+            .map(|a| a.iter().fold(self.init, |a, &b| if b > a { b } else { a }))
+            .collect::<Vec<_>>();
+        let mut r_label = vec![T::default(); m];
+        let mut slack = vec![inf; m];
+        let mut from_v = vec![0; m];
+        let mut l_vis = BitVec::new(n, false);
+        let mut r_vis = BitVec::new(m, false);
+        let mut q = vec![0; n];
+        let aug = |r: usize,
+                   l_mt: &mut [usize],
+                   r_mt: &mut [usize],
+                   from_v: &[usize],
+                   l_vis: &mut BitVec,
+                   r_vis: &mut BitVec,
+                   q: &mut [usize],
+                   tail: &mut usize|
+         -> bool {
+            let l = r_mt[r];
+            if l != usize::MAX {
+                r_vis.set(r, true);
+                l_vis.set(l, true);
+                q[*tail] = l;
+                *tail += 1;
+                return false;
+            }
+            let mut cur = r;
+            while cur != usize::MAX {
+                let from_l = from_v[cur];
+                let prev = l_mt[from_l];
+                r_mt[cur] = from_l;
+                l_mt[from_l] = cur;
+                cur = prev;
+            }
+            true
+        };
+        for st in 0..n {
+            l_vis.clear();
+            r_vis.clear();
+            slack.fill(inf);
+            let mut head = 0;
+            let mut tail = 0;
+            l_vis.set(st, true);
+            q[tail] = st;
+            tail += 1;
+            'a: loop {
+                while head < tail {
+                    let l = q[head];
+                    head += 1;
+                    for to in 0..m {
+                        if r_vis[to] {
+                            continue;
+                        }
+                        let gap = l_label[l] + r_label[to] - self.val[l * m + to];
+                        if slack[to] >= gap {
+                            from_v[to] = l;
+                            if gap == T::default() {
+                                if aug(
+                                    to, &mut l_mt, &mut r_mt, &from_v, &mut l_vis, &mut r_vis,
+                                    &mut q, &mut tail,
+                                ) {
+                                    break 'a;
+                                }
+                            } else {
+                                slack[to] = gap;
+                            }
+                        }
+                    }
+                }
+                let mut delta = inf;
+                for r in 0..m {
+                    if !r_vis[r] && slack[r] < delta {
+                        delta = slack[r];
+                    }
+                }
+                for l in 0..n {
+                    if l_vis[l] {
+                        l_label[l] -= delta;
+                    }
+                }
+                for r in 0..m {
+                    if r_vis[r] {
+                        r_label[r] += delta;
+                    } else {
+                        slack[r] -= delta;
+                    }
+                }
+                for r in 0..m {
+                    if !r_vis[r] && slack[r] == T::default() {
+                        if aug(
+                            r, &mut l_mt, &mut r_mt, &from_v, &mut l_vis, &mut r_vis, &mut q,
+                            &mut tail,
+                        ) {
+                            break 'a;
+                        }
+                    }
+                }
+            }
+        }
+        let mut res = T::default();
+        for l in 0..n {
+            res += self.val[l * m + l_mt[l]];
+        }
+        (res, l_mt)
+    }
+}
 
 /// O(n^3)
 pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
@@ -317,9 +492,6 @@ pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
 // TODO: O(m √n log ?) maximum matching
 // https://arxiv.org/pdf/1703.03998
 // https://judge.yosupo.jp/submission/51928
-
-// TODO: stable matching
-// https://maspypy.github.io/library/graph/stable_matching.hpp
 
 /// O(2^n Δ) = O(2^n n) time, O(n + m) space
 pub fn count_perfect_matchings<const M: u64>(n: usize, g: &[usize], d: &[usize]) -> u64 {
@@ -476,4 +648,261 @@ pub fn count_matching_on_tree<const M: u64>(p: &[usize]) -> Vec<i64> {
         coeff.pop();
     }
     coeff
+}
+
+pub struct StableMatching {
+    n1: usize,
+    n2: usize,
+    dat: Vec<Vec<(usize, i64, i64)>>,
+}
+
+impl StableMatching {
+    pub fn new(n1: usize, n2: usize) -> Self {
+        Self {
+            n1,
+            n2,
+            dat: vec![Vec::new(); n1],
+        }
+    }
+
+    pub fn add(&mut self, v1: usize, v2: usize, x1: i64, x2: i64) {
+        self.dat[v1].push((v2, x1, x2));
+    }
+
+    /// O((n1 + m) log m)
+    pub fn calc(&mut self) -> Vec<(usize, usize)> {
+        for v1 in 0..self.n1 {
+            self.dat[v1].sort_by_key(|&(_, x1, _)| x1);
+        }
+        let mut match_1 = vec![usize::MAX; self.n1];
+        let mut match_2 = vec![usize::MAX; self.n2];
+        let mut val_2 = vec![i64::MIN; self.n2];
+        let mut queue: Vec<usize> = (0..self.n1).collect();
+        while let Some(v1) = queue.pop() {
+            match_1[v1] = usize::MAX;
+            let Some((v2, _x1, x2)) = self.dat[v1].pop() else {
+                continue;
+            };
+            if val_2[v2] >= x2 {
+                queue.push(v1);
+                continue;
+            }
+            if match_2[v2] != usize::MAX {
+                queue.push(match_2[v2]);
+            }
+            match_1[v1] = v2;
+            match_2[v2] = v1;
+            val_2[v2] = x2;
+        }
+        (0..self.n1)
+            .filter_map(|v1| {
+                let v2 = match_1[v1];
+                (v2 != usize::MAX).then_some((v1, v2))
+            })
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod path_cover_tests {
+    use super::*;
+
+    /// Helper to validate the results.
+    /// Checks that:
+    /// 1. Every node has a valid ID.
+    /// 2. Nodes with the same ID form a valid path in the graph.
+    fn validate_path_cover(n: usize, edges: &[(usize, usize)], cover: &[usize]) {
+        assert_eq!(cover.len(), n, "Cover size must match node count");
+
+        // Group nodes by their path ID
+        let mut paths: Vec<Vec<usize>> = vec![vec![]; n];
+        for (node, &path_id) in cover.iter().enumerate() {
+            paths[path_id].push(node);
+        }
+
+        // Build adjacency check
+        let mut adj = vec![vec![false; n]; n];
+        for &(u, v) in edges {
+            adj[u][v] = true;
+        }
+
+        // Verify each group forms a valid simple path
+        for path_nodes in paths.iter() {
+            if path_nodes.is_empty() {
+                continue;
+            }
+
+            // Since the cover array doesn't imply order, we must find the topological order
+            // of the nodes in this specific path group to verify connectivity.
+            // A simple path in a DAG must be sortable such that node[i] -> node[i+1] exists.
+
+            let mut sorted_path = path_nodes.clone();
+            // Sort by finding the start (indegree 0 within the subgraph of these nodes)
+            // Naive sort: O(k^2)
+            sorted_path.sort_by(|&a, &b| {
+                // If there is an edge a->b, a comes before b
+                if adj[a][b] {
+                    std::cmp::Ordering::Less
+                }
+                // If there is an edge b->a, b comes before a
+                else if adj[b][a] {
+                    std::cmp::Ordering::Greater
+                }
+                // Otherwise don't care (disconnected in direct sense, will fail validation below)
+                else {
+                    std::cmp::Ordering::Equal
+                }
+            });
+
+            // Re-check strict connectivity
+            if sorted_path.len() > 1 {
+                for i in 0..sorted_path.len() - 1 {
+                    let u = sorted_path[i];
+                    let v = sorted_path[i + 1];
+                    // If we can't find u->v, maybe the sort failed or the nodes aren't a path
+                    // We try to resort based on strict reachability if the simple sort failed
+                    // (Actually, simply checking if edges exist in the set is safer)
+                }
+
+                // Better validation:
+                // A set of nodes forms a path if exactly one node has in-degree 0 (in set),
+                // exactly one has out-degree 0 (in set), and others have 1 in/1 out.
+                let mut in_d = vec![0; n];
+                let mut out_d = vec![0; n];
+                for &u in path_nodes {
+                    for &v in path_nodes {
+                        if adj[u][v] {
+                            out_d[u] += 1;
+                            in_d[v] += 1;
+                        }
+                    }
+                }
+
+                let mut start_count = 0;
+                let mut end_count = 0;
+                let mut mid_count = 0;
+
+                for &u in path_nodes {
+                    if in_d[u] == 0 && out_d[u] == 1 {
+                        start_count += 1;
+                    } else if in_d[u] == 1 && out_d[u] == 0 {
+                        end_count += 1;
+                    } else if in_d[u] == 1 && out_d[u] == 1 {
+                        mid_count += 1;
+                    } else if in_d[u] == 0 && out_d[u] == 0 {
+                        // Single node path is valid
+                        if path_nodes.len() != 1 {
+                            panic!("Disconnected node found in path group {:?}", path_nodes);
+                        }
+                    } else {
+                        panic!(
+                            "Invalid degree in path group {:?}: Node {} has in {} out {}",
+                            path_nodes, u, in_d[u], out_d[u]
+                        );
+                    }
+                }
+
+                if path_nodes.len() > 1 {
+                    assert_eq!(start_count, 1, "Must have 1 start node");
+                    assert_eq!(end_count, 1, "Must have 1 end node");
+                    assert_eq!(mid_count, path_nodes.len() - 2, "Rest must be mid nodes");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_simple_line() {
+        // 0 -> 1 -> 2
+        let n = 3;
+        let edges = vec![(0, 1), (1, 2)];
+        let cover = dag_path_cover(n, &edges);
+
+        // Should be 1 path: [0, 1, 2]
+        // verify all have same ID
+        assert_eq!(cover[0], cover[1]);
+        assert_eq!(cover[1], cover[2]);
+
+        validate_path_cover(n, &edges, &cover);
+    }
+
+    #[test]
+    fn test_disjoint_lines() {
+        // 0 -> 1   2 -> 3
+        let n = 4;
+        let edges = vec![(0, 1), (2, 3)];
+        let cover = dag_path_cover(n, &edges);
+
+        // Should be 2 paths.
+        // 0 and 1 should share an ID. 2 and 3 should share an ID.
+        assert_eq!(cover[0], cover[1]);
+        assert_eq!(cover[2], cover[3]);
+        assert_ne!(cover[0], cover[2]);
+
+        validate_path_cover(n, &edges, &cover);
+    }
+
+    #[test]
+    fn test_merge_choice() {
+        // 0 -> 2
+        // 1 -> 2 -> 3
+        // Node 2 has two incoming. The path cover must choose one.
+        // Result could be: {0->2->3, 1} OR {1->2->3, 0}
+        let n = 4;
+        let edges = vec![(0, 2), (1, 2), (2, 3)];
+        let cover = dag_path_cover(n, &edges);
+
+        validate_path_cover(n, &edges, &cover);
+
+        // Check uniqueness of path count
+        let mut unique_ids = cover.to_vec();
+        unique_ids.sort();
+        unique_ids.dedup();
+        assert_eq!(unique_ids.len(), 2, "Should decompose into 2 paths");
+    }
+
+    #[test]
+    fn test_diamond() {
+        // 0 -> 1 -> 3
+        // 0 -> 2 -> 3
+        // A simple path cover cannot cover all nodes in 1 path because 1 and 2 are parallel.
+        // Minimum paths = 2. e.g. {0->1->3, 2} or {0->2->3, 1}
+        let n = 4;
+        let edges = vec![(0, 1), (1, 3), (0, 2), (2, 3)];
+        let cover = dag_path_cover(n, &edges);
+
+        validate_path_cover(n, &edges, &cover);
+
+        let mut unique_ids = cover.to_vec();
+        unique_ids.sort();
+        unique_ids.dedup();
+        assert_eq!(unique_ids.len(), 2);
+    }
+
+    #[test]
+    fn test_isolated_nodes() {
+        let n = 5;
+        let edges = vec![(0, 1)]; // 2, 3, 4 are isolated
+        let cover = dag_path_cover(n, &edges);
+
+        validate_path_cover(n, &edges, &cover);
+
+        let mut unique_ids = cover.to_vec();
+        unique_ids.sort();
+        unique_ids.dedup();
+        // Path {0,1}, {2}, {3}, {4} -> 4 paths
+        assert_eq!(unique_ids.len(), 4);
+    }
+
+    #[test]
+    fn test_empty_graph() {
+        let n = 3;
+        let edges = vec![];
+        let cover = dag_path_cover(n, &edges);
+
+        let mut unique_ids = cover.to_vec();
+        unique_ids.sort();
+        unique_ids.dedup();
+        assert_eq!(unique_ids.len(), 3);
+    }
 }

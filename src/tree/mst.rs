@@ -4,11 +4,11 @@ use crate::ds::dsu::{DSU, RollbackDSU};
 
 pub struct DirectedMST<T> {
     n: usize,
-    nodes: Vec<Node<T>>,
+    ns: Vec<DirectedMSTNode<T>>,
     heap: Vec<usize>,
 }
 
-struct Node<T> {
+struct DirectedMSTNode<T> {
     l: usize,
     r: usize,
     from: usize,
@@ -21,20 +21,20 @@ impl<T: Copy + Default + AddAssign + SubAssign + PartialOrd> DirectedMST<T> {
     pub fn new(n: usize) -> Self {
         Self {
             n,
-            nodes: Vec::new(),
+            ns: Vec::new(),
             heap: vec![usize::MAX; n],
         }
     }
 
     pub fn with_capacity(n: usize, m: usize) -> Self {
         let mut s = Self::new(n);
-        s.nodes.reserve(m);
+        s.ns.reserve(m);
         s
     }
 
     pub fn add_edge(&mut self, from: usize, to: usize, weight: T) {
-        let i = self.nodes.len();
-        self.nodes.push(Node {
+        let i = self.ns.len();
+        self.ns.push(DirectedMSTNode {
             l: usize::MAX,
             r: usize::MAX,
             from,
@@ -46,19 +46,19 @@ impl<T: Copy + Default + AddAssign + SubAssign + PartialOrd> DirectedMST<T> {
     }
 
     fn apply(&mut self, i: usize, upd: T) {
-        self.nodes[i].weight -= upd;
-        self.nodes[i].lz += upd;
+        self.ns[i].weight -= upd;
+        self.ns[i].lz += upd;
     }
 
     fn push(&mut self, i: usize) {
-        let lz = self.nodes[i].lz;
-        if self.nodes[i].l != usize::MAX {
-            self.apply(self.nodes[i].l, lz);
+        let lz = self.ns[i].lz;
+        if self.ns[i].l != usize::MAX {
+            self.apply(self.ns[i].l, lz);
         }
-        if self.nodes[i].r != usize::MAX {
-            self.apply(self.nodes[i].r, lz);
+        if self.ns[i].r != usize::MAX {
+            self.apply(self.ns[i].r, lz);
         }
-        self.nodes[i].lz = T::default();
+        self.ns[i].lz = T::default();
     }
 
     fn merge(&mut self, u: usize, v: usize) -> usize {
@@ -67,25 +67,25 @@ impl<T: Copy + Default + AddAssign + SubAssign + PartialOrd> DirectedMST<T> {
         } else if v == usize::MAX {
             return u;
         }
-        let (u, v) = if self.nodes[v].weight < self.nodes[u].weight {
+        let (u, v) = if self.ns[v].weight < self.ns[u].weight {
             (v, u)
         } else {
             (u, v)
         };
         self.push(u);
-        self.nodes[u].r = self.merge(self.nodes[u].r, v);
-        (self.nodes[u].r, self.nodes[u].l) = (self.nodes[u].l, self.nodes[u].r);
+        self.ns[u].r = self.merge(self.ns[u].r, v);
+        (self.ns[u].r, self.ns[u].l) = (self.ns[u].l, self.ns[u].r);
         u
     }
 
     fn pop(&mut self, v: usize) {
         let h = self.heap[v];
         self.push(h);
-        self.heap[v] = self.merge(self.nodes[h].l, self.nodes[h].r);
+        self.heap[v] = self.merge(self.ns[h].l, self.ns[h].r);
     }
 
     /// O(m log n)
-    pub fn calc<C: Default + AddAssign<T>>(&mut self, root: usize) -> Option<(C, Vec<usize>)> {
+    pub fn calc<C: Default + AddAssign<T>>(&mut self, r: usize) -> Option<(C, Vec<usize>)> {
         let n = self.n;
         let mut ans = C::default();
         let mut edge = vec![usize::MAX; n];
@@ -93,7 +93,7 @@ impl<T: Copy + Default + AddAssign + SubAssign + PartialOrd> DirectedMST<T> {
         let mut dsu_cyc = DSU::new(n);
         let mut dsu_cntr = RollbackDSU::new(n);
         for i in 0..n {
-            if i == root {
+            if i == r {
                 continue;
             }
             let mut v = i;
@@ -102,46 +102,43 @@ impl<T: Copy + Default + AddAssign + SubAssign + PartialOrd> DirectedMST<T> {
                     return None;
                 }
                 edge[v] = self.heap[v];
-                let w = self.nodes[edge[v]].weight;
+                let w = self.ns[edge[v]].weight;
                 ans += w;
                 self.apply(edge[v], w);
-                let from_v = dsu_cntr.find(self.nodes[edge[v]].from);
-                if dsu_cyc.union(v, from_v).0 {
+                let from_v = dsu_cntr.find(self.ns[edge[v]].from);
+                if dsu_cyc.union(v, from_v).1 {
                     break;
                 }
-                let mut vnext = from_v;
                 let t = dsu_cntr.joins.len();
-                while dsu_cntr.union(v, vnext).0 {
-                    let new_v = dsu_cntr.find(v);
-                    let (hv, hnext) = (self.heap[v], self.heap[vnext]);
-                    self.heap[new_v] = self.merge(hv, hnext);
-                    v = new_v;
-                    vnext = dsu_cntr.find(self.nodes[edge[vnext]].from);
+                let mut v_nxt = from_v;
+                loop {
+                    let (v_new, b) = dsu_cntr.union(v, v_nxt);
+                    if !b {
+                        break;
+                    }
+                    self.heap[v_new] = self.merge(self.heap[v], self.heap[v_nxt]);
+                    v = v_new;
+                    v_nxt = dsu_cntr.find(self.ns[edge[v_nxt]].from);
                 }
                 cycles.push((edge[v], t));
-                while self.heap[v] != usize::MAX && dsu_cntr.same(self.nodes[self.heap[v]].from, v)
-                {
+                while self.heap[v] != usize::MAX && dsu_cntr.same(self.ns[self.heap[v]].from, v) {
                     self.pop(v);
                 }
             }
         }
         for &(cyc_edge, t) in cycles.iter().rev() {
-            let vrepr = dsu_cntr.find(self.nodes[cyc_edge].to);
+            let v_repr = dsu_cntr.find(self.ns[cyc_edge].to);
             dsu_cntr.rollback(t);
-            let vinc = dsu_cntr.find(self.nodes[edge[vrepr]].to);
-            let tmp = edge[vrepr];
-            edge[vrepr] = cyc_edge;
-            edge[vinc] = tmp;
+            let v_inc = dsu_cntr.find(self.ns[edge[v_repr]].to);
+            (edge[v_repr], edge[v_inc]) = (cyc_edge, edge[v_repr]);
         }
-        let parent: Vec<usize> = (0..n)
-            .map(|i| {
-                if i == root {
-                    root
-                } else {
-                    self.nodes[edge[i]].from
-                }
-            })
-            .collect();
-        Some((ans, parent))
+        for i in 0..n {
+            if i != r {
+                edge[i] = self.ns[edge[i]].from;
+            } else {
+                edge[i] = r;
+            }
+        }
+        Some((ans, edge))
     }
 }

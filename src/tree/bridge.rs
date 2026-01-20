@@ -79,7 +79,7 @@ impl BridgeTree {
             }
             self.mask.set(v, true);
             self.count -= 1;
-            (_, r) = self.ecc2.union_root(v, r);
+            (r, _) = self.ecc2.union_root(v, r);
         }
         for i in 0..path_b.len() {
             let v = path_b[i];
@@ -88,7 +88,7 @@ impl BridgeTree {
             }
             self.mask.set(v, true);
             self.count -= 1;
-            (_, r) = self.ecc2.union_root(v, r);
+            (r, _) = self.ecc2.union_root(v, r);
         }
         self.par[r] = self.par[lca];
         self

@@ -306,9 +306,6 @@ impl Rem<&XorBasis> for B {
     }
 }
 
-// TODO: linear basis
-// https://codeforces.com/blog/entry/98376
-
 #[cfg(test)]
 mod tests {
     use super::*;

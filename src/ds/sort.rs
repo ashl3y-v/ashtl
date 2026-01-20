@@ -1,4 +1,5 @@
 use crate::ds::bit_vec::BitVec;
+use rand::Rng;
 
 /// counting sort O(n + k) time O(k) space
 /// k must be a strict upper bound
@@ -54,14 +55,18 @@ pub fn counting_sort_by_key<T: Clone, F: Fn(&T) -> usize>(
         start[i] = start[i - 1] + counts[i - 1];
     }
     let end: Vec<usize> = start.iter().zip(&counts).map(|(&s, &c)| s + c).collect();
+    let mut positions = start.clone();
     let mut i = 0;
     while i < n {
         let b = key(&a[i]);
         if i >= start[b] && i < end[b] {
+            if positions[b] == i {
+                positions[b] += 1;
+            }
             i += 1;
         } else {
-            a.swap(i, start[b]);
-            start[b] += 1;
+            a.swap(i, positions[b]);
+            positions[b] += 1;
         }
     }
     a
@@ -73,24 +78,65 @@ pub fn counting_sort_dedup_by_key<T: Clone, F: Fn(&T) -> usize>(
     k: usize,
     key: F,
 ) -> usize {
-    let mut seen = BitVec::new(k, false);
     let mut repr: Vec<Option<T>> = vec![None; k];
     for x in a.iter() {
         let v = key(x);
-        if !seen[v] {
-            seen.set(v, true);
-            repr[v] = Some(x.clone());
+        if v < k {
+            if repr[v].is_none() {
+                repr[v] = Some(x.clone());
+            }
         }
     }
     let mut i = 0;
-    for v in 0..k {
-        if seen[v] {
-            a[i] = repr[v].take().unwrap();
-            i += 1;
-        }
+    for item in repr.into_iter().flatten() {
+        a[i] = item;
+        i += 1;
     }
     i
 }
 
-// TODO: order statistic
-// https://cp-algorithms.com/sequences/k-th.html
+/// O(n)
+pub fn quickselect<T: Ord + Clone, R: Rng>(a: &mut [T], k: usize, rng: &mut R) -> T {
+    let n = a.len();
+    debug_assert!(k < n, "k must be within the bounds of the slice");
+    let mut l = 0;
+    let mut r = n;
+    loop {
+        if r - l <= 1 {
+            return a[k].clone();
+        }
+        if r - l == 2 {
+            if a[l] > a[l + 1] {
+                a.swap(l, l + 1);
+            }
+            return a[k].clone();
+        }
+        let p_idx = rng.random_range(l..r);
+        a.swap(l, p_idx);
+        let pivot = a[l].clone();
+        let mut i = l + 1;
+        let mut j = r - 1;
+        loop {
+            while i < r && a[i] < pivot {
+                i += 1;
+            }
+            while j > l && a[j] > pivot {
+                j -= 1;
+            }
+            if i >= j {
+                break;
+            }
+            a.swap(i, j);
+            i += 1;
+            j -= 1;
+        }
+        a.swap(l, j);
+        if j == k {
+            return a[k].clone();
+        } else if j > k {
+            r = j;
+        } else {
+            l = j + 1;
+        }
+    }
+}

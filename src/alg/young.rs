@@ -202,6 +202,3 @@ pub fn hook_length_balanced<const M: u64>(l: &[usize]) -> usize {
     }
     (r * inv::<M>(d)).rem_euclid(M as E) as usize
 }
-
-// TODO: domino standard tableaux
-// https://maspypy.github.io/library/seq/domino_standard_tableaux.hpp

@@ -246,5 +246,11 @@ impl StaticTopTree {
     }
 }
 
-// TODO: dyanmic tree DP structure
+// TODO: dyanmic (rerooting) tree DP structure
 // https://maspypy.github.io/library/graph/ds/dynamic_tree_dp.hpp
+// https://maspypy.github.io/library/graph/ds/dynamic_rerooting_tree_dp.hpp
+
+// TODO: top tree
+// https://codeforces.com/blog/entry/103726
+// https://codeforces.com/blog/entry/128556
+// https://blog.niuez.net/cp-cpp-library/data_structures/trees/toptree.html

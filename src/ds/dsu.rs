@@ -27,31 +27,31 @@ impl DSU {
         self.find(x) == self.find(y)
     }
 
-    pub fn union(&mut self, x: usize, y: usize) -> (bool, usize) {
+    pub fn union(&mut self, x: usize, y: usize) -> (usize, bool) {
         let mut i = self.find(x);
         let mut j = self.find(y);
         if self.p[i] > self.p[j] {
             (i, j) = (j, i);
         }
         if i == j {
-            return (false, i);
+            return (i, false);
         }
         self.p[i] += self.p[j];
         self.p[j] = i as isize;
-        (true, i)
+        (i, true)
     }
 
-    pub fn union_root(&mut self, x: usize, mut r: usize) -> (bool, usize) {
+    pub fn union_root(&mut self, x: usize, mut r: usize) -> (usize, bool) {
         let mut i = self.find(x);
         if i == r {
-            return (false, r);
+            return (r, false);
         }
         if self.p[i] > self.p[r] {
             (i, r) = (r, i);
         }
         self.p[i] += self.p[r];
         self.p[r] = i as isize;
-        (true, i)
+        (i, true)
     }
 
     pub fn size(&mut self, x: usize) -> usize {
@@ -96,9 +96,6 @@ where
 // https://maspypy.github.io/library/ds/unionfind/potentialized_unionfind.hpp
 // https://maspypy.github.io/library/ds/unionfind/rollback_potentialized_unionfind.hpp
 
-// TODO: range parallel dsu
-// https://maspypy.github.io/library/ds/unionfind/parallel_unionfind.hpp
-
 pub struct RollbackDSU {
     pub p: Vec<isize>,
     pub joins: Vec<(usize, isize)>,
@@ -127,18 +124,18 @@ impl RollbackDSU {
         (-self.p[self.find(x)]) as usize
     }
 
-    pub fn union(&mut self, x: usize, y: usize) -> (bool, usize) {
+    pub fn union(&mut self, x: usize, y: usize) -> (usize, bool) {
         let (mut i, mut j) = (self.find(x), self.find(y));
         if self.p[i] > self.p[j] {
             (i, j) = (j, i);
         }
         if i == j {
-            return (false, i);
+            return (i, false);
         }
         self.joins.push((j, self.p[j]));
         self.p[i] += self.p[j];
         self.p[j] = i as isize;
-        return (true, i);
+        return (i, true);
     }
 
     pub fn rollback(&mut self, t: usize) {

@@ -1,4 +1,3 @@
-pub mod cont_frac;
 pub mod crt;
 pub mod fft;
 pub mod floor_sum;
@@ -14,9 +13,7 @@ pub mod ntt;
 pub mod ops;
 pub mod prime;
 pub mod primitive;
-pub mod siedel;
 pub mod special;
-pub mod stern_brocot;
 pub mod tutte;
 pub mod xor_basis;
 pub mod young;

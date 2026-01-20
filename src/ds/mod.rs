@@ -1,5 +1,4 @@
 pub mod bit_vec;
-pub mod common_interval;
 pub mod dsu;
 pub mod first_one;
 pub mod heap;

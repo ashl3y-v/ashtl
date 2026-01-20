@@ -11,7 +11,6 @@ use std::{
 
 type E = i64;
 
-/// Matrix with elements in Z/MZ
 #[derive(Clone)]
 pub struct Mat<const M: u64> {
     pub n: usize,
@@ -593,7 +592,7 @@ impl<const M: u64> Mat<M> {
     }
 
     pub fn minp_bb(n: usize, mut f: impl FnMut(Vec<E>) -> Vec<E>) -> Poly<M> {
-        let m = 2 * n + 10;
+        let m = 4 * n + 10;
         let mut rng = rand::rng();
         let (mut s, c, mut v) = (
             vec![0; m],
@@ -605,11 +604,11 @@ impl<const M: u64> Mat<M> {
                 .collect::<Vec<_>>(),
         );
         for k in 0..m {
-            s[k] = c.iter().zip(&v).map(|(&a, &b)| a * b % M as E).sum();
+            s[k] = c.iter().zip(&v).map(|(&a, &b)| a * b % M as E).sum::<E>() % M as E;
             v = f(v);
             v.iter_mut().for_each(|a| *a %= M as E);
         }
-        Poly::new(s).normalize().min_rec(m).reverse()
+        Poly::new(s).min_rec(m).reverse()
     }
 
     pub fn det_bb(n: usize, mut f: impl FnMut(Vec<E>) -> Vec<E>) -> E {
@@ -619,11 +618,13 @@ impl<const M: u64> Mat<M> {
             .collect::<Vec<_>>();
         let r = c.iter().fold(1, |a, b| a * b % M as E);
         let g = |mut v: Vec<E>| {
-            v.iter_mut().zip(&c).for_each(|(a, b)| *a *= b);
+            v.iter_mut()
+                .zip(&c)
+                .for_each(|(a, b)| *a = (*a * b) % M as E);
             f(v)
         };
-        let p = Self::minp_bb(n, g);
-        let mut det = if p.len() == n + 1 { p[0] } else { 0 };
+        let (p, d) = Self::minp_bb(n, g).truncate_deg_or_0();
+        let mut det = if d == n { p[0] } else { Self::det_bb(n, f) };
         if n & 1 != 0 {
             det = -det;
         }

@@ -1,8 +1,5 @@
 use crate::grph::cc::scc;
 
-// TODO: speed up two sat
-// https://judge.yosupo.jp/submission/230491
-
 /// 2SAT O(n + m)
 pub struct SAT2 {
     n: usize,

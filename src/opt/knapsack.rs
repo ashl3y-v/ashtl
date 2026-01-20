@@ -292,7 +292,7 @@ pub fn multiple_knapsack_eq<const M: u64>(w: &[usize], k: &[usize], c: usize) ->
     .collect::<Vec<_>>()
 }
 
-// TODO: last knapsack optimization here?
+// TODO: some of the cases here
 // https://codeforces.com/blog/entry/98663
 
 #[cfg(test)]

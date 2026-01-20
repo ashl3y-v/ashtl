@@ -49,9 +49,6 @@ pub const fn root_inv_pows<const M: u64>() -> [u64; 32] {
     xs
 }
 
-// TODO: improve NTT performance
-// https://codeforces.com/blog/entry/142063
-
 pub fn ntt<const M: u64>(a: &mut [i64]) {
     let root_pows = const { root_pows::<M>() };
     let n = a.len();

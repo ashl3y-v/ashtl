@@ -1886,7 +1886,6 @@ impl<const M: u64> Poly<M> {
         }
     }
 
-    // TODO: speed up newton basis conversion https://judge.yosupo.jp/submission/210799
     /// O(n log^2 n)
     pub fn to_newton_rec(&self, tree: &[Self], v: usize, l: usize, r: usize) -> Self {
         if r - l == 1 {
@@ -2929,7 +2928,7 @@ impl<const M: u64> Poly<M> {
     }
 
     /// O(n log^2 n)
-    // TODO: figure out how to do this (current logistics do not work for this)
+    // TODO: redo all CDQ stuff in maspy's way, CDQ powering
     pub fn cdq_pow(mut f: impl FnMut(usize, &mut [E], &mut [E]), k: usize, n: usize) -> Self {
         // F = f^k
         // log F = k log f
@@ -2964,7 +2963,7 @@ impl<const M: u64> Poly<M> {
         if ds & dr & 1 != 0 {
             s = -s;
         }
-        let k = 2 * m - rhs.deg_or_0();
+        let k = 2 * m - self.deg_or_0();
         let (_, _, at, tt, s1) = (self.clone() >> k).half_gcd(rhs.clone() >> k);
         ar.push_back(ai.clone());
         ar.extend(at);
@@ -3041,7 +3040,7 @@ impl<const M: u64> Poly<M> {
         }
         let (_, _, a, _, _) = r1.full_gcd(r2);
         let mut a = a.into_iter().collect::<Vec<_>>();
-        a.push(Self::new(vec![0]));
+        a.push(Self::new(vec![]));
         let mut pref = 0;
         let mut delta = (n - a[0].deg_or_0()) as isize;
         while delta >= 0 {
@@ -3049,8 +3048,8 @@ impl<const M: u64> Poly<M> {
             pref += 1;
         }
         let q = Self::convergent(0, pref, &a).a.reverse();
-        let c = q.coeff[0];
-        return q / c;
+        let c = q.coeff[0] % M as E;
+        q / c
     }
 
     /// O(n log^2 n)
