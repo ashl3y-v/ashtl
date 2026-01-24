@@ -23,11 +23,11 @@ use std::{
 pub type E = i64;
 
 #[derive(Clone, Default)]
-pub struct Poly<const M: u64> {
+pub struct FPS<const M: u64> {
     pub coeff: Vec<E>,
 }
 
-impl<const M: u64> Poly<M> {
+impl<const M: u64> FPS<M> {
     #[inline]
     pub fn new(coeff: Vec<E>) -> Self {
         Self { coeff }
@@ -1668,9 +1668,9 @@ impl<const M: u64> Poly<M> {
     pub fn quo_xi_t_rev(mut self, i: usize) -> Self {
         let d;
         (self, d) = self.mod_xn(i + 1).truncate_deg_or_0();
-        fn rec<const M: u64>(i: usize, mut q: Poly<M>, d: usize) -> Poly<M> {
+        fn rec<const M: u64>(i: usize, mut q: FPS<M>, d: usize) -> FPS<M> {
             if i == 0 {
-                return Poly::<M>::txnpz(inv::<M>(q.coeff[0]), 0, d - 1);
+                return FPS::<M>::txnpz(inv::<M>(q.coeff[0]), 0, d - 1);
             }
             let n = (q.len() << 1).next_power_of_two();
             q = q.resize(n).ntt();
@@ -3017,7 +3017,7 @@ impl<const M: u64> Poly<M> {
         self.full_gcd(rhs).0.truncate_deg().0
     }
 
-    pub fn convergent(l: usize, r: usize, a: &[Poly<M>]) -> Poly2x2<M> {
+    pub fn convergent(l: usize, r: usize, a: &[FPS<M>]) -> Poly2x2<M> {
         if r - l <= 1 {
             return Poly2x2::ap1ox(a[l].clone());
         } else {
@@ -3237,13 +3237,13 @@ impl<const M: u64> Poly<M> {
         fn rec<const M: u64>(
             n: usize,
             k: usize,
-            mut q: Poly<M>,
-            mut f: Poly<M>,
-            v: &Poly<M>,
-        ) -> Poly<M> {
+            mut q: FPS<M>,
+            mut f: FPS<M>,
+            v: &FPS<M>,
+        ) -> FPS<M> {
             if n == 1 {
                 f.coeff.reverse();
-                let mut p = Poly::<M>::new(vec![0; k << 1]);
+                let mut p = FPS::<M>::new(vec![0; k << 1]);
                 for i in 0..k {
                     p[i << 1] = f[i];
                 }
@@ -3733,14 +3733,14 @@ impl<const M: u64> Poly<M> {
     // https://maspypy.github.io/library/setfunc/online/online_subset_zeta.hpp
 }
 
-impl<const M: u64> Debug for Poly<M> {
+impl<const M: u64> Debug for FPS<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.coeff)?;
         Ok(())
     }
 }
 
-impl<const M: u64> PartialEq for Poly<M> {
+impl<const M: u64> PartialEq for FPS<M> {
     fn eq(&self, other: &Self) -> bool {
         let d0 = self.deg();
         let d1 = other.deg();
@@ -3762,9 +3762,9 @@ impl<const M: u64> PartialEq for Poly<M> {
     }
 }
 
-impl<const M: u64> Eq for Poly<M> {}
+impl<const M: u64> Eq for FPS<M> {}
 
-impl<const M: u64> Neg for Poly<M> {
+impl<const M: u64> Neg for FPS<M> {
     type Output = Self;
 
     fn neg(mut self) -> Self::Output {
@@ -3773,7 +3773,7 @@ impl<const M: u64> Neg for Poly<M> {
     }
 }
 
-impl<const M: u64> Add<Self> for Poly<M> {
+impl<const M: u64> Add<Self> for FPS<M> {
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self::Output {
@@ -3782,7 +3782,7 @@ impl<const M: u64> Add<Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> Add<&Self> for Poly<M> {
+impl<const M: u64> Add<&Self> for FPS<M> {
     type Output = Self;
 
     fn add(mut self, rhs: &Self) -> Self::Output {
@@ -3791,7 +3791,7 @@ impl<const M: u64> Add<&Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> AddAssign<&Self> for Poly<M> {
+impl<const M: u64> AddAssign<&Self> for FPS<M> {
     fn add_assign(&mut self, rhs: &Self) {
         let l = self.len().max(rhs.len());
         self.coeff.resize(l, 0);
@@ -3802,14 +3802,14 @@ impl<const M: u64> AddAssign<&Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> AddAssign<Self> for Poly<M> {
+impl<const M: u64> AddAssign<Self> for FPS<M> {
     fn add_assign(&mut self, rhs: Self) {
         *self += &rhs;
     }
 }
 
-impl<const M: u64> Sub<Self> for Poly<M> {
-    type Output = Poly<M>;
+impl<const M: u64> Sub<Self> for FPS<M> {
+    type Output = FPS<M>;
 
     fn sub(mut self, rhs: Self) -> Self::Output {
         self -= rhs;
@@ -3817,7 +3817,7 @@ impl<const M: u64> Sub<Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> SubAssign<&Self> for Poly<M> {
+impl<const M: u64> SubAssign<&Self> for FPS<M> {
     fn sub_assign(&mut self, rhs: &Self) {
         self.coeff
             .iter_mut()
@@ -3826,13 +3826,13 @@ impl<const M: u64> SubAssign<&Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> SubAssign<Self> for Poly<M> {
+impl<const M: u64> SubAssign<Self> for FPS<M> {
     fn sub_assign(&mut self, rhs: Self) {
         *self -= &rhs;
     }
 }
 
-impl<const M: u64> Mul<Self> for Poly<M> {
+impl<const M: u64> Mul<Self> for FPS<M> {
     type Output = Self;
 
     fn mul(mut self, rhs: Self) -> Self::Output {
@@ -3841,7 +3841,7 @@ impl<const M: u64> Mul<Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> Mul<&Self> for Poly<M> {
+impl<const M: u64> Mul<&Self> for FPS<M> {
     type Output = Self;
 
     fn mul(mut self, rhs: &Self) -> Self::Output {
@@ -3850,14 +3850,14 @@ impl<const M: u64> Mul<&Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> MulAssign<&Self> for Poly<M> {
+impl<const M: u64> MulAssign<&Self> for FPS<M> {
     fn mul_assign(&mut self, rhs: &Self) {
         let rhs = rhs.clone();
         *self *= rhs;
     }
 }
 
-impl<const M: u64> MulAssign<Self> for Poly<M> {
+impl<const M: u64> MulAssign<Self> for FPS<M> {
     fn mul_assign(&mut self, mut rhs: Self) {
         let n = self.coeff.len();
         let m = rhs.coeff.len();
@@ -3882,13 +3882,13 @@ impl<const M: u64> MulAssign<Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> AddAssign<E> for Poly<M> {
+impl<const M: u64> AddAssign<E> for FPS<M> {
     fn add_assign(&mut self, rhs: E) {
         self.coeff[0] += rhs;
     }
 }
 
-impl<const M: u64> Add<E> for Poly<M> {
+impl<const M: u64> Add<E> for FPS<M> {
     type Output = Self;
 
     fn add(mut self, rhs: E) -> Self::Output {
@@ -3897,13 +3897,13 @@ impl<const M: u64> Add<E> for Poly<M> {
     }
 }
 
-impl<const M: u64> SubAssign<E> for Poly<M> {
+impl<const M: u64> SubAssign<E> for FPS<M> {
     fn sub_assign(&mut self, rhs: E) {
         self.coeff[0] -= rhs;
     }
 }
 
-impl<const M: u64> Sub<E> for Poly<M> {
+impl<const M: u64> Sub<E> for FPS<M> {
     type Output = Self;
 
     fn sub(mut self, rhs: E) -> Self::Output {
@@ -3912,7 +3912,7 @@ impl<const M: u64> Sub<E> for Poly<M> {
     }
 }
 
-impl<const M: u64> MulAssign<E> for Poly<M> {
+impl<const M: u64> MulAssign<E> for FPS<M> {
     fn mul_assign(&mut self, mut rhs: E) {
         if rhs == 1 {
             return;
@@ -3925,7 +3925,7 @@ impl<const M: u64> MulAssign<E> for Poly<M> {
     }
 }
 
-impl<const M: u64> Mul<E> for Poly<M> {
+impl<const M: u64> Mul<E> for FPS<M> {
     type Output = Self;
 
     fn mul(mut self, rhs: E) -> Self::Output {
@@ -3934,7 +3934,7 @@ impl<const M: u64> Mul<E> for Poly<M> {
     }
 }
 
-impl<const M: u64, T, S> Index<T> for Poly<M>
+impl<const M: u64, T, S> Index<T> for FPS<M>
 where
     Vec<E>: Index<T, Output = S>,
 {
@@ -3945,7 +3945,7 @@ where
     }
 }
 
-impl<const M: u64, T, S> IndexMut<T> for Poly<M>
+impl<const M: u64, T, S> IndexMut<T> for FPS<M>
 where
     Vec<E>: IndexMut<T, Output = S>,
 {
@@ -3954,15 +3954,15 @@ where
     }
 }
 
-impl<const M: u64> Div<Self> for &Poly<M> {
-    type Output = Poly<M>;
+impl<const M: u64> Div<Self> for &FPS<M> {
+    type Output = FPS<M>;
 
-    fn div(self, rhs: &Poly<M>) -> Self::Output {
+    fn div(self, rhs: &FPS<M>) -> Self::Output {
         self.div_mod(rhs).0
     }
 }
 
-impl<const M: u64> Div<Self> for Poly<M> {
+impl<const M: u64> Div<Self> for FPS<M> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
@@ -3970,7 +3970,7 @@ impl<const M: u64> Div<Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> Div<&Self> for Poly<M> {
+impl<const M: u64> Div<&Self> for FPS<M> {
     type Output = Self;
 
     fn div(self, rhs: &Self) -> Self::Output {
@@ -3978,7 +3978,7 @@ impl<const M: u64> Div<&Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> DivAssign<E> for Poly<M> {
+impl<const M: u64> DivAssign<E> for FPS<M> {
     fn div_assign(&mut self, rhs: E) {
         if rhs == 1 {
             return;
@@ -3987,7 +3987,7 @@ impl<const M: u64> DivAssign<E> for Poly<M> {
     }
 }
 
-impl<const M: u64> Div<E> for Poly<M> {
+impl<const M: u64> Div<E> for FPS<M> {
     type Output = Self;
 
     fn div(mut self, rhs: E) -> Self::Output {
@@ -3996,27 +3996,27 @@ impl<const M: u64> Div<E> for Poly<M> {
     }
 }
 
-impl<const M: u64> DivAssign<&Self> for Poly<M> {
+impl<const M: u64> DivAssign<&Self> for FPS<M> {
     fn div_assign(&mut self, rhs: &Self) {
         *self = self.div_mod(rhs).0;
     }
 }
 
-impl<const M: u64> DivAssign<Self> for Poly<M> {
+impl<const M: u64> DivAssign<Self> for FPS<M> {
     fn div_assign(&mut self, rhs: Self) {
         *self = self.div_mod(&rhs).0;
     }
 }
 
-impl<const M: u64> Rem<Self> for &Poly<M> {
-    type Output = Poly<M>;
+impl<const M: u64> Rem<Self> for &FPS<M> {
+    type Output = FPS<M>;
 
-    fn rem(self, rhs: &Poly<M>) -> Self::Output {
+    fn rem(self, rhs: &FPS<M>) -> Self::Output {
         self.div_mod(rhs).1
     }
 }
 
-impl<const M: u64> Rem<Self> for Poly<M> {
+impl<const M: u64> Rem<Self> for FPS<M> {
     type Output = Self;
 
     fn rem(self, rhs: Self) -> Self::Output {
@@ -4024,7 +4024,7 @@ impl<const M: u64> Rem<Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> Rem<&Self> for Poly<M> {
+impl<const M: u64> Rem<&Self> for FPS<M> {
     type Output = Self;
 
     fn rem(self, rhs: &Self) -> Self::Output {
@@ -4032,19 +4032,19 @@ impl<const M: u64> Rem<&Self> for Poly<M> {
     }
 }
 
-impl<const M: u64> RemAssign<&Self> for Poly<M> {
+impl<const M: u64> RemAssign<&Self> for FPS<M> {
     fn rem_assign(&mut self, rhs: &Self) {
         *self = self.div_mod(rhs).1;
     }
 }
 
-impl<const M: u64> RemAssign<Self> for Poly<M> {
+impl<const M: u64> RemAssign<Self> for FPS<M> {
     fn rem_assign(&mut self, rhs: Self) {
         *self = self.div_mod(&rhs).1;
     }
 }
 
-impl<const M: u64> ShrAssign<usize> for Poly<M> {
+impl<const M: u64> ShrAssign<usize> for FPS<M> {
     fn shr_assign(&mut self, rhs: usize) {
         if rhs == 0 {
             return;
@@ -4061,7 +4061,7 @@ impl<const M: u64> ShrAssign<usize> for Poly<M> {
     }
 }
 
-impl<const M: u64> Shr<usize> for Poly<M> {
+impl<const M: u64> Shr<usize> for FPS<M> {
     type Output = Self;
 
     fn shr(mut self, rhs: usize) -> Self::Output {
@@ -4070,7 +4070,7 @@ impl<const M: u64> Shr<usize> for Poly<M> {
     }
 }
 
-impl<const M: u64> ShlAssign<usize> for Poly<M> {
+impl<const M: u64> ShlAssign<usize> for FPS<M> {
     fn shl_assign(&mut self, rhs: usize) {
         if rhs == 0 {
             return;
@@ -4086,7 +4086,7 @@ impl<const M: u64> ShlAssign<usize> for Poly<M> {
     }
 }
 
-impl<const M: u64> Shl<usize> for Poly<M> {
+impl<const M: u64> Shl<usize> for FPS<M> {
     type Output = Self;
 
     fn shl(mut self, rhs: usize) -> Self::Output {
@@ -4127,14 +4127,14 @@ impl<const M: u64> Affine<M> {
 
 #[derive(Clone, Debug)]
 pub struct Poly2x2<const M: u64> {
-    pub a: Poly<M>,
-    pub b: Poly<M>,
-    pub c: Poly<M>,
-    pub d: Poly<M>,
+    pub a: FPS<M>,
+    pub b: FPS<M>,
+    pub c: FPS<M>,
+    pub d: FPS<M>,
 }
 
 impl<const M: u64> Poly2x2<M> {
-    pub fn new(a: Poly<M>, b: Poly<M>, c: Poly<M>, d: Poly<M>) -> Self {
+    pub fn new(a: FPS<M>, b: FPS<M>, c: FPS<M>, d: FPS<M>) -> Self {
         Self { a, b, c, d }
     }
 }
@@ -4142,27 +4142,27 @@ impl<const M: u64> Poly2x2<M> {
 impl<const M: u64> Default for Poly2x2<M> {
     fn default() -> Self {
         Self {
-            a: Poly::new(vec![1]),
-            b: Poly::new(vec![0]),
-            c: Poly::new(vec![0]),
-            d: Poly::new(vec![1]),
+            a: FPS::new(vec![1]),
+            b: FPS::new(vec![0]),
+            c: FPS::new(vec![0]),
+            d: FPS::new(vec![1]),
         }
     }
 }
 
 impl<const M: u64> Poly2x2<M> {
-    pub fn ap1ox(a: Poly<M>) -> Self {
+    pub fn ap1ox(a: FPS<M>) -> Self {
         Self {
             a,
-            b: Poly::new(vec![1]),
-            c: Poly::new(vec![1]),
-            d: Poly::new(vec![0]),
+            b: FPS::new(vec![1]),
+            c: FPS::new(vec![1]),
+            d: FPS::new(vec![0]),
         }
     }
 }
 
 impl<const M: u64> Poly2x2<M> {
-    pub fn apply(self, x: Poly<M>, y: Poly<M>) -> (Poly<M>, Poly<M>) {
+    pub fn apply(self, x: FPS<M>, y: FPS<M>) -> (FPS<M>, FPS<M>) {
         let Self { a, b, c, d } = self;
         (
             (a * x.clone() + b * y.clone()).normalize(),

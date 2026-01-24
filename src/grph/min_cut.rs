@@ -1,17 +1,7 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    f64::consts::SQRT_2,
-};
+use std::{collections::HashMap, f64::consts::SQRT_2};
 
-use crate::ds::{dsu::DSU, sort::counting_sort_by_key};
-use rand::prelude::*;
-
-#[derive(Debug, Clone, Copy)]
-struct KargerEdge {
-    u: usize,
-    v: usize,
-    weight: usize,
-}
+use crate::ds::dsu::DSU;
+use rand::prelude::SliceRandom;
 
 pub fn contract(
     n: usize,
@@ -23,53 +13,31 @@ pub fn contract(
         return (n, es.to_vec());
     }
     let mut rng = rand::rng();
-    let mut weights: Vec<usize> = (0..m).collect();
-    weights.shuffle(&mut rng);
-    let mut edges = Vec::with_capacity(m);
-    for (i, &(u, v, _)) in es.iter().enumerate() {
-        edges.push(KargerEdge {
-            u,
-            v,
-            weight: weights[i],
-        });
-    }
-    counting_sort_by_key(&mut edges, m, |a| a.weight);
+    let mut indices: Vec<usize> = (0..m).collect();
+    indices.shuffle(&mut rng);
     let mut dsu = DSU::new(n);
-    let mut mst_edges = Vec::with_capacity(n - 1);
-    for e in edges {
-        if dsu.union(e.u, e.v).1 {
-            mst_edges.push(e);
+    let mut current_components = n;
+    for &i in &indices {
+        if current_components <= t {
+            break;
         }
-    }
-    if mst_edges.is_empty() {
-        return (n, es.to_vec());
-    }
-    let edges_to_keep_count = mst_edges.len().saturating_sub(t - 1);
-    mst_edges.truncate(edges_to_keep_count);
-    let mut forest_adj = vec![vec![]; n];
-    for e in &mst_edges {
-        forest_adj[e.u].push(e.v);
-        forest_adj[e.v].push(e.u);
+        let (u, v, _) = es[i];
+        if dsu.union(u, v).1 {
+            current_components -= 1;
+        }
     }
     let mut component_ids = vec![usize::MAX; n];
     let mut next_comp_id = 0;
-    let mut queue = VecDeque::new();
+    let mut root_to_comp = vec![usize::MAX; n];
     for i in 0..n {
-        if component_ids[i] == usize::MAX {
-            component_ids[i] = next_comp_id;
-            queue.push_back(i);
-            while let Some(u) = queue.pop_front() {
-                for &v in &forest_adj[u] {
-                    if component_ids[v] == usize::MAX {
-                        component_ids[v] = next_comp_id;
-                        queue.push_back(v);
-                    }
-                }
-            }
+        let root = dsu.find(i);
+        if root_to_comp[root] == usize::MAX {
+            root_to_comp[root] = next_comp_id;
             next_comp_id += 1;
         }
+        component_ids[i] = root_to_comp[root];
     }
-    let mut new_edges = Vec::new();
+    let mut new_edges = Vec::with_capacity(m);
     for &(u, v, id) in es {
         let comp_u = component_ids[u];
         let comp_v = component_ids[v];
@@ -77,6 +45,7 @@ pub fn contract(
             new_edges.push((comp_u, comp_v, id));
         }
     }
+
     (next_comp_id, new_edges)
 }
 
@@ -114,8 +83,10 @@ pub fn karger_stein(n: usize, raw_edges: &[(usize, usize)]) -> (usize, Vec<usize
     }
     let mut memo = HashMap::new();
     let p_n = calc_p(n, &mut memo);
-    let scale = 1500 * n;
-    let repetitions = ((scale as f64).ln() / p_n).ceil() as usize;
+    let mut repetitions = (((n / 5) as f64).ln() / p_n).ceil() as usize;
+    if n <= 6 {
+        repetitions = n * (n - 1) / 2 * (n as f64).ln().ceil() as usize;
+    }
     let repetitions = repetitions.max(1);
     let mut best_cut = Vec::new();
     let mut min_cut_size = usize::MAX;

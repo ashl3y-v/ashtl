@@ -1,4 +1,4 @@
-pub mod all_pairs;
+pub mod angle;
 pub mod circle;
 pub mod closest_pair;
 pub mod constant_intervals;

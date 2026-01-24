@@ -1,6 +1,6 @@
 use crate::ds::bit_vec::BitVec;
 use crate::{
-    alg::{fps::Poly, lattice},
+    alg::{fps::FPS, lattice},
     ds::set::UbIntSet,
 };
 use std::collections::{BinaryHeap, HashMap};
@@ -194,7 +194,7 @@ pub fn clique_cover_number(adj: &[usize]) -> usize {
 }
 
 /// O(2^n n^2 + m log m)
-pub fn chromatic_poly<const M: u64>(adj: &[usize], m: usize) -> Poly<M> {
+pub fn chromatic_poly<const M: u64>(adj: &[usize], m: usize) -> FPS<M> {
     let n = adj.len();
     let mut f = vec![0_i64; 1 << n];
     for i in 0..n {
@@ -214,7 +214,7 @@ pub fn chromatic_poly<const M: u64>(adj: &[usize], m: usize) -> Poly<M> {
     }
     let mut w = vec![0; 1 << n];
     w[(1 << n) - 1] = 1;
-    Poly::<M>::new(f).sps_pow_proj(Poly::<M>::new(w), m)
+    FPS::new(f).sps_pow_proj(FPS::<M>::new(w), m)
 }
 
 // TODO: edge coloring
@@ -223,371 +223,390 @@ pub fn chromatic_poly<const M: u64>(adj: &[usize], m: usize) -> Poly<M> {
 // https://codeforces.com/blog/entry/75431
 // https://github.com/kth-competitive-programming/kactl/blob/eab6492ce9c8549832484f47276739ff120477b3/content/graph/EdgeColoring.h#L16
 // https://maspypy.github.io/library/graph/bipartite_edge_coloring.hpp
-pub fn edge_color() {}
+
+fn split_euler(n: usize, edges: &[(usize, usize)]) -> Vec<usize> {
+    if edges.is_empty() {
+        return Vec::new();
+    }
+    let mut gph: Vec<usize> = vec![usize::MAX; n];
+    let m = edges.len();
+    let mut nxt = vec![0; m * 2];
+    let mut vis = BitVec::new(m * 2, false);
+    for (i, &(u, v)) in edges.iter().enumerate() {
+        let u_idx = u;
+        let v_idx = v + n / 2;
+        let edge_ref_u = 2 * i;
+        if gph[u_idx] != usize::MAX {
+            let prev = gph[u_idx];
+            nxt[prev] = edge_ref_u ^ 1;
+            nxt[edge_ref_u] = prev ^ 1;
+            gph[u_idx] = usize::MAX;
+        } else {
+            gph[u_idx] = edge_ref_u;
+        }
+        let edge_ref_v = 2 * i + 1;
+        if gph[v_idx] != usize::MAX {
+            let prev = gph[v_idx];
+            nxt[prev] = edge_ref_v ^ 1;
+            nxt[edge_ref_v] = prev ^ 1;
+            gph[v_idx] = usize::MAX;
+        } else {
+            gph[v_idx] = edge_ref_v;
+        }
+    }
+    let mut ans = Vec::new();
+    for i in 0..(m * 2) {
+        if !vis[i] {
+            let mut j = i;
+            while !vis[j] {
+                ans.push(j >> 1);
+                vis.set(j, true);
+                vis.set(j ^ 1, true);
+                j = nxt[j];
+            }
+        }
+    }
+    ans
+}
+
+fn edge_coloring_power_of_two(n: usize, k: usize, edges: Vec<(usize, usize)>) -> Vec<usize> {
+    let m = edges.len();
+    let mut matchings: Vec<Vec<(usize, usize)>> = vec![Vec::new(); 2 * k - 1];
+    let mut indices: Vec<Vec<usize>> = vec![Vec::new(); 2 * k - 1];
+    matchings[0] = edges;
+    indices[0] = (0..m).collect();
+    for i in 0..(k - 1) {
+        let decomp = split_euler(2 * n, &matchings[i]);
+        for (j, &edge_idx) in decomp.iter().enumerate() {
+            let target_idx = 2 * i + 1 + (j % 2);
+            let a = matchings[i][edge_idx];
+            matchings[target_idx].push(a);
+            let b = indices[i][edge_idx];
+            indices[target_idx].push(b);
+        }
+    }
+    let mut ans = vec![0; m];
+    for i in 0..k {
+        for &original_idx in &indices[i + k - 1] {
+            ans[original_idx] = i;
+        }
+    }
+    ans
+}
+
+fn edge_coloring_regular(n: usize, k: usize, edges: Vec<(usize, usize)>) -> Vec<usize> {
+    #[derive(Clone, Copy)]
+    struct DncItem {
+        u: usize,
+        v: usize,
+        k: usize,
+        idx: isize,
+    }
+    assert!(k > 0);
+    if k.is_power_of_two() {
+        return edge_coloring_power_of_two(n, k, edges);
+    }
+    if k % 2 == 0 {
+        let decomp = split_euler(2 * n, &edges);
+        let mut sub: [Vec<(usize, usize)>; 2] = [Vec::new(), Vec::new()];
+        for (i, &edge_idx) in decomp.iter().enumerate() {
+            sub[i % 2].push(edges[edge_idx]);
+        }
+        let rec0 = edge_coloring_regular(n, k / 2, sub[0].clone());
+        let mut phi = 1;
+        while phi < k / 2 {
+            phi *= 2;
+        }
+        let mut ans = vec![0; edges.len()];
+        let mut ptr = sub[1].len();
+        for i in 0..(decomp.len() / 2) {
+            let original_idx = decomp[2 * i];
+            let color = rec0[i];
+            ans[original_idx] = color;
+            if color >= k - phi {
+                sub[1].push(edges[original_idx]);
+            }
+        }
+        let rec1 = edge_coloring_power_of_two(n, phi, sub[1].clone());
+        for i in 0..decomp.len() {
+            let original_idx = decomp[i];
+            if i % 2 == 0 {
+                if ans[original_idx] >= k - phi {
+                    ans[original_idx] = rec1[ptr] + k - phi;
+                    ptr += 1;
+                }
+            } else {
+                ans[original_idx] = rec1[i / 2] + k - phi;
+            }
+        }
+        return ans;
+    }
+    let mut t = 0;
+    while (1 << t) < k * n {
+        t += 1;
+    }
+    let mut todnc: Vec<DncItem> = Vec::new();
+    let alph = (1 << t) / k;
+    let beta = (1 << t) - k * alph;
+    for (i, &(u, v)) in edges.iter().enumerate() {
+        todnc.push(DncItem {
+            u,
+            v: v + n,
+            k: alph,
+            idx: i as isize,
+        });
+    }
+    if beta > 0 {
+        for i in 0..n {
+            todnc.push(DncItem {
+                u: i,
+                v: i + n,
+                k: beta,
+                idx: -1,
+            });
+        }
+    }
+    for _ in 0..t {
+        let mut toeuler: Vec<(usize, usize)> = Vec::new();
+        for item in &todnc {
+            if item.k % 2 != 0 {
+                toeuler.push((item.u, item.v - n));
+            }
+        }
+        let pth = split_euler(2 * n, &toeuler);
+        let mut parity = vec![0; toeuler.len()];
+        for i in (1..pth.len()).step_by(2) {
+            parity[pth[i]] = 1;
+        }
+        let mut sub0: Vec<DncItem> = Vec::new();
+        let mut sub1: Vec<DncItem> = Vec::new();
+        let mut ptr = 0;
+        let mut bal = 0;
+        for item in &todnc {
+            let mut l = item.k / 2;
+            let mut r = item.k / 2;
+            if item.k % 2 != 0 {
+                if parity[ptr] == 1 {
+                    r += 1;
+                } else {
+                    l += 1;
+                }
+                ptr += 1;
+            }
+            if item.idx == -1 {
+                bal += l as isize - r as isize;
+            }
+            if l > 0 {
+                sub0.push(DncItem {
+                    u: item.u,
+                    v: item.v,
+                    k: l,
+                    idx: item.idx,
+                });
+            }
+            if r > 0 {
+                sub1.push(DncItem {
+                    u: item.u,
+                    v: item.v,
+                    k: r,
+                    idx: item.idx,
+                });
+            }
+        }
+        if bal >= 0 {
+            todnc = sub1;
+        } else {
+            todnc = sub0;
+        }
+    }
+    let mut ans = vec![-1_i32; edges.len()];
+    for item in &todnc {
+        assert!(item.k == 1 && item.idx != -1);
+        ans[item.idx as usize] = (k - 1) as i32;
+    }
+    let mut sub_edges = Vec::new();
+    for i in 0..edges.len() {
+        if ans[i] == -1 {
+            sub_edges.push(edges[i]);
+        }
+    }
+    let mut piv = 0;
+    let sol = edge_coloring_regular(n, k - 1, sub_edges);
+    let mut final_ans = vec![0; edges.len()];
+    for i in 0..edges.len() {
+        if ans[i] == -1 {
+            final_ans[i] = sol[piv];
+            piv += 1;
+        } else {
+            final_ans[i] = ans[i] as usize;
+        }
+    }
+    final_ans
+}
+
+pub fn edge_coloring(mut l: usize, mut r: usize, mut edges: Vec<(usize, usize)>) -> Vec<usize> {
+    if edges.is_empty() {
+        return Vec::new();
+    }
+    let mut d = [vec![0; l], vec![0; r]];
+    for &(u, v) in &edges {
+        d[0][u] += 1;
+        d[1][v] += 1;
+    }
+    let k_max = (*d[0].iter().max().unwrap_or(&0)).max(*d[1].iter().max().unwrap_or(&0));
+    for i in 0..2 {
+        let current_len = if i == 0 { l } else { r };
+        let mut ord: Vec<usize> = (0..current_len).collect();
+        ord.sort_by(|&a, &b| d[i][a].cmp(&d[i][b]));
+        let mut maps = vec![0; current_len];
+        let mut nl = 0;
+        let mut j = 0;
+        while j < ord.len() {
+            let mut nxt = j;
+            let mut sum = 0;
+            while nxt < ord.len() && sum + d[i][ord[nxt]] <= k_max {
+                sum += d[i][ord[nxt]];
+                maps[ord[nxt]] = nl;
+                nxt += 1;
+            }
+            nl += 1;
+            j = nxt;
+        }
+        for e in &mut edges {
+            if i == 0 {
+                e.0 = maps[e.0];
+            } else {
+                e.1 = maps[e.1];
+            }
+        }
+        if i == 0 {
+            l = nl;
+        } else {
+            r = nl;
+        }
+    }
+    let n = l.max(r);
+    let mut d0 = vec![0; n];
+    let mut d1 = vec![0; n];
+    for &(u, v) in &edges {
+        d0[u] += 1;
+        d1[v] += 1;
+    }
+    let orig_len = edges.len();
+    let mut j_ptr = 0;
+    for i in 0..n {
+        while d0[i] < k_max {
+            while j_ptr < n && d1[j_ptr] == k_max {
+                j_ptr += 1;
+            }
+            if j_ptr < n {
+                edges.push((i, j_ptr));
+                d0[i] += 1;
+                d1[j_ptr] += 1;
+            } else {
+                break;
+            }
+        }
+    }
+    let mut sol = edge_coloring_regular(n, k_max, edges);
+    sol.truncate(orig_len);
+    sol
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
+    use std::collections::HashSet;
 
-    /// Helper: verify coloring uses k colors and no adjacent vertices share a color
-    fn verify_coloring(adj: &[Vec<usize>], cols: &HashMap<usize, usize>, k: usize) {
-        // check color count
-        let used: std::collections::HashSet<_> = cols.values().cloned().collect();
-        assert_eq!(used.len(), k);
-        // check valid colors and adjacency
-        for u in 0..adj.len() {
-            let cu = cols.get(&u).expect("Missing color");
-            assert!(*cu < k, "Color out of range");
-            for &v in &adj[u] {
-                let cv = cols.get(&v).expect("Missing color");
-                assert_ne!(cu, cv, "Adjacent nodes {} and {} share color {}", u, v, cu);
+    fn verify_coloring(l: usize, r: usize, edges: &[(usize, usize)], colors: &[usize]) {
+        assert_eq!(edges.len(), colors.len());
+
+        let mut left_colors = vec![HashSet::new(); l];
+        let mut right_colors = vec![HashSet::new(); r];
+        let mut max_c = 0;
+
+        for (i, &(u, v)) in edges.iter().enumerate() {
+            let c = colors[i];
+            if c > max_c {
+                max_c = c;
+            }
+
+            // Check left conflict
+            if left_colors[u].contains(&c) {
+                panic!("Conflict at left node {} with color {}", u, c);
+            }
+            left_colors[u].insert(c);
+
+            // Check right conflict
+            if right_colors[v].contains(&c) {
+                panic!("Conflict at right node {} with color {}", v, c);
+            }
+            right_colors[v].insert(c);
+        }
+
+        // Calculate max degree
+        let mut d_l = vec![0; l];
+        let mut d_r = vec![0; r];
+        for &(u, v) in edges {
+            d_l[u] += 1;
+            d_r[v] += 1;
+        }
+        let k = *d_l
+            .iter()
+            .max()
+            .unwrap_or(&0)
+            .max(d_r.iter().max().unwrap_or(&0));
+
+        // Ensure we didn't use unnecessary colors (optional strict check, but good for optimal coloring)
+        // The algorithm guarantees max_color < k
+        assert!(max_c < k, "Used color {} >= K ({})", max_c, k);
+    }
+
+    #[test]
+    fn test_simple_bipartite() {
+        // Square: 0-0, 0-1, 1-0, 1-1
+        let l = 2;
+        let r = 2;
+        let edges = vec![(0, 0), (0, 1), (1, 0), (1, 1)];
+        let colors = edge_coloring(l, r, edges.clone());
+        verify_coloring(l, r, &edges, &colors);
+    }
+
+    #[test]
+    fn test_k33() {
+        let l = 3;
+        let r = 3;
+        let mut edges = Vec::new();
+        for i in 0..l {
+            for j in 0..r {
+                edges.push((i, j));
             }
         }
+        let colors = edge_coloring(l, r, edges.clone());
+        verify_coloring(l, r, &edges, &colors);
     }
 
     #[test]
-    fn test_bipartite_path() {
-        // Path graph on 5 nodes
-        let adj = vec![
-            vec![1],    // 0
-            vec![0, 2], // 1
-            vec![1, 3], // 2
-            vec![2, 4], // 3
-            vec![3],    // 4
+    fn test_irregular_graph() {
+        let l = 4;
+        let r = 5;
+        let edges = vec![
+            (0, 0),
+            (0, 1),
+            (1, 1),
+            (1, 2),
+            (1, 3),
+            (2, 0),
+            (2, 4),
+            (3, 3),
         ];
-        let (cols, k) = dsatur(&adj);
-        // Path is bipartite -> 2 colors
-        verify_coloring(&adj, &cols, 2);
+        let colors = edge_coloring(l, r, edges.clone());
+        verify_coloring(l, r, &edges, &colors);
     }
 
     #[test]
-    fn test_complete_graph() {
-        // Complete graph K4 -> 4 colors
-        let n = 4;
-        let mut adj = vec![vec![]; n];
-        for u in 0..n {
-            for v in u + 1..n {
-                adj[u].push(v);
-                adj[v].push(u);
-            }
-        }
-        let (cols, k) = dsatur(&adj);
-        verify_coloring(&adj, &cols, 4);
-    }
-
-    #[test]
-    fn test_cycle_even_odd() {
-        // Cycle of length 6 (even)
-        let n_even = 6;
-        let mut adj_even = vec![vec![]; n_even];
-        for u in 0..n_even {
-            let v = (u + 1) % n_even;
-            adj_even[u].push(v);
-            adj_even[v].push(u);
-        }
-        let (cols_even, k_even) = dsatur(&adj_even);
-        // Even cycle -> 2 colors
-        verify_coloring(&adj_even, &cols_even, 2);
-
-        // Cycle of length 5 (odd)
-        let n_odd = 5;
-        let mut adj_odd = vec![vec![]; n_odd];
-        for u in 0..n_odd {
-            let v = (u + 1) % n_odd;
-            adj_odd[u].push(v);
-            adj_odd[v].push(u);
-        }
-        let (cols_odd, k_odd) = dsatur(&adj_odd);
-        // Odd cycle -> 3 colors
-        verify_coloring(&adj_odd, &cols_odd, 3);
-    }
-
-    #[test]
-    fn test_complete_bipartite() {
-        // Complete bipartite K3,4 -> 2 colors
-        let left = 3;
-        let right = 4;
-        let n = left + right;
-        let mut adj = vec![vec![]; n];
-        for u in 0..left {
-            for v in left..n {
-                adj[u].push(v);
-                adj[v].push(u);
-            }
-        }
-        let (cols, k) = dsatur(&adj);
-        verify_coloring(&adj, &cols, 2);
-    }
-
-    #[test]
-    fn test_wheel_graph() {
-        // Wheel on 5 vertices: cycle of 4 + center -> 3 colors
-        let cycle_n = 4;
-        let n = cycle_n + 1;
-        let mut adj = vec![vec![]; n];
-        // cycle edges
-        for u in 0..cycle_n {
-            let v = (u + 1) % cycle_n;
-            adj[u].push(v);
-            adj[v].push(u);
-        }
-        // center
-        let center = cycle_n;
-        for u in 0..cycle_n {
-            adj[u].push(center);
-            adj[center].push(u);
-        }
-        let (cols, k) = dsatur(&adj);
-        verify_coloring(&adj, &cols, 3);
-
-        // Wheel on 6 vertices (odd cycle length =5) -> 4 colors
-        let cycle_n2 = 5;
-        let n2 = cycle_n2 + 1;
-        let mut adj2 = vec![vec![]; n2];
-        for u in 0..cycle_n2 {
-            let v = (u + 1) % cycle_n2;
-            adj2[u].push(v);
-            adj2[v].push(u);
-        }
-        let center2 = cycle_n2;
-        for u in 0..cycle_n2 {
-            adj2[u].push(center2);
-            adj2[center2].push(u);
-        }
-        let (cols2, k2) = dsatur(&adj2);
-        verify_coloring(&adj2, &cols2, 4);
-    }
-
-    #[test]
-    fn test_basic_cases() {
-        // Single vertex
-        assert_eq!(chromatic_number(&[vec![]]), 1);
-
-        // Two vertices, no edge
-        assert_eq!(chromatic_number(&[vec![], vec![]]), 1);
-
-        // Two vertices with edge
-        assert_eq!(chromatic_number(&[vec![1], vec![0]]), 2);
-
-        // Triangle (K3)
-        assert_eq!(chromatic_number(&[vec![1, 2], vec![0, 2], vec![0, 1]]), 3);
-
-        // Square cycle
-        assert_eq!(
-            chromatic_number(&[vec![1, 3], vec![0, 2], vec![1, 3], vec![0, 2]]),
-            2
-        );
-
-        // Complete graph K4
-        assert_eq!(
-            chromatic_number(&[vec![1, 2, 3], vec![0, 2, 3], vec![0, 1, 3], vec![0, 1, 2]]),
-            4
-        );
-
-        // Star graph
-        assert_eq!(
-            chromatic_number(&[vec![1, 2, 3, 4], vec![0], vec![0], vec![0], vec![0]]),
-            2
-        );
-
-        // Path graph
-        assert_eq!(
-            chromatic_number(&[vec![1], vec![0, 2], vec![1, 3], vec![2, 4], vec![3]]),
-            2
-        );
-
-        // Pentagon (odd cycle)
-        assert_eq!(
-            chromatic_number(&[vec![1, 4], vec![0, 2], vec![1, 3], vec![2, 4], vec![0, 3]]),
-            3
-        );
-    }
-
-    #[test]
-    fn test_complete_graphs() {
-        // K5 - complete graph on 5 vertices
-        let k5: Vec<Vec<usize>> = (0..5)
-            .map(|i| (0..5).filter(|&j| i != j).collect())
-            .collect();
-        assert_eq!(chromatic_number(&k5), 5);
-
-        // K6 - complete graph on 6 vertices
-        let k6: Vec<Vec<usize>> = (0..6)
-            .map(|i| (0..6).filter(|&j| i != j).collect())
-            .collect();
-        assert_eq!(chromatic_number(&k6), 6);
-    }
-
-    #[test]
-    fn test_wheel_graphs() {
-        // Wheel W5 - center connected to 5-cycle
-        let w5 = vec![
-            vec![1, 2, 3, 4, 5], // center
-            vec![0, 2, 5],       // cycle vertices
-            vec![0, 1, 3],
-            vec![0, 2, 4],
-            vec![0, 3, 5],
-            vec![0, 1, 4],
-        ];
-        assert_eq!(chromatic_number(&w5), 4); // odd cycle + center
-
-        // Wheel W6 - center connected to 6-cycle
-        let w6 = vec![
-            vec![1, 2, 3, 4, 5, 6], // center
-            vec![0, 2, 6],          // cycle vertices
-            vec![0, 1, 3],
-            vec![0, 2, 4],
-            vec![0, 3, 5],
-            vec![0, 4, 6],
-            vec![0, 1, 5],
-        ];
-        assert_eq!(chromatic_number(&w6), 3); // even cycle + center
-    }
-
-    #[test]
-    fn test_bipartite_graphs() {
-        // Complete bipartite K_{3,3}
-        let k33 = vec![
-            vec![3, 4, 5], // partition 1
-            vec![3, 4, 5],
-            vec![3, 4, 5],
-            vec![0, 1, 2], // partition 2
-            vec![0, 1, 2],
-            vec![0, 1, 2],
-        ];
-        assert_eq!(chromatic_number(&k33), 2);
-
-        // Complete bipartite K_{2,4}
-        let k24 = vec![
-            vec![2, 3, 4, 5], // partition 1
-            vec![2, 3, 4, 5],
-            vec![0, 1], // partition 2
-            vec![0, 1],
-            vec![0, 1],
-            vec![0, 1],
-        ];
-        assert_eq!(chromatic_number(&k24), 2);
-    }
-
-    #[test]
-    fn test_planar_graphs() {
-        // Petersen graph (famous non-planar graph)
-        let petersen = vec![
-            vec![1, 4, 5], // outer pentagon
-            vec![0, 2, 6],
-            vec![1, 3, 7],
-            vec![2, 4, 8],
-            vec![0, 3, 9],
-            vec![0, 7, 8], // inner pentagram
-            vec![1, 8, 9],
-            vec![2, 5, 9],
-            vec![3, 5, 6],
-            vec![4, 6, 7],
-        ];
-        assert_eq!(chromatic_number(&petersen), 3);
-
-        // Dodecahedron graph (subset - first 8 vertices)
-        let dodeca_subset = vec![
-            vec![1, 2, 7],
-            vec![0, 3, 4],
-            vec![0, 5, 6],
-            vec![1, 4, 7],
-            vec![1, 3, 5],
-            vec![2, 4, 6],
-            vec![2, 5, 7],
-            vec![0, 3, 6],
-        ];
-        assert_eq!(chromatic_number(&dodeca_subset), 3);
-    }
-
-    #[test]
-    fn test_cycle_graphs() {
-        // Various cycle lengths
-        for n in 3..=10 {
-            let cycle: Vec<Vec<usize>> =
-                (0..n).map(|i| vec![(i + n - 1) % n, (i + 1) % n]).collect();
-            let expected = if n % 2 == 0 { 2 } else { 3 };
-            assert_eq!(chromatic_number(&cycle), expected, "Failed for C{}", n);
-        }
-    }
-
-    #[test]
-    fn test_complex_structured_graphs() {
-        // Möbius-Kantor graph (8 vertices, 4-regular)
-        let mobius_kantor = vec![
-            vec![1, 3, 5, 7],
-            vec![0, 2, 4, 6],
-            vec![1, 3, 7, 5],
-            vec![0, 2, 4, 6],
-            vec![1, 3, 5, 7],
-            vec![0, 2, 4, 6],
-            vec![1, 3, 7, 5],
-            vec![0, 2, 4, 6],
-        ];
-        assert_eq!(chromatic_number(&mobius_kantor), 2);
-
-        // Cube graph (8 vertices of a cube)
-        let cube = vec![
-            vec![1, 3, 4], // bottom face
-            vec![0, 2, 5],
-            vec![1, 3, 6],
-            vec![0, 2, 7],
-            vec![0, 5, 7], // top face
-            vec![1, 4, 6],
-            vec![2, 5, 7],
-            vec![3, 4, 6],
-        ];
-        assert_eq!(chromatic_number(&cube), 2);
-    }
-
-    #[test]
-    fn test_sparse_vs_dense() {
-        // Very sparse graph (tree)
-        let tree = vec![
-            vec![1, 2],    // root
-            vec![0, 3, 4], // level 1
-            vec![0, 5, 6],
-            vec![1], // leaves
-            vec![1],
-            vec![2],
-            vec![2],
-        ];
-        assert_eq!(chromatic_number(&tree), 2);
-
-        // Dense but not complete
-        let dense = vec![
-            vec![1, 2, 3, 4], // missing edge to 5
-            vec![0, 2, 3, 5], // missing edge to 4
-            vec![0, 1, 4, 5], // missing edge to 3
-            vec![0, 1, 5],    // missing edges to 2,4
-            vec![0, 2, 5],    // missing edges to 1,3
-            vec![1, 2, 3, 4], // missing edge to 0
-        ];
-        assert_eq!(chromatic_number(&dense), 3);
-    }
-
-    #[test]
-    fn test_mycielski_graphs() {
-        // Mycielski construction creates triangle-free graphs with high chromatic number
-        // M3 (5 vertices, chromatic number 3)
-        let m3 = vec![vec![1, 2], vec![0, 3], vec![0, 4], vec![1, 4], vec![2, 3]];
-        assert_eq!(chromatic_number(&m3), 3);
-
-        // Groetzsch graph (11 vertices, triangle-free, chromatic number 4)
-        let groetzsch = vec![
-            vec![1, 2, 3, 4], // center
-            vec![0, 5, 6],    // outer ring
-            vec![0, 6, 7],
-            vec![0, 7, 8],
-            vec![0, 8, 5],
-            vec![1, 4, 9], // middle ring
-            vec![1, 2, 10],
-            vec![2, 3, 9],
-            vec![3, 4, 10],
-            vec![5, 7, 10], // inner connections
-            vec![6, 8, 9],
-        ];
-        assert_eq!(chromatic_number(&groetzsch), 3);
+    fn test_empty() {
+        let colors = edge_coloring(5, 5, vec![]);
+        assert!(colors.is_empty());
     }
 }

@@ -1,4 +1,3 @@
-use crate::ds::bit_vec::BitVec;
 use crate::tree::cartesian::CartesianTree;
 
 #[derive(Debug, Clone)]
@@ -142,24 +141,5 @@ impl SuffixTree {
             }
         }
         None
-    }
-
-    pub fn get_suffix_positions(&self, sa: &[usize]) -> Vec<usize> {
-        let n = sa.len();
-        let mut bv = BitVec::new(n, true);
-        let mut ans = vec![0; n];
-        for v in (0..self.nodes.len()).rev() {
-            let node = &self.nodes[v];
-            let mut i = bv.next(node.l);
-            while let Some(idx) = i {
-                if idx >= node.r {
-                    break;
-                }
-                bv.remove(idx);
-                ans[sa[idx]] = v;
-                i = bv.next(idx + 1);
-            }
-        }
-        ans
     }
 }

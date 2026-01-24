@@ -2,7 +2,7 @@ use std::ops::{AddAssign, SubAssign};
 
 use crate::ds::dsu::{DSU, RollbackDSU};
 
-pub struct DirectedMST<T> {
+pub struct DMST<T> {
     n: usize,
     ns: Vec<DirectedMSTNode<T>>,
     heap: Vec<usize>,
@@ -17,7 +17,7 @@ struct DirectedMSTNode<T> {
     lz: T,
 }
 
-impl<T: Copy + Default + AddAssign + SubAssign + PartialOrd> DirectedMST<T> {
+impl<T: Copy + Default + AddAssign + SubAssign + PartialOrd> DMST<T> {
     pub fn new(n: usize) -> Self {
         Self {
             n,

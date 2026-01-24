@@ -275,10 +275,138 @@ where
     }
 }
 
-// TODO: sparse segment tree
-// https://usaco.guide/plat/sparse-segtree?lang=cpp
-// https://maspypy.github.io/library/ds/segtree/dynamic_segtree.hpp
-// https://maspypy.github.io/library/ds/segtree/dynamic_lazy_segtree.hpp
+#[derive(Clone, Default, Debug)]
+pub struct SparseSegTreeNode<T> {
+    pub v: T,
+    pub l: usize,
+    pub r: usize,
+}
 
-// TODO: xor segtree
-// https://maspypy.github.io/library/ds/segtree/xor_segtree.hpp
+pub struct SparseSegTree<T, Pull, Push>
+where
+    Pull: FnMut(usize, usize, usize, &mut [SparseSegTreeNode<T>]),
+    Push: FnMut(usize, usize, usize, i64, i64, &mut [SparseSegTreeNode<T>]),
+{
+    n: i64,
+    pub tree: Vec<SparseSegTreeNode<T>>,
+    pub pull: Pull,
+    pub push: Push,
+}
+
+impl<T: Default + Clone, Pull, Push> SparseSegTree<T, Pull, Push>
+where
+    Pull: FnMut(usize, usize, usize, &mut [SparseSegTreeNode<T>]),
+    Push: FnMut(usize, usize, usize, i64, i64, &mut [SparseSegTreeNode<T>]),
+{
+    pub fn new(n: i64, capacity_hint: usize, pull: Pull, push: Push) -> Self {
+        let mut tree = Vec::with_capacity(capacity_hint);
+        tree.push(SparseSegTreeNode::default());
+        tree.push(SparseSegTreeNode::default());
+        Self {
+            n,
+            tree,
+            pull,
+            push,
+        }
+    }
+
+    fn ensure_ch(&mut self, cur: usize) -> (usize, usize) {
+        if self.tree[cur].l == 0 {
+            let idx = self.tree.len();
+            self.tree.push(SparseSegTreeNode::default());
+            self.tree[cur].l = idx;
+        }
+        if self.tree[cur].r == 0 {
+            let idx = self.tree.len();
+            self.tree.push(SparseSegTreeNode::default());
+            self.tree[cur].r = idx;
+        }
+        (self.tree[cur].l, self.tree[cur].r)
+    }
+
+    pub fn update<Op>(&mut self, range: impl RangeBounds<i64>, mut op: Op)
+    where
+        Op: FnMut(usize, i64, &mut [SparseSegTreeNode<T>]),
+    {
+        let l = match range.start_bound() {
+            Bound::Included(x) => *x,
+            Bound::Excluded(x) => *x + 1,
+            Bound::Unbounded => 0,
+        };
+        let r = match range.end_bound() {
+            Bound::Included(x) => *x + 1,
+            Bound::Excluded(x) => *x,
+            Bound::Unbounded => self.n,
+        };
+        if l >= r {
+            return;
+        }
+        self.update_rec(1, 0, self.n, l, r, &mut op);
+    }
+
+    fn update_rec<Op>(&mut self, cur: usize, tl: i64, tr: i64, ql: i64, qr: i64, op: &mut Op)
+    where
+        Op: FnMut(usize, i64, &mut [SparseSegTreeNode<T>]),
+    {
+        if qr <= tl || tr <= ql {
+            return;
+        } else if ql <= tl && tr <= qr {
+            op(cur, tr - tl, &mut self.tree);
+            return;
+        }
+        let (lc, rc) = self.ensure_ch(cur);
+        let m = tl.midpoint(tr);
+        (self.push)(cur, lc, rc, m - tl, tr - m, &mut self.tree);
+        self.update_rec(lc, tl, m, ql, qr, op);
+        self.update_rec(rc, m, tr, ql, qr, op);
+        (self.pull)(cur, lc, rc, &mut self.tree);
+    }
+
+    pub fn query<Visitor>(&mut self, range: impl RangeBounds<i64>, mut visitor: Visitor)
+    where
+        Visitor: FnMut(usize, i64, &mut [SparseSegTreeNode<T>]),
+    {
+        let l = match range.start_bound() {
+            Bound::Included(x) => *x,
+            Bound::Excluded(x) => *x + 1,
+            Bound::Unbounded => 0,
+        };
+        let r = match range.end_bound() {
+            Bound::Included(x) => *x + 1,
+            Bound::Excluded(x) => *x,
+            Bound::Unbounded => self.n,
+        };
+        if l >= r {
+            return;
+        }
+        self.query_rec(1, 0, self.n, l, r, &mut visitor);
+    }
+
+    fn query_rec<Visitor>(
+        &mut self,
+        cur: usize,
+        tl: i64,
+        tr: i64,
+        ql: i64,
+        qr: i64,
+        visitor: &mut Visitor,
+    ) where
+        Visitor: FnMut(usize, i64, &mut [SparseSegTreeNode<T>]),
+    {
+        if qr <= tl || tr <= ql {
+            return;
+        } else if ql <= tl && tr <= qr {
+            visitor(cur, tr - tl, &mut self.tree);
+            return;
+        }
+        let (lc, rc) = self.ensure_ch(cur);
+        let m = tl.midpoint(tr);
+        (self.push)(cur, lc, rc, m - tl, tr - m, &mut self.tree);
+        self.query_rec(lc, tl, m, ql, qr, visitor);
+        self.query_rec(rc, m, tr, ql, qr, visitor);
+    }
+
+    pub fn len(&self) -> usize {
+        self.tree.len()
+    }
+}

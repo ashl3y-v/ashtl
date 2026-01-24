@@ -123,26 +123,25 @@ impl<T: Clone> PersistentArray<T> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LeftistNode<T> {
+pub struct SkewNode<T> {
     pub v: T,
-    pub s: usize,
     pub l: usize,
     pub r: usize,
 }
 
-impl<T> LeftistNode<T> {
-    pub fn new(v: T, l: usize, r: usize, s: usize) -> Self {
-        Self { v, s, l, r }
+impl<T> SkewNode<T> {
+    pub fn new(v: T, l: usize, r: usize) -> Self {
+        Self { v, l, r }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PersistentLeftist<T> {
-    pub n: Vec<LeftistNode<T>>,
+pub struct PersistentSkew<T> {
+    pub n: Vec<SkewNode<T>>,
     pub nxt: usize,
 }
 
-impl<T: Clone + PartialOrd> PersistentLeftist<T> {
+impl<T: Clone + PartialOrd> PersistentSkew<T> {
     pub fn new() -> Self {
         Self {
             n: Vec::new(),
@@ -158,26 +157,29 @@ impl<T: Clone + PartialOrd> PersistentLeftist<T> {
         }
         let l = s.nxt;
         for v in a {
-            s.new_node(LeftistNode::new(v, NULL, NULL, 1));
+            s.new_node(SkewNode::new(v, NULL, NULL));
         }
         let r = s.nxt;
         fn meld<T: Clone + PartialOrd>(
-            s: &mut PersistentLeftist<T>,
+            s: &mut PersistentSkew<T>,
             mut p: usize,
             mut q: usize,
         ) -> usize {
-            if s.n[p].v > s.n[q].v {
+            if p == NULL {
+                return q;
+            } else if q == NULL {
+                return p;
+            } else if s.n[p].v > s.n[q].v {
                 (p, q) = (q, p);
             }
-            s.n[p].r = s.meld(s.n[p].r, q);
-            s.restructure(p);
+            (s.n[p].l, s.n[p].r) = (meld(s, s.n[p].r, q), s.n[p].l);
             p
         }
-        fn rec<T: Clone + PartialOrd>(s: &mut PersistentLeftist<T>, l: usize, r: usize) -> usize {
+        fn rec<T: Clone + PartialOrd>(s: &mut PersistentSkew<T>, l: usize, r: usize) -> usize {
             if l + 1 == r {
                 return l;
             }
-            let m = l.midpoint(r);
+            let m = l + (r - l) / 2;
             let lh = rec(s, l, m);
             let rh = rec(s, m, r);
             meld(s, lh, rh)
@@ -186,7 +188,7 @@ impl<T: Clone + PartialOrd> PersistentLeftist<T> {
         (s, rt)
     }
 
-    fn new_node(&mut self, node: LeftistNode<T>) -> usize {
+    fn new_node(&mut self, node: SkewNode<T>) -> usize {
         let nxt = self.nxt;
         if nxt < self.n.len() {
             self.n[nxt] = node;
@@ -195,20 +197,6 @@ impl<T: Clone + PartialOrd> PersistentLeftist<T> {
         }
         self.nxt += 1;
         nxt
-    }
-
-    fn get_s(&self, u: usize) -> usize {
-        if u == NULL { 0 } else { self.n[u].s }
-    }
-
-    fn restructure(&mut self, x: usize) {
-        if x == NULL {
-            return;
-        }
-        if self.get_s(self.n[x].l) < self.get_s(self.n[x].r) {
-            (self.n[x].l, self.n[x].r) = (self.n[x].r, self.n[x].l);
-        }
-        self.n[x].s = self.get_s(self.n[x].r) + 1;
     }
 
     /// O(log n)
@@ -224,13 +212,13 @@ impl<T: Clone + PartialOrd> PersistentLeftist<T> {
         let nr = self.meld(np.r, q);
         np.r = nr;
         let npr = self.new_node(np);
-        self.restructure(npr);
+        (self.n[npr].l, self.n[npr].r) = (self.n[npr].r, self.n[npr].l);
         npr
     }
 
     /// O(log n)
     pub fn insert(&mut self, rt: usize, v: T) -> usize {
-        let s = LeftistNode::new(v, NULL, NULL, 1);
+        let s = SkewNode::new(v, NULL, NULL);
         let sr = self.new_node(s);
         self.meld(rt, sr)
     }
@@ -338,5 +326,115 @@ impl<T: Clone> PersistentQueue<T> {
     }
 }
 
-// TODO: persistent segment tree
-// https://usaco.guide/adv/persistent?lang=cpp
+#[derive(Clone, Copy, Default, Debug)]
+pub struct PersistentSegTreeNode<T> {
+    pub v: T,
+    pub l: usize,
+    pub r: usize,
+}
+
+pub struct PersistentSegTree<T, Pull>
+where
+    Pull: Fn(usize, usize, usize, &mut [PersistentSegTreeNode<T>]),
+{
+    n: usize,
+    pub tree: Vec<PersistentSegTreeNode<T>>,
+    timer: usize,
+    pull: Pull,
+}
+
+impl<T, Pull> PersistentSegTree<T, Pull>
+where
+    T: Clone + Default,
+    Pull: Fn(usize, usize, usize, &mut [PersistentSegTreeNode<T>]),
+{
+    pub fn new(n: usize, mx_nodes: usize, pull: Pull) -> Self {
+        let tree = vec![PersistentSegTreeNode::default(); mx_nodes];
+        Self {
+            n,
+            tree,
+            timer: 1,
+            pull,
+        }
+    }
+
+    fn build_rec(&mut self, tl: usize, tr: usize, arr: &[T]) -> usize {
+        let cur = self.timer;
+        self.timer += 1;
+        if tl + 1 == tr {
+            self.tree[cur].v = arr[tl].clone();
+            return cur;
+        }
+        let m = tl.midpoint(tr);
+        let lc = self.build_rec(tl, m, arr);
+        let rc = self.build_rec(m, tr, arr);
+        self.tree[cur].l = lc;
+        self.tree[cur].r = rc;
+        (self.pull)(cur, lc, rc, &mut self.tree);
+        cur
+    }
+
+    pub fn build(&mut self, arr: &[T]) -> usize {
+        self.build_rec(0, self.n, arr)
+    }
+
+    fn update_rec(&mut self, prev_node: usize, pos: usize, val: T, tl: usize, tr: usize) -> usize {
+        let cur = self.timer;
+        self.timer += 1;
+        self.tree[cur] = self.tree[prev_node].clone();
+        if tl + 1 == tr {
+            self.tree[cur].v = val;
+            return cur;
+        }
+        let m = tl.midpoint(tr);
+        if pos < m {
+            let new_l = self.update_rec(self.tree[prev_node].l, pos, val, tl, m);
+            self.tree[cur].l = new_l;
+        } else {
+            let new_r = self.update_rec(self.tree[prev_node].r, pos, val, m, tr);
+            self.tree[cur].r = new_r;
+        }
+        (self.pull)(cur, self.tree[cur].l, self.tree[cur].r, &mut self.tree);
+        cur
+    }
+
+    pub fn update(&mut self, root: usize, pos: usize, val: T) -> usize {
+        self.update_rec(root, pos, val, 0, self.n)
+    }
+
+    fn query_rec<Visitor>(
+        &self,
+        v: usize,
+        ql: usize,
+        qr: usize,
+        tl: usize,
+        tr: usize,
+        visitor: &mut Visitor,
+    ) where
+        Visitor: FnMut(usize, usize, &[PersistentSegTreeNode<T>]),
+    {
+        if qr <= tl || tr <= ql {
+            return;
+        } else if ql <= tl && tr <= qr {
+            visitor(v, tr - tl, &self.tree);
+            return;
+        }
+        let mid = (tl + tr) / 2;
+        self.query_rec(self.tree[v].l, ql, qr, tl, mid, visitor);
+        self.query_rec(self.tree[v].r, ql, qr, mid, tr, visitor);
+    }
+
+    pub fn query<Visitor>(&mut self, root: usize, l: usize, r: usize, mut visitor: Visitor)
+    where
+        Visitor: FnMut(usize, usize, &[PersistentSegTreeNode<T>]),
+    {
+        self.query_rec(root, l, r, 0, self.n, &mut visitor);
+    }
+
+    pub fn copy(&mut self, root: usize) -> usize {
+        let cur = self.timer;
+        self.timer += 1;
+        self.tree[cur] = self.tree[root].clone();
+        cur
+    }
+}

@@ -1,5 +1,5 @@
 use crate::{
-    alg::fps::{E, Poly},
+    alg::fps::{E, FPS},
     ds::bit_vec::BitVec,
 };
 use rand::Rng;
@@ -28,9 +28,9 @@ pub fn wildcard_match<const M: u64>(s: &str, t: &str, wild: char, rng: &mut impl
     };
     let f: Vec<E> = s.chars().map(to_e).collect();
     let g: Vec<E> = t.chars().map(to_e).collect();
-    let mut f1 = Poly::<M>::new(Vec::with_capacity(f.len()));
-    let mut f2 = Poly::<M>::new(Vec::with_capacity(f.len()));
-    let mut f3 = Poly::<M>::new(Vec::with_capacity(f.len()));
+    let mut f1 = FPS::<M>::new(Vec::with_capacity(f.len()));
+    let mut f2 = FPS::<M>::new(Vec::with_capacity(f.len()));
+    let mut f3 = FPS::<M>::new(Vec::with_capacity(f.len()));
     for x in f {
         f1.coeff.push(x);
         let x2 = x * x % M as E;
@@ -38,9 +38,9 @@ pub fn wildcard_match<const M: u64>(s: &str, t: &str, wild: char, rng: &mut impl
         let x3 = x2 * x % M as E;
         f3.coeff.push(x3);
     }
-    let mut g1 = Poly::new(Vec::with_capacity(g.len()));
-    let mut g2 = Poly::new(Vec::with_capacity(g.len()));
-    let mut g3 = Poly::new(Vec::with_capacity(g.len()));
+    let mut g1 = FPS::new(Vec::with_capacity(g.len()));
+    let mut g2 = FPS::new(Vec::with_capacity(g.len()));
+    let mut g3 = FPS::new(Vec::with_capacity(g.len()));
     for x in g {
         g1.coeff.push(x);
         let x2 = x * x % M as E;

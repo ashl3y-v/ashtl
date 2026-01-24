@@ -1,4 +1,4 @@
-use crate::{alg::fps::Poly, ds::scan::MonotoneQueue, opt::min_plus::max_plus_cvx};
+use crate::{alg::fps::FPS, ds::scan::MonotoneQueue, opt::min_plus::max_plus_cvx};
 
 /// O(n M)
 pub fn subset_sum(w: &[u64], t: u64) -> u64 {
@@ -82,7 +82,7 @@ pub fn zero_one_knapsack(v: &[u64], w: &[u64], c: u64) -> u64 {
 
 /// O(n + c log c)
 pub fn zero_one_knapsack_eq<const M: u64>(w: &[usize], c: usize) -> Vec<u64> {
-    Poly::<M>::log_prod_1pxit(1, w.into_iter().cloned(), c + 1)
+    FPS::<M>::log_prod_1pxit(1, w.into_iter().cloned(), c + 1)
         .exp(c + 1)
         .unwrap()
         .coeff
@@ -239,7 +239,7 @@ pub fn complete_knapsack(v: &[u64], w: &[u64], mut c: u64) -> u64 {
 
 /// O(n + c log c)
 pub fn complete_knapsack_eq<const M: u64>(w: &[usize], c: usize) -> Vec<u64> {
-    (-Poly::<M>::log_prod_1pxit(-1, w.into_iter().cloned(), c + 1))
+    (-FPS::<M>::log_prod_1pxit(-1, w.into_iter().cloned(), c + 1))
         .exp(c + 1)
         .unwrap()
         .coeff
@@ -282,8 +282,8 @@ pub fn multiple_knapsack(v: &[u64], w: &[u64], k: &[usize], c: u64) -> Vec<u64> 
 
 /// O(n + c log c)
 pub fn multiple_knapsack_eq<const M: u64>(w: &[usize], k: &[usize], c: usize) -> Vec<u64> {
-    (Poly::<M>::log_prod_1pxit(-1, k.into_iter().zip(w).map(|(&i, &j)| (i + 1) * j), c + 1)
-        - Poly::<M>::log_prod_1pxit(-1, w.into_iter().cloned(), c + 1))
+    (FPS::<M>::log_prod_1pxit(-1, k.into_iter().zip(w).map(|(&i, &j)| (i + 1) * j), c + 1)
+        - FPS::<M>::log_prod_1pxit(-1, w.into_iter().cloned(), c + 1))
     .exp(c + 1)
     .unwrap()
     .coeff

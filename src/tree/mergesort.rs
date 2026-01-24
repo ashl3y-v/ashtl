@@ -1,7 +1,9 @@
 #[derive(Clone, Debug)]
 pub struct MergeSortTree<T> {
     t: Vec<Vec<T>>,
+    li: Vec<Vec<usize>>,
     n: usize,
+    m: usize,
 }
 
 impl<T> MergeSortTree<T>
@@ -11,61 +13,7 @@ where
     /// O(n log n)
     pub fn new(a: &[T]) -> Self {
         let n = a.len();
-        let mut t = vec![Vec::new(); n.next_power_of_two() << 1];
-        let mut a = a
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (v.clone(), i))
-            .collect::<Vec<_>>();
-        a.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-        for (v, mut i) in a {
-            i += n;
-            while i > 0 {
-                t[i].push(v.clone());
-                i >>= 1;
-            }
-        }
-        Self { t, n }
-    }
-
-    /// O(log^2 n)
-    pub fn count_le(&self, mut l: usize, mut r: usize, k: T) -> usize {
-        let n = self.n;
-        let mut res = 0;
-        l += n;
-        r += n;
-        while l < r {
-            if l & 1 != 0 {
-                res += self.t[l].partition_point(|x| x <= &k);
-                l += 1;
-            }
-            if r & 1 != 0 {
-                r -= 1;
-                res += self.t[r].partition_point(|x| x <= &k);
-            }
-            l >>= 1;
-            r >>= 1;
-        }
-        res
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct FCMergeSortTree<T> {
-    t: Vec<Vec<T>>,
-    li: Vec<Vec<usize>>,
-    n: usize,
-    m: usize,
-}
-
-impl<T> FCMergeSortTree<T>
-where
-    T: Clone + PartialOrd,
-{
-    /// O(n log n)
-    pub fn new(a: &[T]) -> Self {
-        let n = a.len();
-        let m = if n == 0 { 1 } else { n.next_power_of_two() };
+        let m = n.next_power_of_two();
         let mut t = vec![Vec::new(); m * 2];
         let mut tl = vec![Vec::new(); m * 2];
         let mut a_sorted = a
@@ -109,7 +57,7 @@ where
         } else if ql <= nl && nr <= qr {
             return k_idx;
         }
-        let m = nl + (nr - nl) / 2;
+        let m = nl.midpoint(nr);
         let l_k_idx = if k_idx == 0 { 0 } else { self.li[u][k_idx - 1] };
         self.query_rec(2 * u, nl, m, ql, qr, l_k_idx)
             + self.query_rec(2 * u + 1, m, nr, ql, qr, k_idx - l_k_idx)

@@ -1,5 +1,5 @@
 use super::{
-    fps::{Affine, E, Poly},
+    fps::{Affine, E, FPS},
     gcd::{euclidean, gcd},
     primitive,
 };
@@ -15,7 +15,7 @@ pub fn mod_fact<const M: u64>(n: u64) -> u64 {
     if n <= 1 << 19 {
         (1..=n).fold(1, |acc, x| acc * x % M)
     } else {
-        Poly::<M>::factorial(n as usize).rem_euclid(M as E) as u64
+        FPS::<M>::factorial(n as usize).rem_euclid(M as E) as u64
     }
 }
 

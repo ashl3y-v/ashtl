@@ -2,6 +2,7 @@
 // https://noshi91.github.io/Library/
 // https://blog.niuez.net/cp-cpp-library/
 // https://github.com/ecnerwala/cp-book/tree/master
+// https://ssrs-cp.github.io/cp_library/
 
 pub mod alg;
 pub mod ds;

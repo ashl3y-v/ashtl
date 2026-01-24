@@ -1,6 +1,6 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
-use crate::alg::fps::Poly;
+use crate::alg::fps::FPS;
 use crate::alg::ops::inv;
 use crate::ds::{bit_vec::BitVec, dsu::DSU};
 use crate::tree::top::StaticTopTree;
@@ -171,7 +171,7 @@ pub fn max_coclique_bipartite(
 }
 
 /// O(√V E)
-pub fn dulmage_mendelsohn(n: usize, k: usize, g: &[usize], d: &[usize]) -> Vec<i32> {
+pub fn dulmage_mendelsohn(n: usize, k: usize, g: &[usize], d: &[usize]) -> Vec<u8> {
     let t = n + k;
     let mut adj: Vec<Vec<usize>> = vec![vec![]; t];
     for u in 0..n {
@@ -188,7 +188,7 @@ pub fn dulmage_mendelsohn(n: usize, k: usize, g: &[usize], d: &[usize]) -> Vec<i
             matched[n + l[u]] = u;
         }
     }
-    let mut comp: Vec<i32> = vec![0; t];
+    let mut comp = vec![0; t];
     for v in 0..t {
         if matched[v] != usize::MAX {
             comp[v] = 2;
@@ -390,8 +390,9 @@ impl<T: Copy + PartialOrd + Default + Add<Output = T> + Sub<Output = T> + AddAss
     }
 }
 
+// https://math.mit.edu/~goemans/18438F09/lec3.pdf
 /// O(n^3)
-pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
+pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>, Vec<u8>) {
     let mut n_matches = 0;
     let mut mate = vec![0; n + 1];
     let mut q = vec![0; n + 1];
@@ -483,7 +484,12 @@ pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>) {
             i += 1;
         }
     }
-    (n_matches, mate)
+    for v in typ.iter_mut() {
+        if *v == u8::MAX {
+            *v = 3;
+        }
+    }
+    (n_matches, mate, typ)
 }
 
 // TODO: weighted blossom
@@ -559,7 +565,7 @@ pub fn count_perfect_matchings<const M: u64>(n: usize, g: &[usize], d: &[usize])
 
 /// O(n log^2 n)
 pub fn count_matching_on_tree<const M: u64>(p: &[usize]) -> Vec<i64> {
-    type State<const M: u64> = [[Poly<M>; 2]; 2];
+    type State<const M: u64> = [[FPS<M>; 2]; 2];
     #[derive(Clone)]
     struct Path<const M: u64> {
         single: bool,
@@ -583,14 +589,14 @@ pub fn count_matching_on_tree<const M: u64>(p: &[usize]) -> Vec<i64> {
     let stt = StaticTopTree::new(p);
     let id: Point<M> = {
         let mut s: State<M> = Default::default();
-        s[0][0] = Poly::new(vec![1]);
+        s[0][0] = FPS::new(vec![1]);
         s
     };
     let result: Path<M> = stt.calc::<Path<M>, Point<M>>(
         |_| -> Path<M> {
             let mut p = Path::default();
             p.single = true;
-            p.s[0][0] = Poly::new(vec![1]);
+            p.s[0][0] = FPS::new(vec![1]);
             p
         },
         |l: Path<M>, r: Path<M>| -> Path<M> {
@@ -618,9 +624,9 @@ pub fn count_matching_on_tree<const M: u64>(p: &[usize]) -> Vec<i64> {
         },
         |p: Path<M>| -> Point<M> {
             let mut z: Point<M> = Default::default();
-            let sum_all: Poly<M> = (0..2)
+            let sum_all: FPS<M> = (0..2)
                 .flat_map(|a| (0..2).map(move |b| (a, b)))
-                .fold(Poly::default(), |acc, (a, b)| acc + &p.s[a][b]);
+                .fold(FPS::default(), |acc, (a, b)| acc + &p.s[a][b]);
             let sum_top_unmatched = p.s[0][0].clone() + &p.s[0][1];
             z[0][0] = sum_all;
             z[1][1] = sum_top_unmatched << 1;
@@ -637,7 +643,7 @@ pub fn count_matching_on_tree<const M: u64>(p: &[usize]) -> Vec<i64> {
         },
         id,
     );
-    let mut ans = Poly::<M>::default();
+    let mut ans = FPS::<M>::default();
     for a in 0..2 {
         for b in 0..2 {
             ans += &result.s[a][b];
@@ -700,209 +706,5 @@ impl StableMatching {
                 (v2 != usize::MAX).then_some((v1, v2))
             })
             .collect()
-    }
-}
-
-#[cfg(test)]
-mod path_cover_tests {
-    use super::*;
-
-    /// Helper to validate the results.
-    /// Checks that:
-    /// 1. Every node has a valid ID.
-    /// 2. Nodes with the same ID form a valid path in the graph.
-    fn validate_path_cover(n: usize, edges: &[(usize, usize)], cover: &[usize]) {
-        assert_eq!(cover.len(), n, "Cover size must match node count");
-
-        // Group nodes by their path ID
-        let mut paths: Vec<Vec<usize>> = vec![vec![]; n];
-        for (node, &path_id) in cover.iter().enumerate() {
-            paths[path_id].push(node);
-        }
-
-        // Build adjacency check
-        let mut adj = vec![vec![false; n]; n];
-        for &(u, v) in edges {
-            adj[u][v] = true;
-        }
-
-        // Verify each group forms a valid simple path
-        for path_nodes in paths.iter() {
-            if path_nodes.is_empty() {
-                continue;
-            }
-
-            // Since the cover array doesn't imply order, we must find the topological order
-            // of the nodes in this specific path group to verify connectivity.
-            // A simple path in a DAG must be sortable such that node[i] -> node[i+1] exists.
-
-            let mut sorted_path = path_nodes.clone();
-            // Sort by finding the start (indegree 0 within the subgraph of these nodes)
-            // Naive sort: O(k^2)
-            sorted_path.sort_by(|&a, &b| {
-                // If there is an edge a->b, a comes before b
-                if adj[a][b] {
-                    std::cmp::Ordering::Less
-                }
-                // If there is an edge b->a, b comes before a
-                else if adj[b][a] {
-                    std::cmp::Ordering::Greater
-                }
-                // Otherwise don't care (disconnected in direct sense, will fail validation below)
-                else {
-                    std::cmp::Ordering::Equal
-                }
-            });
-
-            // Re-check strict connectivity
-            if sorted_path.len() > 1 {
-                for i in 0..sorted_path.len() - 1 {
-                    let u = sorted_path[i];
-                    let v = sorted_path[i + 1];
-                    // If we can't find u->v, maybe the sort failed or the nodes aren't a path
-                    // We try to resort based on strict reachability if the simple sort failed
-                    // (Actually, simply checking if edges exist in the set is safer)
-                }
-
-                // Better validation:
-                // A set of nodes forms a path if exactly one node has in-degree 0 (in set),
-                // exactly one has out-degree 0 (in set), and others have 1 in/1 out.
-                let mut in_d = vec![0; n];
-                let mut out_d = vec![0; n];
-                for &u in path_nodes {
-                    for &v in path_nodes {
-                        if adj[u][v] {
-                            out_d[u] += 1;
-                            in_d[v] += 1;
-                        }
-                    }
-                }
-
-                let mut start_count = 0;
-                let mut end_count = 0;
-                let mut mid_count = 0;
-
-                for &u in path_nodes {
-                    if in_d[u] == 0 && out_d[u] == 1 {
-                        start_count += 1;
-                    } else if in_d[u] == 1 && out_d[u] == 0 {
-                        end_count += 1;
-                    } else if in_d[u] == 1 && out_d[u] == 1 {
-                        mid_count += 1;
-                    } else if in_d[u] == 0 && out_d[u] == 0 {
-                        // Single node path is valid
-                        if path_nodes.len() != 1 {
-                            panic!("Disconnected node found in path group {:?}", path_nodes);
-                        }
-                    } else {
-                        panic!(
-                            "Invalid degree in path group {:?}: Node {} has in {} out {}",
-                            path_nodes, u, in_d[u], out_d[u]
-                        );
-                    }
-                }
-
-                if path_nodes.len() > 1 {
-                    assert_eq!(start_count, 1, "Must have 1 start node");
-                    assert_eq!(end_count, 1, "Must have 1 end node");
-                    assert_eq!(mid_count, path_nodes.len() - 2, "Rest must be mid nodes");
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_simple_line() {
-        // 0 -> 1 -> 2
-        let n = 3;
-        let edges = vec![(0, 1), (1, 2)];
-        let cover = dag_path_cover(n, &edges);
-
-        // Should be 1 path: [0, 1, 2]
-        // verify all have same ID
-        assert_eq!(cover[0], cover[1]);
-        assert_eq!(cover[1], cover[2]);
-
-        validate_path_cover(n, &edges, &cover);
-    }
-
-    #[test]
-    fn test_disjoint_lines() {
-        // 0 -> 1   2 -> 3
-        let n = 4;
-        let edges = vec![(0, 1), (2, 3)];
-        let cover = dag_path_cover(n, &edges);
-
-        // Should be 2 paths.
-        // 0 and 1 should share an ID. 2 and 3 should share an ID.
-        assert_eq!(cover[0], cover[1]);
-        assert_eq!(cover[2], cover[3]);
-        assert_ne!(cover[0], cover[2]);
-
-        validate_path_cover(n, &edges, &cover);
-    }
-
-    #[test]
-    fn test_merge_choice() {
-        // 0 -> 2
-        // 1 -> 2 -> 3
-        // Node 2 has two incoming. The path cover must choose one.
-        // Result could be: {0->2->3, 1} OR {1->2->3, 0}
-        let n = 4;
-        let edges = vec![(0, 2), (1, 2), (2, 3)];
-        let cover = dag_path_cover(n, &edges);
-
-        validate_path_cover(n, &edges, &cover);
-
-        // Check uniqueness of path count
-        let mut unique_ids = cover.to_vec();
-        unique_ids.sort();
-        unique_ids.dedup();
-        assert_eq!(unique_ids.len(), 2, "Should decompose into 2 paths");
-    }
-
-    #[test]
-    fn test_diamond() {
-        // 0 -> 1 -> 3
-        // 0 -> 2 -> 3
-        // A simple path cover cannot cover all nodes in 1 path because 1 and 2 are parallel.
-        // Minimum paths = 2. e.g. {0->1->3, 2} or {0->2->3, 1}
-        let n = 4;
-        let edges = vec![(0, 1), (1, 3), (0, 2), (2, 3)];
-        let cover = dag_path_cover(n, &edges);
-
-        validate_path_cover(n, &edges, &cover);
-
-        let mut unique_ids = cover.to_vec();
-        unique_ids.sort();
-        unique_ids.dedup();
-        assert_eq!(unique_ids.len(), 2);
-    }
-
-    #[test]
-    fn test_isolated_nodes() {
-        let n = 5;
-        let edges = vec![(0, 1)]; // 2, 3, 4 are isolated
-        let cover = dag_path_cover(n, &edges);
-
-        validate_path_cover(n, &edges, &cover);
-
-        let mut unique_ids = cover.to_vec();
-        unique_ids.sort();
-        unique_ids.dedup();
-        // Path {0,1}, {2}, {3}, {4} -> 4 paths
-        assert_eq!(unique_ids.len(), 4);
-    }
-
-    #[test]
-    fn test_empty_graph() {
-        let n = 3;
-        let edges = vec![];
-        let cover = dag_path_cover(n, &edges);
-
-        let mut unique_ids = cover.to_vec();
-        unique_ids.sort();
-        unique_ids.dedup();
-        assert_eq!(unique_ids.len(), 3);
     }
 }

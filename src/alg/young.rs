@@ -1,5 +1,5 @@
 use crate::alg::{
-    fps::{E, Poly},
+    fps::{E, FPS},
     ops::{self, inv},
 };
 
@@ -189,7 +189,7 @@ pub fn hook_length_balanced<const M: u64>(l: &[usize]) -> usize {
             (j + a - i - 1) as E
         })
         .collect::<Vec<_>>();
-    let r = Poly::<M>::factorial(n) * Poly::<M>::vandermonde(&l) % M as E;
+    let r = FPS::<M>::factorial(n) * FPS::<M>::vandermonde(&l) % M as E;
     let mut d = 1;
     let mut t = 1;
     let mut j = 1;

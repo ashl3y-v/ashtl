@@ -1,5 +1,5 @@
 use crate::alg::{
-    fps::Poly,
+    fps::FPS,
     ops::{inv, inverse_euclidean},
 };
 use itertools::Itertools;
@@ -563,7 +563,7 @@ impl<const M: u64> Mat<M> {
         Some([x_t, ker])
     }
 
-    pub fn minp(&self) -> Poly<M> {
+    pub fn minp(&self) -> FPS<M> {
         let n = self.n;
         debug_assert_eq!(n, self.m);
         let mut basis: Vec<Vec<E>> = Vec::with_capacity(n);
@@ -580,7 +580,7 @@ impl<const M: u64> Mat<M> {
                 }
                 y.iter_mut().for_each(|i| *i %= M as E);
                 if y.iter().take(n).position(|&i| i != 0).unwrap_or(n) == n {
-                    return Poly::<M>::new(y[n..].to_vec());
+                    return FPS::<M>::new(y[n..].to_vec());
                 } else {
                     basis.push(y);
                     x = self.apply_t(&x);
@@ -591,7 +591,7 @@ impl<const M: u64> Mat<M> {
         full_rec >> start
     }
 
-    pub fn minp_bb(n: usize, mut f: impl FnMut(Vec<E>) -> Vec<E>) -> Poly<M> {
+    pub fn minp_bb(n: usize, mut f: impl FnMut(Vec<E>) -> Vec<E>) -> FPS<M> {
         let m = 4 * n + 10;
         let mut rng = rand::rng();
         let (mut s, c, mut v) = (
@@ -608,7 +608,7 @@ impl<const M: u64> Mat<M> {
             v = f(v);
             v.iter_mut().for_each(|a| *a %= M as E);
         }
-        Poly::new(s).min_rec(m).reverse()
+        FPS::new(s).min_rec(m).reverse()
     }
 
     pub fn det_bb(n: usize, mut f: impl FnMut(Vec<E>) -> Vec<E>) -> E {
@@ -647,7 +647,7 @@ impl<const M: u64> Mat<M> {
             w = f(w);
             w.iter_mut().for_each(|a| *a %= M as E);
         }
-        let p = Poly::<M>::new(s)
+        let p = FPS::<M>::new(s)
             .normalize()
             .min_rec(m)
             .reverse()
@@ -698,7 +698,7 @@ impl<const M: u64> Mat<M> {
     }
 
     /// O(n^3)
-    pub fn charp(mut self) -> Poly<M> {
+    pub fn charp(mut self) -> FPS<M> {
         let n = self.n;
         debug_assert_eq!(n, self.m);
         self.hessenberg();
@@ -722,11 +722,11 @@ impl<const M: u64> Mat<M> {
                 }
             }
         }
-        Poly::<M>::new(std::mem::take(&mut dp[n]))
+        FPS::<M>::new(std::mem::take(&mut dp[n]))
     }
 
     /// O(n^3)
-    pub fn det_aff(mut self, mut rhs: Self) -> Poly<M> {
+    pub fn det_aff(mut self, mut rhs: Self) -> FPS<M> {
         let n = self.n;
         debug_assert_eq!(n, self.m);
         let a = rand::rng().random_range(1..M as E);
@@ -736,17 +736,17 @@ impl<const M: u64> Mat<M> {
             .for_each(|(i, j)| *i = (*i + a * j) % M as E);
         let (d, _, inv) = self.inv(|_| {}, |_| {});
         if d == 0 {
-            return Poly::<M>::new(vec![0; n + 1]);
+            return FPS::<M>::new(vec![0; n + 1]);
         }
         rhs = rhs * inv;
         rhs.elems.iter_mut().for_each(|a| *a = -*a);
         (rhs.charp().reverse() * d).shift(-a)
     }
 
-    pub fn charps(&self) -> Vec<Poly<M>> {
+    pub fn charps(&self) -> Vec<FPS<M>> {
         let n = self.n;
         debug_assert_eq!(n, self.m);
-        let mut charps: Vec<Poly<M>> = Vec::new();
+        let mut charps: Vec<FPS<M>> = Vec::new();
         let mut basis: Vec<Vec<E>> = Vec::with_capacity(n);
         let mut rng = rand::rng();
         while basis.len() < n {
@@ -762,7 +762,7 @@ impl<const M: u64> Mat<M> {
                     }
                     y.iter_mut().for_each(|i| *i %= M as E);
                     if y.iter().take(n).position(|&i| i != 0).unwrap_or(n) == n {
-                        return Poly::<M>::new(y[n..].to_vec());
+                        return FPS::<M>::new(y[n..].to_vec());
                     } else {
                         basis.push(y);
                         x = self.apply_t(&x);
@@ -779,10 +779,10 @@ impl<const M: u64> Mat<M> {
 
     // https://codeforces.com/blog/entry/124815
     /// O(n^3)
-    pub fn frob(&self) -> (Vec<Poly<M>>, Self, Self) {
+    pub fn frob(&self) -> (Vec<FPS<M>>, Self, Self) {
         let n = self.n;
         debug_assert_eq!(n, self.m);
-        let mut charps: Vec<Poly<M>> = Vec::new();
+        let mut charps: Vec<FPS<M>> = Vec::new();
         let (mut basis, mut basis_init): (Vec<Vec<E>>, Vec<Vec<E>>) =
             (Vec::with_capacity(n), Vec::with_capacity(n));
         let gen_block = |mut x: Vec<E>,
@@ -800,7 +800,7 @@ impl<const M: u64> Mat<M> {
                 }
                 y.iter_mut().for_each(|i| *i %= M as E);
                 if y.iter().take(n).position(|&i| i != 0).unwrap_or(n) == n {
-                    return Poly::<M>::new(y[n..].to_vec());
+                    return FPS::<M>::new(y[n..].to_vec());
                 } else {
                     basis_init.push(x.clone());
                     basis.push(y);
@@ -857,7 +857,7 @@ impl<const M: u64> Mat<M> {
         (charps, t, t_inv)
     }
 
-    pub fn with_frob(&self, mut f: impl FnMut(&Poly<M>) -> Poly<M>) -> Self {
+    pub fn with_frob(&self, mut f: impl FnMut(&FPS<M>) -> FPS<M>) -> Self {
         let (charps, t, t_inv) = self.frob();
         let mut blocks = Vec::new();
         for charp in charps {
@@ -877,7 +877,7 @@ impl<const M: u64> Mat<M> {
 
     // TODO: hafnian
     // https://maspypy.github.io/library/linalg/hafnian.hpp
-    pub fn hafnian(mut self) -> Poly<M> {
+    pub fn hafnian(mut self) -> FPS<M> {
         unimplemented!()
     }
 }

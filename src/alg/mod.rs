@@ -7,6 +7,7 @@ pub mod gray;
 pub mod lattice;
 pub mod linear;
 pub mod mat;
+pub mod monoid;
 pub mod montgomery;
 pub mod mult;
 pub mod ntt;

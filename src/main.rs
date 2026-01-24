@@ -6,7 +6,7 @@ struct Scanner {
 }
 
 impl Scanner {
-    fn next<T: std::str::FromStr>(&mut self) -> T {
+    fn next<T: FromStr>(&mut self) -> T {
         loop {
             if let Some(token) = self.buffer.pop() {
                 return token.parse().ok().expect("Failed parse");
@@ -23,6 +23,7 @@ use std::cmp::Ordering;
 use std::cmp::{max, min};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufWriter, Read, Write, stdin, stdout};
+use std::str::FromStr;
 use std::time::Instant;
 use std::{
     fmt::{Debug, Display},
@@ -36,26 +37,25 @@ const M: u64 = (119 << 23) + 1;
 
 use std::io;
 
-use ashtl::grph::min_cut::*;
+use rand::prelude::*;
+
+use ashtl::geo::angle::*;
+use ashtl::geo::point::*;
+use ashtl::tree::wavelet::*;
 
 fn main() {}
 
 // TODO ORDER:
-// persistent segtree
-// sparse segtree
-// wavelet
-// li chao
-// cost scaling mcmf
-// capacity scaling mcmf
-// dominator tree
-// rerooting
-// larsch
-// xor segtree
 // edge coloring
 // faster mod ops
+// dominator tree
 // floor sum
+// slope trick utils
+// https://judge.yosupo.jp/problem/dynamic_graph_vertex_add_component_sum
+// cost scaling mcmf
+// rerooting
+// larsch
 // mod linear shit
-// slope trick
 // top tree
 // knapsack cases
 // monge algos
@@ -69,7 +69,6 @@ fn main() {}
 // hash on tree
 // improve lct
 // tree iso
-// xor DST
 // weighted blossom
 // m √n blossom
 // incremental scc
@@ -81,7 +80,6 @@ fn main() {}
 // toposort min inversions
 // hampath heuristic
 // min ham cycle
-// sorting vectors by angle (all pairs)
 // convex polygon contains point
 // dsu potential
 // matroid intersection
@@ -91,3 +89,5 @@ fn main() {}
 // tutte polynomial
 // sum of 2 squares
 // sum of 3 squares
+// gomory hu proof
+// dyanmic wavelet matrix
