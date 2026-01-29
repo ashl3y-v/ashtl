@@ -39,30 +39,48 @@ use std::io;
 
 use rand::prelude::*;
 
-use ashtl::geo::angle::*;
-use ashtl::geo::point::*;
-use ashtl::tree::wavelet::*;
+use ashtl::grph::cc::scc_incremental;
+use ashtl::grph::color::*;
 
-fn main() {}
+fn main() {
+    // Setup:
+    // 1. Form SCC {0, 1}
+    // 2. Form SCC {2, 3}
+    // 3. Add edges 1->2 and 3->0 to merge {0,1} and {2,3} into {0,1,2,3}
+    let n = 4;
+    let edges = vec![
+        (0, 1),
+        (1, 0), // 0,1 form SCC A
+        (2, 3),
+        (3, 2), // 2,3 form SCC B
+        (1, 2), // Connect A -> B (No merge yet)
+        (3, 0), // Connect B -> A (Merge all!)
+    ];
+    let res = scc_incremental(n, edges.clone());
+    println!("{:?}", res);
+}
 
 // TODO ORDER:
-// edge coloring
+// rerooting
+// top tree
+// ETT
 // faster mod ops
 // dominator tree
 // floor sum
 // slope trick utils
-// https://judge.yosupo.jp/problem/dynamic_graph_vertex_add_component_sum
 // cost scaling mcmf
-// rerooting
+// axiotis tzamos may be wrong
+// dynamic rerooting tree dp
+// incremental msf
+// https://judge.yosupo.jp/problem/dynamic_graph_vertex_add_component_sum
+// st numbering
+// cc2
 // larsch
 // mod linear shit
-// top tree
 // knapsack cases
 // monge algos
 // trie
 // online z
-// dynamic tree dp
-// ETT
 // level ancestor
 // line tree
 // contour queries
@@ -71,17 +89,16 @@ fn main() {}
 // tree iso
 // weighted blossom
 // m √n blossom
-// incremental scc
 // improve 2cc
 // 2ecc
 // 3ecc
 // max clique
 // max coclique
-// toposort min inversions
 // hampath heuristic
 // min ham cycle
 // convex polygon contains point
 // dsu potential
+// persistent dsu
 // matroid intersection
 // hafnian
 // redo CDQ, CDQ pow
@@ -91,3 +108,4 @@ fn main() {}
 // sum of 3 squares
 // gomory hu proof
 // dyanmic wavelet matrix
+// pfaffian

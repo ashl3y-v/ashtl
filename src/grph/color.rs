@@ -217,396 +217,219 @@ pub fn chromatic_poly<const M: u64>(adj: &[usize], m: usize) -> FPS<M> {
     FPS::new(f).sps_pow_proj(FPS::<M>::new(w), m)
 }
 
-// TODO: edge coloring
-// https://judge.yosupo.jp/submission/97319
-// https://judge.yosupo.jp/submission/228343
-// https://codeforces.com/blog/entry/75431
-// https://github.com/kth-competitive-programming/kactl/blob/eab6492ce9c8549832484f47276739ff120477b3/content/graph/EdgeColoring.h#L16
-// https://maspypy.github.io/library/graph/bipartite_edge_coloring.hpp
-
-fn split_euler(n: usize, edges: &[(usize, usize)]) -> Vec<usize> {
-    if edges.is_empty() {
-        return Vec::new();
-    }
-    let mut gph: Vec<usize> = vec![usize::MAX; n];
-    let m = edges.len();
-    let mut nxt = vec![0; m * 2];
-    let mut vis = BitVec::new(m * 2, false);
-    for (i, &(u, v)) in edges.iter().enumerate() {
-        let u_idx = u;
-        let v_idx = v + n / 2;
-        let edge_ref_u = 2 * i;
-        if gph[u_idx] != usize::MAX {
-            let prev = gph[u_idx];
-            nxt[prev] = edge_ref_u ^ 1;
-            nxt[edge_ref_u] = prev ^ 1;
-            gph[u_idx] = usize::MAX;
-        } else {
-            gph[u_idx] = edge_ref_u;
-        }
-        let edge_ref_v = 2 * i + 1;
-        if gph[v_idx] != usize::MAX {
-            let prev = gph[v_idx];
-            nxt[prev] = edge_ref_v ^ 1;
-            nxt[edge_ref_v] = prev ^ 1;
-            gph[v_idx] = usize::MAX;
-        } else {
-            gph[v_idx] = edge_ref_v;
-        }
-    }
-    let mut ans = Vec::new();
-    for i in 0..(m * 2) {
-        if !vis[i] {
-            let mut j = i;
-            while !vis[j] {
-                ans.push(j >> 1);
-                vis.set(j, true);
-                vis.set(j ^ 1, true);
-                j = nxt[j];
-            }
-        }
-    }
-    ans
-}
-
-fn edge_coloring_power_of_two(n: usize, k: usize, edges: Vec<(usize, usize)>) -> Vec<usize> {
-    let m = edges.len();
-    let mut matchings: Vec<Vec<(usize, usize)>> = vec![Vec::new(); 2 * k - 1];
-    let mut indices: Vec<Vec<usize>> = vec![Vec::new(); 2 * k - 1];
-    matchings[0] = edges;
-    indices[0] = (0..m).collect();
-    for i in 0..(k - 1) {
-        let decomp = split_euler(2 * n, &matchings[i]);
-        for (j, &edge_idx) in decomp.iter().enumerate() {
-            let target_idx = 2 * i + 1 + (j % 2);
-            let a = matchings[i][edge_idx];
-            matchings[target_idx].push(a);
-            let b = indices[i][edge_idx];
-            indices[target_idx].push(b);
-        }
-    }
-    let mut ans = vec![0; m];
-    for i in 0..k {
-        for &original_idx in &indices[i + k - 1] {
-            ans[original_idx] = i;
-        }
-    }
-    ans
-}
-
-fn edge_coloring_regular(n: usize, k: usize, edges: Vec<(usize, usize)>) -> Vec<usize> {
-    #[derive(Clone, Copy)]
-    struct DncItem {
-        u: usize,
-        v: usize,
+// https://www.tau.ac.il/~nogaa/PDFS/lex2.pdf
+/// O(m log m)
+pub fn edge_color_bipartite(n1: usize, n2: usize, edges: Vec<(usize, usize)>) -> Vec<usize> {
+    #[derive(Clone)]
+    struct RegularGraph {
+        n: usize,
         k: usize,
-        idx: isize,
+        edges: Vec<(usize, usize)>,
     }
-    assert!(k > 0);
-    if k.is_power_of_two() {
-        return edge_coloring_power_of_two(n, k, edges);
-    }
-    if k % 2 == 0 {
-        let decomp = split_euler(2 * n, &edges);
-        let mut sub: [Vec<(usize, usize)>; 2] = [Vec::new(), Vec::new()];
-        for (i, &edge_idx) in decomp.iter().enumerate() {
-            sub[i % 2].push(edges[edge_idx]);
+    fn regularize(n1: usize, n2: usize, edges: Vec<(usize, usize)>) -> RegularGraph {
+        let (mut deg1, mut deg2) = (vec![0; n1], vec![0; n2]);
+        for &(u, v) in &edges {
+            deg1[u] += 1;
+            deg2[v] += 1;
         }
-        let rec0 = edge_coloring_regular(n, k / 2, sub[0].clone());
-        let mut phi = 1;
-        while phi < k / 2 {
-            phi *= 2;
-        }
-        let mut ans = vec![0; edges.len()];
-        let mut ptr = sub[1].len();
-        for i in 0..(decomp.len() / 2) {
-            let original_idx = decomp[2 * i];
-            let color = rec0[i];
-            ans[original_idx] = color;
-            if color >= k - phi {
-                sub[1].push(edges[original_idx]);
-            }
-        }
-        let rec1 = edge_coloring_power_of_two(n, phi, sub[1].clone());
-        for i in 0..decomp.len() {
-            let original_idx = decomp[i];
-            if i % 2 == 0 {
-                if ans[original_idx] >= k - phi {
-                    ans[original_idx] = rec1[ptr] + k - phi;
-                    ptr += 1;
-                }
-            } else {
-                ans[original_idx] = rec1[i / 2] + k - phi;
-            }
-        }
-        return ans;
-    }
-    let mut t = 0;
-    while (1 << t) < k * n {
-        t += 1;
-    }
-    let mut todnc: Vec<DncItem> = Vec::new();
-    let alph = (1 << t) / k;
-    let beta = (1 << t) - k * alph;
-    for (i, &(u, v)) in edges.iter().enumerate() {
-        todnc.push(DncItem {
-            u,
-            v: v + n,
-            k: alph,
-            idx: i as isize,
-        });
-    }
-    if beta > 0 {
-        for i in 0..n {
-            todnc.push(DncItem {
-                u: i,
-                v: i + n,
-                k: beta,
-                idx: -1,
-            });
-        }
-    }
-    for _ in 0..t {
-        let mut toeuler: Vec<(usize, usize)> = Vec::new();
-        for item in &todnc {
-            if item.k % 2 != 0 {
-                toeuler.push((item.u, item.v - n));
-            }
-        }
-        let pth = split_euler(2 * n, &toeuler);
-        let mut parity = vec![0; toeuler.len()];
-        for i in (1..pth.len()).step_by(2) {
-            parity[pth[i]] = 1;
-        }
-        let mut sub0: Vec<DncItem> = Vec::new();
-        let mut sub1: Vec<DncItem> = Vec::new();
-        let mut ptr = 0;
-        let mut bal = 0;
-        for item in &todnc {
-            let mut l = item.k / 2;
-            let mut r = item.k / 2;
-            if item.k % 2 != 0 {
-                if parity[ptr] == 1 {
-                    r += 1;
-                } else {
-                    l += 1;
-                }
-                ptr += 1;
-            }
-            if item.idx == -1 {
-                bal += l as isize - r as isize;
-            }
-            if l > 0 {
-                sub0.push(DncItem {
-                    u: item.u,
-                    v: item.v,
-                    k: l,
-                    idx: item.idx,
-                });
-            }
-            if r > 0 {
-                sub1.push(DncItem {
-                    u: item.u,
-                    v: item.v,
-                    k: r,
-                    idx: item.idx,
-                });
-            }
-        }
-        if bal >= 0 {
-            todnc = sub1;
-        } else {
-            todnc = sub0;
-        }
-    }
-    let mut ans = vec![-1_i32; edges.len()];
-    for item in &todnc {
-        assert!(item.k == 1 && item.idx != -1);
-        ans[item.idx as usize] = (k - 1) as i32;
-    }
-    let mut sub_edges = Vec::new();
-    for i in 0..edges.len() {
-        if ans[i] == -1 {
-            sub_edges.push(edges[i]);
-        }
-    }
-    let mut piv = 0;
-    let sol = edge_coloring_regular(n, k - 1, sub_edges);
-    let mut final_ans = vec![0; edges.len()];
-    for i in 0..edges.len() {
-        if ans[i] == -1 {
-            final_ans[i] = sol[piv];
-            piv += 1;
-        } else {
-            final_ans[i] = ans[i] as usize;
-        }
-    }
-    final_ans
-}
-
-pub fn edge_coloring(mut l: usize, mut r: usize, mut edges: Vec<(usize, usize)>) -> Vec<usize> {
-    if edges.is_empty() {
-        return Vec::new();
-    }
-    let mut d = [vec![0; l], vec![0; r]];
-    for &(u, v) in &edges {
-        d[0][u] += 1;
-        d[1][v] += 1;
-    }
-    let k_max = (*d[0].iter().max().unwrap_or(&0)).max(*d[1].iter().max().unwrap_or(&0));
-    for i in 0..2 {
-        let current_len = if i == 0 { l } else { r };
-        let mut ord: Vec<usize> = (0..current_len).collect();
-        ord.sort_by(|&a, &b| d[i][a].cmp(&d[i][b]));
-        let mut maps = vec![0; current_len];
-        let mut nl = 0;
-        let mut j = 0;
-        while j < ord.len() {
-            let mut nxt = j;
-            let mut sum = 0;
-            while nxt < ord.len() && sum + d[i][ord[nxt]] <= k_max {
-                sum += d[i][ord[nxt]];
-                maps[ord[nxt]] = nl;
-                nxt += 1;
-            }
-            nl += 1;
-            j = nxt;
-        }
-        for e in &mut edges {
-            if i == 0 {
-                e.0 = maps[e.0];
-            } else {
-                e.1 = maps[e.1];
-            }
-        }
-        if i == 0 {
-            l = nl;
-        } else {
-            r = nl;
-        }
-    }
-    let n = l.max(r);
-    let mut d0 = vec![0; n];
-    let mut d1 = vec![0; n];
-    for &(u, v) in &edges {
-        d0[u] += 1;
-        d1[v] += 1;
-    }
-    let orig_len = edges.len();
-    let mut j_ptr = 0;
-    for i in 0..n {
-        while d0[i] < k_max {
-            while j_ptr < n && d1[j_ptr] == k_max {
-                j_ptr += 1;
-            }
-            if j_ptr < n {
-                edges.push((i, j_ptr));
-                d0[i] += 1;
-                d1[j_ptr] += 1;
-            } else {
-                break;
-            }
-        }
-    }
-    let mut sol = edge_coloring_regular(n, k_max, edges);
-    sol.truncate(orig_len);
-    sol
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::collections::HashSet;
-
-    fn verify_coloring(l: usize, r: usize, edges: &[(usize, usize)], colors: &[usize]) {
-        assert_eq!(edges.len(), colors.len());
-
-        let mut left_colors = vec![HashSet::new(); l];
-        let mut right_colors = vec![HashSet::new(); r];
-        let mut max_c = 0;
-
-        for (i, &(u, v)) in edges.iter().enumerate() {
-            let c = colors[i];
-            if c > max_c {
-                max_c = c;
-            }
-
-            // Check left conflict
-            if left_colors[u].contains(&c) {
-                panic!("Conflict at left node {} with color {}", u, c);
-            }
-            left_colors[u].insert(c);
-
-            // Check right conflict
-            if right_colors[v].contains(&c) {
-                panic!("Conflict at right node {} with color {}", v, c);
-            }
-            right_colors[v].insert(c);
-        }
-
-        // Calculate max degree
-        let mut d_l = vec![0; l];
-        let mut d_r = vec![0; r];
-        for &(u, v) in edges {
-            d_l[u] += 1;
-            d_r[v] += 1;
-        }
-        let k = *d_l
+        let k = deg1
             .iter()
             .max()
-            .unwrap_or(&0)
-            .max(d_r.iter().max().unwrap_or(&0));
-
-        // Ensure we didn't use unnecessary colors (optional strict check, but good for optimal coloring)
-        // The algorithm guarantees max_color < k
-        assert!(max_c < k, "Used color {} >= K ({})", max_c, k);
+            .copied()
+            .unwrap_or(0)
+            .max(deg2.iter().max().copied().unwrap_or(0));
+        let (mut map1, mut map2) = (vec![0; n1], vec![0; n2]);
+        let (mut idx1, mut idx2) = (vec![0; n1.max(n2)], vec![0; n1.max(n2)]);
+        let build_map = |n: usize, deg: &Vec<usize>, map: &mut Vec<usize>, idx: &mut Vec<usize>| {
+            if n == 0 {
+                return;
+            }
+            idx[0] += deg[0];
+            for i in 1..n {
+                map[i] = map[i - 1];
+                if idx[map[i]] + deg[i] > k {
+                    map[i] += 1;
+                }
+                idx[map[i]] += deg[i];
+            }
+        };
+        build_map(n1, &deg1, &mut map1, &mut idx1);
+        build_map(n2, &deg2, &mut map2, &mut idx2);
+        let n = if n1 == 0 && n2 == 0 {
+            0
+        } else {
+            (map1.last().unwrap_or(&0) + 1).max(map2.last().unwrap_or(&0) + 1)
+        };
+        let mut res = RegularGraph {
+            n,
+            k,
+            edges: vec![(0, 0); n * k],
+        };
+        for (i, &(u, v)) in edges.iter().enumerate() {
+            res.edges[i] = (map1[u], map2[v]);
+        }
+        let (mut s1, mut s2) = (0, 0);
+        for i in edges.len()..n * k {
+            while s1 < n && idx1[s1] == k {
+                s1 += 1;
+            }
+            while s2 < n && idx2[s2] == k {
+                s2 += 1;
+            }
+            res.edges[i] = (s1, s2);
+            idx1[s1] += 1;
+            idx2[s2] += 1;
+        }
+        res
     }
-
-    #[test]
-    fn test_simple_bipartite() {
-        // Square: 0-0, 0-1, 1-0, 1-1
-        let l = 2;
-        let r = 2;
-        let edges = vec![(0, 0), (0, 1), (1, 0), (1, 1)];
-        let colors = edge_coloring(l, r, edges.clone());
-        verify_coloring(l, r, &edges, &colors);
+    struct Solver {
+        n: usize,
+        k: usize,
+        inci: Vec<usize>,
+        xedge: Vec<usize>,
+        flag: Vec<usize>,
+        nx: usize,
     }
-
-    #[test]
-    fn test_k33() {
-        let l = 3;
-        let r = 3;
-        let mut edges = Vec::new();
-        for i in 0..l {
-            for j in 0..r {
-                edges.push((i, j));
+    impl Solver {
+        fn new(g: &RegularGraph) -> Self {
+            let (n, k, m) = (g.n * 2, g.k, g.n * g.k);
+            let (mut inci, mut xedge, mut head) = (vec![0; n * k], vec![0; m], vec![0; n]);
+            for (e, &(u, v)) in g.edges.iter().enumerate() {
+                let (u, v) = (u * 2, v * 2 + 1);
+                inci[k * u + head[u]] = e;
+                head[u] += 1;
+                inci[k * v + head[v]] = e;
+                head[v] += 1;
+                xedge[e] = u ^ v;
+            }
+            Self {
+                n,
+                k,
+                inci,
+                xedge,
+                flag: vec![0; m],
+                nx: 0,
             }
         }
-        let colors = edge_coloring(l, r, edges.clone());
-        verify_coloring(l, r, &edges, &colors);
-    }
 
-    #[test]
-    fn test_irregular_graph() {
-        let l = 4;
-        let r = 5;
-        let edges = vec![
-            (0, 0),
-            (0, 1),
-            (1, 1),
-            (1, 2),
-            (1, 3),
-            (2, 0),
-            (2, 4),
-            (3, 3),
-        ];
-        let colors = edge_coloring(l, r, edges.clone());
-        verify_coloring(l, r, &edges, &colors);
-    }
+        fn split(&mut self, mut pl: Vec<usize>, mut pr: Vec<usize>) -> Vec<usize> {
+            self.nx += 1;
+            for sp in 0..self.n {
+                let mut v = sp;
+                loop {
+                    if pl[v] == pr[v] {
+                        if sp == v {
+                            break;
+                        }
+                        v ^= 1;
+                        continue;
+                    }
+                    let e = self.inci[pl[v]];
+                    pl[v] += 1;
+                    let mut w = v;
+                    if self.flag[e] != self.nx {
+                        self.flag[e] = self.nx;
+                        w = v ^ self.xedge[e];
+                    }
+                    if w % 2 == 0 {
+                        pl[v] -= 1;
+                        pr[v] -= 1;
+                        self.inci.swap(pl[v], pr[v]);
+                    }
+                    v = w;
+                }
+            }
+            pl
+        }
 
-    #[test]
-    fn test_empty() {
-        let colors = edge_coloring(5, 5, vec![]);
-        assert!(colors.is_empty());
+        fn swap_grp(&mut self, el: &[usize], em: &mut [usize], er: &[usize]) {
+            for i in 0..self.n {
+                let len = (em[i] - el[i]).min(er[i] - em[i]);
+                for k in 0..len {
+                    self.inci.swap(el[i] + k, er[i] - len + k);
+                }
+                em[i] = er[i] + el[i] - em[i];
+            }
+        }
+
+        fn take(&mut self, s: usize, d: usize) {
+            let (mut pl, mut pr) = (vec![0; self.n], vec![0; self.n]);
+            for i in 0..self.n {
+                pl[i] = i * self.k + s;
+                pr[i] = i * self.k + s + d;
+            }
+            let mut pm = pr.clone();
+            let limit = (self.n / 2) * d;
+            let mut md = 1;
+            while md < limit {
+                md *= 2;
+            }
+            let mut alpha = md / d;
+            while alpha > 0 && alpha % 2 == 0 {
+                alpha /= 2;
+                md /= 2;
+            }
+            let mut w = 1;
+            while w < md {
+                if (alpha & w) != 0 {
+                    let mut plm = self.split(pl.clone(), pm.clone());
+                    let cnt: isize = (0..self.n)
+                        .step_by(2)
+                        .map(|i| (pm[i] + pl[i]) as isize - plm[i] as isize * 2)
+                        .sum();
+                    if cnt < 0 {
+                        self.swap_grp(&pl, &mut plm, &pm);
+                    }
+                    pm = plm;
+                } else {
+                    let mut pmr = self.split(pm.clone(), pr.clone());
+                    let cnt: isize = (0..self.n)
+                        .step_by(2)
+                        .map(|i| (pr[i] + pm[i]) as isize - pmr[i] as isize * 2)
+                        .sum();
+                    if cnt < 0 {
+                        self.swap_grp(&pm, &mut pmr, &pr);
+                    }
+                    pm = pmr;
+                }
+                w *= 2;
+            }
+        }
+
+        fn recurse(&mut self, s: usize, mut d: usize) {
+            if d <= 1 {
+                return;
+            } else if d % 2 == 1 {
+                if s + d < self.k {
+                    d += 1;
+                } else {
+                    self.take(s, d);
+                    d -= 1;
+                }
+            }
+            self.split(
+                (0..self.n).map(|i| i * self.k + s).collect(),
+                (0..self.n).map(|i| i * self.k + s + d).collect(),
+            );
+            self.recurse(s + d / 2, d / 2);
+            self.recurse(s, d / 2);
+        }
     }
+    if edges.is_empty() {
+        return vec![];
+    }
+    let m_orig = edges.len();
+    let g = regularize(n1, n2, edges);
+    let mut s = Solver::new(&g);
+    s.recurse(0, g.k);
+    let mut ans = vec![0; m_orig];
+    for i in (0..s.n).step_by(2) {
+        for j in 0..g.k {
+            let e = s.inci[i * g.k + j];
+            if e < m_orig {
+                ans[e] = j;
+            }
+        }
+    }
+    ans
 }

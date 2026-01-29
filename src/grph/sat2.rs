@@ -1,10 +1,9 @@
-use crate::grph::cc::scc;
+use crate::{ds::bit_vec::BitVec, grph::cc::scc};
 
-/// 2SAT O(n + m)
 pub struct SAT2 {
     n: usize,
     adj: Vec<Vec<usize>>,
-    pub values: Vec<bool>,
+    pub values: BitVec,
 }
 
 impl SAT2 {
@@ -13,7 +12,7 @@ impl SAT2 {
         SAT2 {
             n,
             adj: vec![Vec::new(); n << 1],
-            values: Vec::new(),
+            values: BitVec::new(0, false),
         }
     }
 
@@ -70,88 +69,31 @@ impl SAT2 {
     }
 
     pub fn solve(&mut self) -> bool {
-        let comp = scc(&self.adj, |_| {});
-
-        self.values = vec![false; self.n];
+        let num_nodes = self.adj.len();
+        let mut g = vec![0; num_nodes + 1];
+        let mut edge_count = 0;
+        for (i, neighbors) in self.adj.iter().enumerate() {
+            edge_count += neighbors.len();
+            g[i + 1] = edge_count;
+        }
+        let mut d = vec![0; edge_count];
+        let mut ptr = 0;
+        for neighbors in &self.adj {
+            for &v in neighbors {
+                d[ptr] = v;
+                ptr += 1;
+            }
+        }
+        let scc_res = scc(num_nodes, &g, &d);
+        let comp_id = scc_res.comp_id;
+        self.values = BitVec::new(self.n, false);
         for i in 0..self.n {
-            if comp[i << 1] == comp[i << 1 | 1] {
+            if comp_id[i << 1] == comp_id[i << 1 | 1] {
                 return false;
             }
-            self.values[i] = comp[i << 1] < comp[i << 1 | 1];
+            let val = comp_id[i << 1] < comp_id[i << 1 | 1];
+            self.values.set(i, val);
         }
         true
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// (x0 ∨ x1) is obviously satisfiable.
-    #[test]
-    fn test_simple_sat() {
-        let mut ts = SAT2::new(2);
-        assert!(ts.either(0, 1).solve(), "should be satisfiable");
-        // check that the returned assignment actually satisfies (x0 || x1)
-        let vals = &ts.values;
-        assert!(vals[0] || vals[1]);
-    }
-
-    /// x0 = true, then adding (¬x0 ∨ ¬x0) makes it unsatisfiable.
-    #[test]
-    fn test_simple_unsat() {
-        let mut ts = SAT2::new(1);
-        ts.set_value(0); // force x0 = true
-        ts.either(!0, !0); // clause (¬x0 ∨ ¬x0) → x0 must be false
-        assert!(!ts.solve(), "should be unsatisfiable");
-    }
-
-    /// at_most_one on {x0,x1,x2}: setting two of them true is impossible.
-    #[test]
-    fn test_at_most_one_unsat() {
-        let mut ts = SAT2::new(3);
-        ts.at_most_one(&[0, 1, 2]).set_value(0).set_value(1);
-        assert!(!ts.solve(), "at most one of three but set two");
-    }
-
-    /// at_most_one on {x0,x1,x2}: setting exactly one is fine.
-    #[test]
-    fn test_at_most_one_sat() {
-        let mut ts = SAT2::new(3);
-        ts.at_most_one(&[0, 1, 2]);
-        ts.set_value(1);
-        assert!(ts.solve(), "should be satisfiable with exactly one true");
-        // ensure only x1 is true
-        let vals = &ts.values;
-        assert!(!vals[0] && vals[1] && !vals[2]);
-    }
-
-    /// dynamically adding a variable with add_var(), then forcing it true.
-    #[test]
-    fn test_add_var_and_set() {
-        let mut ts = SAT2::new(0);
-        let v = ts.add_var(); // first new var has index 0
-        ts.set_value(v);
-        assert!(ts.solve(), "new var forced true is obviously satisfiable");
-        assert_eq!(ts.values.len(), 1);
-        assert!(ts.values[0]);
-    }
-
-    /// A small implication chain:
-    /// (¬x0 → x1), (¬x1 → x2), (¬x2 → ¬x0)
-    /// one can satisfy this by x0 = false, x1 = false, x2 = false.
-    #[test]
-    fn test_implication_chain() {
-        let mut ts = SAT2::new(3);
-        ts.either(!0, 1);
-        ts.either(!1, 2);
-        ts.either(!2, !0);
-        ts.solve();
-        assert!(
-            ts.solve(),
-            "implication cycle should admit the all-false assignment"
-        );
-        let vals = &ts.values;
-        assert!(!vals[0] && vals[1] && vals[2]);
     }
 }

@@ -3,7 +3,183 @@ use std::{
     ops::{Bound, RangeBounds},
 };
 
-pub struct SegTree<T, Pull, Push>
+pub struct SegTree<T, Pull>
+where
+    Pull: FnMut(usize, &mut [T]),
+{
+    pub n: usize,
+    pub t: Vec<T>,
+    pub pull: Pull,
+}
+
+impl<T, Pull> SegTree<T, Pull>
+where
+    Pull: FnMut(usize, &mut [T]),
+{
+    pub fn new<Init: FnMut(usize, &mut [T])>(a: Vec<T>, mut init: Init, pull: Pull) -> Self {
+        let n = a.len();
+        let total = n << 1;
+        let mut buf: Vec<MaybeUninit<T>> = Vec::with_capacity(total);
+        unsafe {
+            buf.set_len(total);
+        }
+        for (i, v) in a.into_iter().enumerate() {
+            buf[n + i].write(v);
+        }
+        for p in (1..n).rev() {
+            (init)(p, unsafe {
+                std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut T, total)
+            });
+        }
+        let t = unsafe { std::mem::transmute::<_, Vec<T>>(buf) };
+        Self { n, t, pull }
+    }
+
+    pub fn set(&mut self, mut i: usize, val: T) -> &mut Self {
+        i += self.n;
+        self.t[i] = val;
+        while i > 1 {
+            (self.pull)(i >> 1, &mut self.t);
+            i >>= 1;
+        }
+        self
+    }
+
+    pub fn update(
+        &mut self,
+        mut l: usize,
+        mut r: usize,
+        mut visit: impl FnMut(usize, bool, &mut [T]),
+    ) -> &mut Self {
+        l += self.n;
+        r += self.n;
+        while l < r {
+            if l & 1 != 0 {
+                visit(l, false, &mut self.t);
+                l += 1;
+            }
+            if r & 1 != 0 {
+                r -= 1;
+                visit(r, true, &mut self.t);
+            }
+            l >>= 1;
+            r >>= 1;
+        }
+        self
+    }
+
+    pub fn query(
+        &mut self,
+        mut l: usize,
+        mut r: usize,
+        mut visit: impl FnMut(usize, bool, &mut [T]),
+    ) {
+        l += self.n;
+        r += self.n;
+        while l < r {
+            if l & 1 != 0 {
+                visit(l, false, &mut self.t);
+                l += 1;
+            }
+            if r & 1 != 0 {
+                r -= 1;
+                visit(r, true, &mut self.t);
+            }
+            l >>= 1;
+            r >>= 1;
+        }
+    }
+
+    pub fn get(&mut self, mut i: usize, mut visit: impl FnMut(usize, &mut [T])) {
+        i += self.n;
+        while i > 0 {
+            visit(i, &mut self.t);
+            i >>= 1;
+        }
+    }
+
+    pub fn max_right<S, P>(
+        &mut self,
+        l: usize,
+        mut p: P,
+        init: S,
+        mut op: impl FnMut(&S, &T) -> S,
+    ) -> usize
+    where
+        S: Clone,
+        P: FnMut(&S) -> bool,
+    {
+        if l == self.n {
+            return self.n;
+        }
+        let mut acc = init;
+        let mut i = l + self.n;
+        loop {
+            while i & 1 == 0 {
+                i >>= 1;
+            }
+            let combined = (op)(&acc, &self.t[i]);
+            if !p(&combined) {
+                while i < self.n {
+                    i <<= 1;
+                    let cand = (op)(&acc, &self.t[i]);
+                    if p(&cand) {
+                        acc = cand;
+                        i += 1;
+                    }
+                }
+                break i - self.n;
+            }
+            acc = combined;
+            i += 1;
+            if i.is_power_of_two() {
+                break self.n;
+            }
+        }
+    }
+
+    pub fn min_left<S, P>(
+        &mut self,
+        r: usize,
+        mut p: P,
+        init: S,
+        mut op: impl FnMut(&T, &S) -> S,
+    ) -> usize
+    where
+        S: Clone,
+        P: FnMut(&S) -> bool,
+    {
+        if r == 0 {
+            return 0;
+        }
+        let mut acc = init;
+        let mut i = r + self.n;
+        loop {
+            i -= 1;
+            while i > 1 && i & 1 == 1 {
+                i >>= 1;
+            }
+            let combined = (op)(&self.t[i], &acc);
+            if !p(&combined) {
+                while i < self.n {
+                    i = i << 1 | 1;
+                    let cand = (op)(&self.t[i], &acc);
+                    if p(&cand) {
+                        acc = cand;
+                        i -= 1;
+                    }
+                }
+                break i + 1 - self.n;
+            }
+            acc = combined;
+            if i.is_power_of_two() {
+                break 0;
+            }
+        }
+    }
+}
+
+pub struct LazySegTree<T, Pull, Push>
 where
     Pull: FnMut(usize, usize, &mut [T]),
     Push: FnMut(usize, usize, &mut [T]),
@@ -14,7 +190,7 @@ where
     pub push: Push,
 }
 
-impl<T, Pull, Push> SegTree<T, Pull, Push>
+impl<T, Pull, Push> LazySegTree<T, Pull, Push>
 where
     Pull: FnMut(usize, usize, &mut [T]),
     Push: FnMut(usize, usize, &mut [T]),
@@ -48,7 +224,7 @@ where
             k <<= 1;
         }
         let t = unsafe { std::mem::transmute::<_, Vec<T>>(buf) };
-        SegTree { n, t, pull, push }
+        Self { n, t, pull, push }
     }
 
     pub fn build(&mut self, mut l: usize, mut r: usize) -> &mut Self {
@@ -82,23 +258,12 @@ where
         self
     }
 
-    pub fn update<R>(
+    pub fn update(
         &mut self,
-        range: impl RangeBounds<usize>,
-        mut left: impl FnMut(usize, usize, &mut [T], &mut R),
-        mut right: impl FnMut(usize, usize, &mut [T], &mut R),
-        data: &mut R,
+        mut l: usize,
+        mut r: usize,
+        mut visit: impl FnMut(usize, bool, usize, &mut [T]),
     ) -> &mut Self {
-        let mut l = match range.start_bound() {
-            Bound::Included(l) => *l,
-            Bound::Excluded(l) => *l + 1,
-            Bound::Unbounded => 0,
-        };
-        let mut r = match range.end_bound() {
-            Bound::Included(r) => *r + 1,
-            Bound::Excluded(r) => *r,
-            Bound::Unbounded => self.n,
-        };
         self.push(l, l + 1);
         self.push(r - 1, r);
         let (mut cl, mut cr) = (false, false);
@@ -113,13 +278,13 @@ where
                 (self.pull)(r, k, &mut self.t)
             };
             if l & 1 != 0 {
-                left(l, k, &mut self.t, data);
+                visit(l, false, k, &mut self.t);
                 cl = true;
                 l += 1;
             }
             if r & 1 != 0 {
                 r -= 1;
-                right(r, k, &mut self.t, data);
+                visit(r, true, k, &mut self.t);
                 cr = true;
             }
             l >>= 1;
@@ -141,23 +306,12 @@ where
         self
     }
 
-    pub fn query<R>(
+    pub fn query(
         &mut self,
-        range: impl RangeBounds<usize>,
-        data: &mut R,
-        mut left: impl FnMut(usize, usize, &mut [T], &mut R),
-        mut right: impl FnMut(usize, usize, &mut [T], &mut R),
+        mut l: usize,
+        mut r: usize,
+        mut visit: impl FnMut(usize, bool, usize, &mut [T]),
     ) {
-        let mut l = match range.start_bound() {
-            Bound::Included(l) => *l,
-            Bound::Excluded(l) => *l + 1,
-            Bound::Unbounded => 0,
-        };
-        let mut r = match range.end_bound() {
-            Bound::Included(r) => *r + 1,
-            Bound::Excluded(r) => *r,
-            Bound::Unbounded => self.n,
-        };
         self.push(l, l + 1);
         if r > 0 {
             self.push(r - 1, r);
@@ -167,12 +321,12 @@ where
         r += self.n;
         while l < r {
             if l & 1 != 0 {
-                left(l, k, &mut self.t, data);
+                visit(l, false, k, &mut self.t);
                 l += 1;
             }
             if r & 1 != 0 {
                 r -= 1;
-                right(r, k, &mut self.t, data);
+                visit(r, true, k, &mut self.t);
             }
             l >>= 1;
             r >>= 1;
@@ -268,10 +422,6 @@ where
                 break 0;
             }
         }
-    }
-
-    pub fn n(&self) -> usize {
-        self.n
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{alg::fps::FPS, ds::scan::MonotoneQueue, opt::min_plus::max_plus_cvx};
+use crate::{alg::fps::FPS, ds::scan::MonotoneQueue, opt::min_plus::max_plus_ccv};
 
 /// O(n M)
 pub fn subset_sum(w: &[u64], t: u64) -> u64 {
@@ -37,7 +37,7 @@ pub fn subset_sum(w: &[u64], t: u64) -> u64 {
 }
 
 // https://arxiv.org/pdf/1802.06440
-/// O(d c)
+/// O(d c log c)
 pub fn zero_one_knapsack(v: &[u64], w: &[u64], c: u64) -> u64 {
     let n = v.len();
     let mut bucket = vec![Vec::new(); c as usize + 1];
@@ -71,7 +71,7 @@ pub fn zero_one_knapsack(v: &[u64], w: &[u64], c: u64) -> u64 {
             for i in 0..n {
                 v.push(dp[i * w + k]);
             }
-            let res = max_plus_cvx(&v, &sum);
+            let res = max_plus_ccv(&v, &sum);
             for i in 0..n {
                 dp[i * w + k] = res[i];
             }

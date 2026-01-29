@@ -13,6 +13,7 @@ pub mod lct;
 pub mod li_chao;
 pub mod mergesort;
 pub mod mst;
+pub mod permutation;
 pub mod prufer;
 pub mod reroot;
 pub mod shallowest;

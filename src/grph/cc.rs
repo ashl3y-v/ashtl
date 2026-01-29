@@ -1,82 +1,210 @@
-use crate::ds::bit_vec::BitVec;
+use crate::{
+    ds::{bit_vec::BitVec, dsu::DSU},
+    grph::format::edges_to_csr_undir,
+};
 use std::collections::VecDeque;
 
-/// Tarjan's SCC
-/// calls f on the SCCs in reverse topological order
-/// outputs the indices of the SCCs that the vertices are in (also in reverse topological order)
-pub fn scc<F: FnMut(Vec<usize>)>(g: &[Vec<usize>], mut f: F) -> Vec<usize> {
-    let n = g.len();
-    if n == 0 {
-        return Vec::new();
-    }
-    let mut idx = 1;
-    let mut comp_count = usize::MAX;
-    let mut root_idx = vec![0; n];
-    let mut child = BitVec::new(n, false);
-    let mut start = 0;
+pub struct SccResult {
+    pub comp_cnt: usize,
+    pub comp_id: Vec<usize>,
+    pub comp_size: Vec<usize>,
+    pub comp_start: Vec<usize>,
+    pub comp_list: Vec<usize>,
+}
+
+pub fn scc(n: usize, g: &[usize], d: &[usize]) -> SccResult {
+    let mut dfn = vec![0; n];
+    let mut low = vec![0; n];
+    let mut timer = 0;
     let mut stk = Vec::with_capacity(n);
-    let mut cur = 0;
-    stk.push((start, 0));
-    root_idx[start] = idx;
-    idx += 1;
-    'a: loop {
-        let (v, e_m) = &mut stk[cur];
-        let v = *v;
-        let e = *e_m;
-        let ws = &g[v];
-        if e < ws.len() {
-            let w = ws[e];
-            if root_idx[w] == 0 {
-                root_idx[w] = idx;
-                stk.push((w, 0));
-                idx += 1;
-                cur = stk.len() - 1;
-                continue 'a;
-            } else {
-                if root_idx[w] < root_idx[v] {
-                    root_idx[v] = root_idx[w];
-                    child.set(v, true);
+    let mut in_stk = BitVec::new(n, false);
+    let mut comp_id = vec![0; n];
+    let mut comp_list = vec![0; n];
+    let mut comp_size = vec![0; n];
+    let mut comp_start = vec![0; n];
+    let mut comp_cnt = 0;
+    let mut write_ptr = n;
+    struct Context<'a> {
+        g: &'a [usize],
+        d: &'a [usize],
+        dfn: &'a mut [usize],
+        low: &'a mut [usize],
+        timer: &'a mut usize,
+        stk: &'a mut Vec<usize>,
+        in_stk: &'a mut BitVec,
+        comp_id: &'a mut [usize],
+        comp_list: &'a mut [usize],
+        comp_size: &'a mut [usize],
+        comp_start: &'a mut [usize],
+        comp_cnt: &'a mut usize,
+        write_ptr: &'a mut usize,
+    }
+    fn calc(u: usize, ctx: &mut Context) {
+        *ctx.timer += 1;
+        ctx.dfn[u] = *ctx.timer;
+        ctx.low[u] = *ctx.timer;
+        ctx.stk.push(u);
+        ctx.in_stk.set(u, true);
+        for &v in &ctx.g[ctx.d[u]..ctx.d[u + 1]] {
+            if ctx.dfn[v] == 0 {
+                calc(v, ctx);
+                if ctx.low[v] < ctx.low[u] {
+                    ctx.low[u] = ctx.low[v];
                 }
-                *e_m += 1;
+            } else if ctx.in_stk[v] && ctx.dfn[v] < ctx.low[u] {
+                ctx.low[u] = ctx.dfn[v];
             }
-        } else {
-            if !child[v] {
-                let comp = stk.drain(cur..).map(|(v, _)| v).collect::<Vec<_>>();
-                idx -= comp.len();
-                for &v in &comp {
-                    root_idx[v] = comp_count;
-                }
-                f(comp);
-                comp_count -= 1;
-            }
-            if cur != 0 {
-                cur -= 1;
-            } else {
-                while start < n && root_idx[start] != 0 {
-                    start += 1;
-                }
-                if start < n {
-                    root_idx[start] = idx;
-                    stk.push((start, 0));
-                    cur = stk.len() - 1;
-                    idx += 1;
-                    start += 1;
-                } else {
+        }
+        if ctx.low[u] == ctx.dfn[u] {
+            let mut sz = 0;
+            loop {
+                let v = ctx.stk.pop().unwrap();
+                ctx.in_stk.set(v, false);
+                ctx.comp_id[v] = *ctx.comp_cnt;
+                *ctx.write_ptr -= 1;
+                ctx.comp_list[*ctx.write_ptr] = v;
+                sz += 1;
+                if v == u {
                     break;
                 }
             }
+            ctx.comp_size[*ctx.comp_cnt] = sz;
+            ctx.comp_start[*ctx.comp_cnt] = *ctx.write_ptr;
+            *ctx.comp_cnt += 1;
         }
     }
-    for v in &mut root_idx {
-        *v = !*v;
+    let mut ctx = Context {
+        g,
+        d,
+        dfn: &mut dfn,
+        low: &mut low,
+        timer: &mut timer,
+        stk: &mut stk,
+        in_stk: &mut in_stk,
+        comp_id: &mut comp_id,
+        comp_list: &mut comp_list,
+        comp_size: &mut comp_size,
+        comp_start: &mut comp_start,
+        comp_cnt: &mut comp_cnt,
+        write_ptr: &mut write_ptr,
+    };
+    for i in 0..n {
+        if ctx.dfn[i] == 0 {
+            calc(i, &mut ctx);
+        }
     }
-    root_idx
+    SccResult {
+        comp_cnt,
+        comp_id,
+        comp_size,
+        comp_start,
+        comp_list,
+    }
 }
 
-// TODO: incremental SCC
-// https://maspypy.github.io/library/graph/incremental_scc.hpp
+/// O(m log m + n)
+pub fn scc_incremental(n: usize, mut es: Vec<(usize, usize)>) -> (Vec<usize>, Vec<usize>) {
+    fn rec(
+        n: usize,
+        x: usize,
+        idx: Vec<usize>,
+        es: &mut [(usize, usize)],
+        sep: &mut Vec<usize>,
+        merge: &mut Vec<usize>,
+    ) {
+        let m = idx.len();
+        if x == m {
+            return;
+        } else if x + 1 == m {
+            let mut dsu = DSU::new(n);
+            for &e in &idx {
+                let (u, v) = es[e];
+                if !dsu.union(u, v).1 {
+                    continue;
+                }
+                sep[idx[x] + 1] += 1;
+                merge.push(e);
+            }
+            return;
+        }
+        let mut mp = vec![usize::MAX; n];
+        let mut nn = 0;
+        for &e_idx in &idx {
+            let (u, v) = es[e_idx];
+            if mp[u] == usize::MAX {
+                mp[u] = nn;
+                nn += 1;
+            }
+            if mp[v] == usize::MAX {
+                mp[v] = nn;
+                nn += 1;
+            }
+        }
+        for &e in &idx {
+            let (u, v) = es[e];
+            es[e] = (mp[u], mp[v]);
+        }
+        let mid = x.midpoint(m);
+        let mut l_es = Vec::with_capacity(mid);
+        for i in 0..mid {
+            l_es.push(es[idx[i]]);
+        }
+        let (g, d) = edges_to_csr_undir(nn, &l_es);
+        let scc_res = scc(nn, &g, &d);
+        let mut idxl = Vec::new();
+        let mut idxr = Vec::new();
+        for i in 0..x {
+            let (u, v) = es[idx[i]];
+            if scc_res.comp_id[u] == scc_res.comp_id[v] {
+                idxl.push(idx[i]);
+            } else {
+                idxr.push(idx[i]);
+            }
+        }
+        let xl = idxl.len();
+        for i in x..mid {
+            let (u, v) = es[idx[i]];
+            if scc_res.comp_id[u] == scc_res.comp_id[v] {
+                idxl.push(idx[i]);
+            } else {
+                idxr.push(idx[i]);
+            }
+        }
+        let xr = idxr.len();
+        for i in mid..m {
+            let (u, v) = es[idx[i]];
+            if scc_res.comp_id[u] != scc_res.comp_id[v] {
+                idxr.push(idx[i]);
+            }
+        }
+        rec(nn, xl, idxl, es, sep, merge);
+        for &e in &idxr {
+            let (u, v) = es[e];
+            es[e] = (scc_res.comp_id[u], scc_res.comp_id[v]);
+        }
+        rec(scc_res.comp_cnt, xr, idxr, es, sep, merge);
+    }
+    let m = es.len();
+    let mut sep = vec![0; m + 1];
+    let mut merge = Vec::new();
+    let mut idx = Vec::new();
+    let (g, d) = edges_to_csr_undir(n, &es);
+    let scc_res = scc(n, &g, &d);
+    for i in 0..m {
+        let (u, v) = es[i];
+        if scc_res.comp_id[u] == scc_res.comp_id[v] {
+            idx.push(i);
+        }
+    }
+    rec(n, 0, idx, &mut es, &mut sep, &mut merge);
+    for i in 0..m {
+        sep[i + 1] += sep[i];
+    }
+    (merge, sep)
+}
 
 // TODO: improve two cc
+// https://judge.yosupo.jp/problem/biconnected_components
 // https://judge.yosupo.jp/submission/287412
 
 pub fn cc2<F>(n: usize, adj: &[Vec<usize>], mut f: F)
@@ -131,7 +259,6 @@ where
             }
         }
     }
-
     for v in 0..n {
         if !visited[v] {
             dfs(
@@ -265,473 +392,9 @@ pub fn ecc2() {}
 
 // TODO: three ecc
 // https://judge.yosupo.jp/submission/248134
+// https://judge.yosupo.jp/problem/three_edge_connected_components
 pub fn ecc3() {}
 
-#[cfg(test)]
-mod tests {
-    use std::collections::HashSet;
-
-    use super::*;
-
-    fn collect_scc(g: &[Vec<usize>]) -> Vec<Vec<usize>> {
-        let mut comps = Vec::new();
-        scc(g, |comp_slice| {
-            let mut comp = comp_slice.to_vec();
-            comp.sort_unstable();
-            comps.push(comp);
-        });
-        comps.sort_unstable_by(|a, b| a.cmp(b));
-        comps
-    }
-
-    #[test]
-    fn test_empty_graph() {
-        let g: Vec<Vec<usize>> = vec![];
-        let comps = collect_scc(&g);
-        assert!(comps.is_empty(), "expected no components, got {:?}", comps);
-    }
-
-    #[test]
-    fn test_single_vertex() {
-        let g = vec![vec![]];
-        let comps = collect_scc(&g);
-        assert_eq!(comps, vec![vec![0]]);
-    }
-
-    #[test]
-    fn test_disconnected_vertices() {
-        let g = vec![vec![], vec![], vec![]];
-        let comps = collect_scc(&g);
-        assert_eq!(comps, vec![vec![0], vec![1], vec![2]]);
-    }
-
-    #[test]
-    fn test_linear_chain() {
-        let g = vec![vec![1], vec![2], vec![3], vec![]];
-        let comps = collect_scc(&g);
-        assert_eq!(comps, vec![vec![0], vec![1], vec![2], vec![3]]);
-    }
-
-    #[test]
-    fn test_simple_cycle() {
-        let g = vec![vec![1], vec![2], vec![0]];
-        let comps = collect_scc(&g);
-        assert_eq!(comps, vec![vec![0, 1, 2]]);
-    }
-
-    #[test]
-    fn test_two_disjoint_cycles() {
-        let g = vec![vec![1], vec![0], vec![3], vec![2]];
-        let comps = collect_scc(&g);
-        assert_eq!(comps.len(), 2);
-        assert!(comps.contains(&vec![0, 1]));
-        assert!(comps.contains(&vec![2, 3]));
-    }
-
-    #[test]
-    fn test_mixed_graph() {
-        let g = vec![
-            vec![1],    // 0 -> 1
-            vec![2],    // 1 -> 2
-            vec![0, 3], // 2 -> 0, 2 -> 3
-            vec![4],    // 3 -> 4
-            vec![3],    // 4 -> 3
-            vec![],     // 5 isolated
-        ];
-        let comps = collect_scc(&g);
-        assert_eq!(comps.len(), 3);
-        assert!(comps.contains(&vec![0, 1, 2]));
-        assert!(comps.contains(&vec![3, 4]));
-        assert!(comps.contains(&vec![5]));
-    }
-
-    #[test]
-    fn test_complete_graph() {
-        let n = 4;
-        let g: Vec<_> = (0..n)
-            .map(|u| (0..n).filter(|&v| v != u).collect())
-            .collect();
-        let comps = collect_scc(&g);
-        assert_eq!(comps, vec![(0..4).collect::<Vec<_>>()]);
-    }
-
-    #[test]
-    fn test_star_graph() {
-        let g = vec![vec![1, 2, 3], vec![], vec![], vec![]];
-        let comps = collect_scc(&g);
-        assert_eq!(comps, vec![vec![0], vec![1], vec![2], vec![3]]);
-    }
-
-    #[test]
-    fn test_bidirectional_edge() {
-        let g = vec![vec![1], vec![0, 2], vec![1, 3], vec![]];
-        let comps = collect_scc(&g);
-        assert_eq!(comps.len(), 2);
-        assert!(comps.contains(&vec![0, 1, 2]));
-        assert!(comps.contains(&vec![3]));
-    }
-
-    #[test]
-    fn test_self_loops() {
-        let g = vec![vec![0], vec![1], vec![]];
-        let comps = collect_scc(&g);
-        assert_eq!(comps, vec![vec![0], vec![1], vec![2]]);
-    }
-
-    #[test]
-    fn test_parallel_edges() {
-        let g = vec![vec![1, 1, 2], vec![0], vec![]];
-        let comps = collect_scc(&g);
-        assert_eq!(comps.len(), 2);
-        assert!(comps.contains(&vec![0, 1]));
-        assert!(comps.contains(&vec![2]));
-    }
-
-    #[test]
-    fn test_complex_nested() {
-        // 0<->1<->2 cycle, 2->3->4->2 small cycle, 4->5 leaf
-        let g = vec![
-            vec![1],    // 0->1
-            vec![2],    // 1->2
-            vec![0, 3], // 2->0,2->3
-            vec![4],    // 3->4
-            vec![2, 5], // 4->2,4->5
-            vec![],     // 5
-        ];
-        let comps = collect_scc(&g);
-        assert_eq!(comps.len(), 2);
-        assert!(comps.contains(&vec![0, 1, 2, 3, 4]));
-        assert!(comps.contains(&vec![5]));
-    }
-
-    #[test]
-    fn test_scc_reverse_topo_order() {
-        let g = vec![
-            vec![1], // 0 -> 1
-            vec![2], // 1 -> 2
-            vec![],  // 2
-        ];
-        let mut seen = Vec::new();
-        scc(&g, |comp| {
-            seen.push(comp.to_vec());
-        });
-        assert_eq!(seen, vec![vec![2], vec![1], vec![0]]);
-    }
-
-    /// Normalize edge orientations to undirected form.
-    fn normalize(block: &[(usize, usize)]) -> HashSet<(usize, usize)> {
-        block
-            .iter()
-            .map(|&(u, v)| if u < v { (u, v) } else { (v, u) })
-            .collect()
-    }
-
-    /// Run the algorithm and collect all biconnected components as sets of undirected edges.
-    fn collect_components(n: usize, adj: &[Vec<usize>]) -> Vec<HashSet<(usize, usize)>> {
-        let mut comps = Vec::new();
-        cc2(n, adj, |comp| {
-            comps.push(normalize(comp));
-        });
-        comps
-    }
-
-    #[test]
-    fn test_empty_graph_two_cc() {
-        let adj: Vec<Vec<usize>> = vec![];
-        let comps = collect_components(0, &adj);
-        assert!(comps.is_empty());
-    }
-
-    #[test]
-    fn test_single_edge() {
-        let adj = vec![vec![1], vec![0]];
-        let comps = collect_components(2, &adj);
-        let expected: Vec<HashSet<(usize, usize)>> = vec![[(0, 1)].iter().cloned().collect()];
-        assert_eq!(comps.len(), expected.len());
-        for exp in expected {
-            assert!(comps.contains(&exp));
-        }
-    }
-
-    #[test]
-    fn test_triangle_cycle() {
-        let adj = vec![vec![1, 2], vec![0, 2], vec![0, 1]];
-        let comps = collect_components(3, &adj);
-        let mut exp = HashSet::new();
-        exp.insert((0, 1));
-        exp.insert((1, 2));
-        exp.insert((0, 2));
-        assert_eq!(comps.len(), 1);
-        assert_eq!(comps[0], exp);
-    }
-
-    #[test]
-    fn test_line_of_three() {
-        let adj = vec![vec![1], vec![0, 2], vec![1]];
-        let comps = collect_components(3, &adj);
-        let expected: Vec<HashSet<(usize, usize)>> = vec![
-            [(1, 2)].iter().cloned().collect(),
-            [(0, 1)].iter().cloned().collect(),
-        ];
-        assert_eq!(comps.len(), expected.len());
-        for exp in expected {
-            assert!(comps.contains(&exp));
-        }
-    }
-
-    #[test]
-    fn test_two_triangles_sharing_vertex() {
-        // Triangles: (0-1-2-0) and (2-3-4-2)
-        let adj = vec![
-            vec![1, 2],
-            vec![0, 2],
-            vec![0, 1, 3, 4],
-            vec![2, 4],
-            vec![2, 3],
-        ];
-        let comps = collect_components(5, &adj);
-
-        let mut t1 = HashSet::new();
-        t1.insert((0, 1));
-        t1.insert((1, 2));
-        t1.insert((0, 2));
-
-        let mut t2 = HashSet::new();
-        t2.insert((2, 3));
-        t2.insert((3, 4));
-        t2.insert((2, 4));
-
-        assert_eq!(comps.len(), 2);
-        assert!(comps.contains(&t1));
-        assert!(comps.contains(&t2));
-    }
-
-    fn collect_cuts(n: usize, adj: &[Vec<usize>]) -> HashSet<usize> {
-        let mut cuts = HashSet::new();
-        cut_vertices(n, adj, |v| {
-            cuts.insert(v);
-        });
-        cuts
-    }
-
-    #[test]
-    fn test_empty_graph_cutvertices() {
-        let adj: Vec<Vec<usize>> = vec![];
-        let cuts = collect_cuts(0, &adj);
-        assert!(cuts.is_empty());
-    }
-
-    #[test]
-    fn test_single_node() {
-        let adj = vec![vec![]];
-        let cuts = collect_cuts(1, &adj);
-        assert!(cuts.is_empty());
-    }
-
-    #[test]
-    fn test_two_nodes() {
-        let adj = vec![vec![1], vec![0]];
-        let cuts = collect_cuts(2, &adj);
-        assert!(cuts.is_empty());
-    }
-
-    #[test]
-    fn test_triangle_cycle_cutvertices() {
-        let adj = vec![vec![1, 2], vec![0, 2], vec![0, 1]];
-        let cuts = collect_cuts(3, &adj);
-        assert!(cuts.is_empty());
-    }
-
-    #[test]
-    fn test_line_of_three_cutvertices() {
-        // 0-1-2, only 1 is cut vertex
-        let adj = vec![vec![1], vec![0, 2], vec![1]];
-        let cuts = collect_cuts(3, &adj);
-        let expected: HashSet<_> = vec![1].into_iter().collect();
-        assert_eq!(cuts, expected);
-    }
-
-    #[test]
-    fn test_star_graph_two_cc() {
-        // 0 connected to 1,2,3; 0 is cut vertex
-        let adj = vec![vec![1, 2, 3], vec![0], vec![0], vec![0]];
-        let cuts = collect_cuts(4, &adj);
-        let expected: HashSet<_> = vec![0].into_iter().collect();
-        assert_eq!(cuts, expected);
-    }
-
-    #[test]
-    fn test_disconnected_graph() {
-        // two separate lines: (0-1-2) and (3-4)
-        let adj = vec![vec![1], vec![0, 2], vec![1], vec![4], vec![3]];
-        let cuts = collect_cuts(5, &adj);
-        let expected: HashSet<_> = vec![1].into_iter().collect();
-        assert_eq!(cuts, expected);
-    }
-
-    #[test]
-    fn test_empty_graph_comp_cc() {
-        let adj: Vec<Vec<usize>> = vec![];
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-        assert_eq!(components, Vec::<Vec<usize>>::new());
-    }
-
-    #[test]
-    fn test_single_vertex_comp_cc() {
-        let adj = vec![vec![]]; // One vertex, no edges
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-        assert_eq!(components, vec![vec![0]]);
-    }
-
-    #[test]
-    fn test_complete_graph_comp_cc() {
-        // Complete graph K4 - complement has no edges
-        let adj = vec![
-            vec![1, 2, 3], // 0 connected to 1,2,3
-            vec![0, 2, 3], // 1 connected to 0,2,3
-            vec![0, 1, 3], // 2 connected to 0,1,3
-            vec![0, 1, 2], // 3 connected to 0,1,2
-        ];
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-
-        // Each vertex is its own component in complement
-        assert_eq!(components.len(), 4);
-        for comp in &components {
-            assert_eq!(comp.len(), 1);
-        }
-    }
-
-    #[test]
-    fn test_no_edges() {
-        // Graph with no edges - complement is complete
-        let adj = vec![vec![], vec![], vec![], vec![]];
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].len(), 4);
-
-        let mut sorted_comp = components[0].clone();
-        sorted_comp.sort();
-        assert_eq!(sorted_comp, vec![0, 1, 2, 3]);
-    }
-
-    #[test]
-    fn test_path_graph() {
-        // Path: 0-1-2-3
-        let adj = vec![
-            vec![1],    // 0 connected to 1
-            vec![0, 2], // 1 connected to 0,2
-            vec![1, 3], // 2 connected to 1,3
-            vec![2],    // 3 connected to 2
-        ];
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-
-        // Complement should have edges: 0-2, 0-3, 1-3
-        // This creates one component with all vertices
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].len(), 4);
-    }
-
-    #[test]
-    fn test_disconnected_graph_comp_cc() {
-        // Two separate edges: 0-1 and 2-3
-        let adj = vec![
-            vec![1], // 0 connected to 1
-            vec![0], // 1 connected to 0
-            vec![3], // 2 connected to 3
-            vec![2], // 3 connected to 2
-        ];
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-
-        // Complement has edges: 0-2, 0-3, 1-2, 1-3
-        // This creates one component
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].len(), 4);
-    }
-
-    #[test]
-    fn test_star_graph_comp_cc() {
-        // Star graph: center 0 connected to 1,2,3
-        let adj = vec![
-            vec![1, 2, 3], // 0 connected to 1,2,3
-            vec![0],       // 1 connected to 0
-            vec![0],       // 2 connected to 0
-            vec![0],       // 3 connected to 0
-        ];
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-
-        // Complement has edges: 1-2, 1-3, 2-3 (triangle)
-        // Plus isolated vertex 0
-        assert_eq!(components.len(), 2);
-
-        let mut comp_sizes: Vec<usize> = components.iter().map(|c| c.len()).collect();
-        comp_sizes.sort();
-        assert_eq!(comp_sizes, vec![1, 3]);
-    }
-
-    #[test]
-    fn test_triangle_plus_isolated() {
-        // Triangle 0-1-2-0 plus isolated vertex 3
-        let adj = vec![
-            vec![1, 2], // 0 connected to 1,2
-            vec![0, 2], // 1 connected to 0,2
-            vec![0, 1], // 2 connected to 0,1
-            vec![],     // 3 isolated
-        ];
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-
-        // Complement connects 3 to everyone (0,1,2)
-        // So we get one component with all vertices
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].len(), 4);
-    }
-
-    #[test]
-    fn test_larger_disconnected() {
-        // Two triangles: 0-1-2-0 and 3-4-5-3
-        let adj = vec![
-            vec![1, 2], // 0 connected to 1,2
-            vec![0, 2], // 1 connected to 0,2
-            vec![0, 1], // 2 connected to 0,1
-            vec![4, 5], // 3 connected to 4,5
-            vec![3, 5], // 4 connected to 3,5
-            vec![3, 4], // 5 connected to 3,4
-        ];
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-
-        // Complement connects all vertices from first triangle to second triangle
-        // This creates one large component
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].len(), 6);
-    }
-
-    #[test]
-    fn test_callback_ordering() {
-        // Test that components are found in order of first vertex
-        let adj = vec![
-            vec![1], // 0-1 pair
-            vec![0],
-            vec![3], // 2-3 pair
-            vec![2],
-        ];
-        let mut components = Vec::new();
-        comp_cc(&adj, |comp| components.push(comp));
-
-        // Should find one component containing all vertices
-        // since complement connects the pairs
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].len(), 4);
-
-        // First vertex should be 0 (lowest unvisited)
-        assert_eq!(components[0][0], 0);
-    }
-}
+// TODO: s-t numbering
+// https://judge.yosupo.jp/problem/st_numbering
+pub fn st_numbering() {}

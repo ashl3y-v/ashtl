@@ -1,5 +1,7 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
+use rand::prelude::SliceRandom;
+
 use crate::alg::fps::FPS;
 use crate::alg::ops::inv;
 use crate::ds::{bit_vec::BitVec, dsu::DSU};
@@ -494,6 +496,7 @@ pub fn blossom(n: usize, g: &[usize], d: &[usize]) -> (usize, Vec<usize>, Vec<u8
 
 // TODO: weighted blossom
 // https://judge.yosupo.jp/submission/295392
+// https://judge.yosupo.jp/problem/general_weighted_matching
 
 // TODO: O(m √n log ?) maximum matching
 // https://arxiv.org/pdf/1703.03998
@@ -706,5 +709,368 @@ impl StableMatching {
                 (v2 != usize::MAX).then_some((v1, v2))
             })
             .collect()
+    }
+}
+
+// TODO: O(n log n) regular bipartite perfect matching
+// https://judge.yosupo.jp/submission/342111
+
+// https://www.tau.ac.il/~nogaa/PDFS/lex2.pdf
+// O(m log m)
+// pub fn perfect_matching_regular_bipartite(
+//     n: usize,
+//     k: usize,
+//     edges: Vec<(usize, usize)>,
+// ) -> Vec<(usize, usize)> {
+//     #[derive(Clone, Copy)]
+//     struct DncItem {
+//         u: usize,
+//         v: usize,
+//         k: usize,
+//         idx: isize,
+//     }
+//     assert!(k > 0);
+//     let mut t = 0;
+//     while (1 << t) < k * n {
+//         t += 1;
+//     }
+//     let mut todnc: Vec<DncItem> = Vec::new();
+//     let alph = (1 << t) / k;
+//     let beta = (1 << t) - k * alph;
+//     for (i, &(u, v)) in edges.iter().enumerate() {
+//         todnc.push(DncItem {
+//             u,
+//             v: v + n,
+//             k: alph,
+//             idx: i as isize,
+//         });
+//     }
+//     if beta > 0 {
+//         for i in 0..n {
+//             todnc.push(DncItem {
+//                 u: i,
+//                 v: i + n,
+//                 k: beta,
+//                 idx: -1,
+//             });
+//         }
+//     }
+//     for _ in 0..t {
+//         let mut toeuler: Vec<(usize, usize)> = Vec::new();
+//         for item in &todnc {
+//             if item.k % 2 != 0 {
+//                 toeuler.push((item.u, item.v - n));
+//             }
+//         }
+//         let pth = split_euler_bipartite(2 * n, &toeuler);
+//         let mut parity = vec![0; toeuler.len()];
+//         for i in (1..pth.len()).step_by(2) {
+//             parity[pth[i]] = 1;
+//         }
+//         let mut sub0: Vec<DncItem> = Vec::new();
+//         let mut sub1: Vec<DncItem> = Vec::new();
+//         let mut ptr = 0;
+//         let mut bal = 0;
+//         for item in &todnc {
+//             let mut l = item.k / 2;
+//             let mut r = item.k / 2;
+//             if item.k % 2 != 0 {
+//                 if parity[ptr] == 1 {
+//                     r += 1;
+//                 } else {
+//                     l += 1;
+//                 }
+//                 ptr += 1;
+//             }
+//             if item.idx == -1 {
+//                 bal += l as isize - r as isize;
+//             }
+//             if l > 0 {
+//                 sub0.push(DncItem {
+//                     u: item.u,
+//                     v: item.v,
+//                     k: l,
+//                     idx: item.idx,
+//                 });
+//             }
+//             if r > 0 {
+//                 sub1.push(DncItem {
+//                     u: item.u,
+//                     v: item.v,
+//                     k: r,
+//                     idx: item.idx,
+//                 });
+//             }
+//         }
+//         if bal >= 0 {
+//             todnc = sub1;
+//         } else {
+//             todnc = sub0;
+//         }
+//     }
+//     let mut matching_edges = Vec::new();
+//     for item in &todnc {
+//         if item.idx != -1 {
+//             matching_edges.push(edges[item.idx as usize]);
+//         }
+//     }
+//     matching_edges
+// }
+
+pub struct BipartiteRegularMatching<F>
+where
+    F: Fn(usize) -> usize,
+{
+    n: usize,
+    mtl: Vec<usize>,
+    mtr: Vec<usize>,
+    ord: Vec<usize>,
+    path: Vec<(usize, usize)>,
+    pos: Vec<usize>,
+    sample_out: F,
+}
+
+// https://arxiv.org/pdf/0909.3346
+impl<F> BipartiteRegularMatching<F>
+where
+    F: Fn(usize) -> usize,
+{
+    pub fn new(n: usize, sample_out: F) -> Self {
+        let mut obj = Self {
+            n,
+            mtl: vec![usize::MAX; n],
+            mtr: vec![usize::MAX; n],
+            ord: (0..n).collect(),
+            path: Vec::with_capacity(3 * n + 20),
+            pos: vec![usize::MAX; n],
+            sample_out,
+        };
+        obj.ord.shuffle(&mut rand::rng());
+        obj
+    }
+
+    /// O(n log n)
+    pub fn solve_whp(&mut self) {
+        self.mtl.fill(usize::MAX);
+        self.mtr.fill(usize::MAX);
+        for j in 0..self.n {
+            let n_f = self.n as f64;
+            let j_f = j as f64;
+            let budget = 2.0 * (2.0 + n_f / (n_f - j_f));
+            let b_limit = budget.ceil() as usize;
+            let mut start_node = None;
+            for &candidate in &self.ord {
+                if self.mtl[candidate] == usize::MAX {
+                    start_node = Some(candidate);
+                    break;
+                }
+            }
+            if let Some(s) = start_node {
+                loop {
+                    if self.truncated_walk(s, b_limit) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /// O(n log n) ex.
+    pub fn solve(&mut self) {
+        self.mtl.fill(usize::MAX);
+        self.mtr.fill(usize::MAX);
+        for i in 0..self.n {
+            self.walk(self.ord[i]);
+        }
+        for v in 0..self.n {
+            if self.mtr[v] != usize::MAX {
+                self.mtl[self.mtr[v]] = v;
+            }
+        }
+    }
+
+    fn walk(&mut self, mut s: usize) {
+        while s != usize::MAX {
+            let v = (self.sample_out)(s);
+            (self.mtr[v], s) = (s, self.mtr[v]);
+        }
+    }
+
+    fn truncated_walk(&mut self, mut s: usize, mut b: usize) -> bool {
+        self.path.clear();
+        self.pos[s] = 0;
+        let mut success = false;
+        b += 1;
+        while b > 0 {
+            b -= 1;
+            let v = (self.sample_out)(s);
+            if self.mtr[v] == s {
+                continue;
+            }
+            let u = self.mtr[v];
+            if u != usize::MAX {
+                let pos = self.pos[u];
+                if pos != usize::MAX {
+                    self.pos[s] = usize::MAX;
+                    for (u_node, _) in &self.path[pos + 1..] {
+                        self.pos[*u_node] = usize::MAX;
+                    }
+                    self.path.truncate(pos);
+                    s = u;
+                    continue;
+                }
+            }
+            self.path.push((s, v));
+            if u == usize::MAX {
+                self.apply_path();
+                success = true;
+                break;
+            }
+            s = u;
+            self.pos[s] = self.path.len();
+        }
+        self.pos[s] = usize::MAX;
+        for (u, _) in &self.path {
+            self.pos[*u] = usize::MAX;
+        }
+        success
+    }
+
+    fn apply_path(&mut self) {
+        for &(u, v) in &self.path {
+            let old_u = self.mtr[v];
+            if old_u != usize::MAX {
+                self.mtl[old_u] = usize::MAX;
+            }
+            self.mtl[u] = v;
+            self.mtr[v] = u;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::Rng;
+
+    fn generate_regular_bipartite(n: usize, d: usize) -> Vec<Vec<usize>> {
+        let mut adj = vec![vec![]; n];
+        let mut rng = rand::thread_rng();
+        for _ in 0..d {
+            let mut p: Vec<usize> = (0..n).collect();
+            p.shuffle(&mut rng);
+            for (u, &v) in p.iter().enumerate() {
+                adj[u].push(v);
+            }
+        }
+        adj
+    }
+
+    fn verify_perfect_matching<F>(solver: &BipartiteRegularMatching<F>, adj: &[Vec<usize>])
+    where
+        F: Fn(usize) -> usize,
+    {
+        for u in 0..solver.n {
+            let v_idx = solver.mtl[u];
+            assert_ne!(v_idx, usize::MAX, "Node P[{}] is unmatched", u);
+            let v = v_idx as usize;
+
+            let u_back = solver.mtr[v];
+            assert_eq!(
+                u_back, u,
+                "Inconsistent: P[{}]->Q[{}] but Q[{}]->P[{}]",
+                u, v, v, u_back
+            );
+            assert!(adj[u].contains(&v), "Edge P[{}]-Q[{}] invalid", u, v);
+        }
+    }
+
+    #[test]
+    fn test_whp_correctness_stress() {
+        for _ in 0..20 {
+            let n = 50;
+            let d = 4;
+            let adj = generate_regular_bipartite(n, d);
+            let sample_out = |u: usize| -> usize {
+                let neighbors = &adj[u];
+                neighbors[rand::thread_rng().gen_range(0..neighbors.len())]
+            };
+
+            let mut solver = BipartiteRegularMatching::new(n, &sample_out);
+            solver.solve_whp();
+            verify_perfect_matching(&solver, &adj);
+        }
+    }
+
+    #[test]
+    fn test_small_3_regular() {
+        let n = 10;
+        let d = 3;
+        let adj = generate_regular_bipartite(n, d);
+
+        let sample_out = |u: usize| -> usize {
+            let neighbors = &adj[u];
+            let idx = rand::thread_rng().gen_range(0..neighbors.len());
+            neighbors[idx]
+        };
+
+        // Test Expected Time Algo
+        let mut solver = BipartiteRegularMatching::new(n, &sample_out);
+        solver.solve();
+        verify_perfect_matching(&solver, &adj);
+
+        // Test WHP Algo
+        let mut solver2 = BipartiteRegularMatching::new(n, &sample_out);
+        solver2.solve_whp();
+        verify_perfect_matching(&solver2, &adj);
+    }
+
+    #[test]
+    fn test_large_graph() {
+        let n = 1000; // 1000 nodes on each side
+        let d = 5;
+        let adj = generate_regular_bipartite(n, d);
+
+        let sample_out = |u: usize| -> usize {
+            let neighbors = &adj[u];
+            // Using fast randomness for loop
+            neighbors[rand::thread_rng().gen_range(0..neighbors.len())]
+        };
+
+        let mut solver = BipartiteRegularMatching::new(n, &sample_out);
+        solver.solve();
+        verify_perfect_matching(&solver, &adj);
+    }
+
+    #[test]
+    fn test_degree_1_trivial() {
+        let n = 50;
+        let d = 1;
+        let adj = generate_regular_bipartite(n, d);
+
+        let sample_out = |u: usize| -> usize { adj[u][0] };
+
+        let mut solver = BipartiteRegularMatching::new(n, &sample_out);
+        solver.solve_whp();
+        verify_perfect_matching(&solver, &adj);
+    }
+
+    #[test]
+    fn test_whp_correctness_stress_2() {
+        // Run multiple times to ensure the probabilistic bounds hold (no infinite loops)
+        for _ in 0..10 {
+            let n = 50;
+            let d = 4;
+            let adj = generate_regular_bipartite(n, d);
+
+            let sample_out = |u: usize| -> usize {
+                let neighbors = &adj[u];
+                neighbors[rand::thread_rng().gen_range(0..neighbors.len())]
+            };
+
+            let mut solver = BipartiteRegularMatching::new(n, &sample_out);
+            solver.solve_whp();
+            verify_perfect_matching(&solver, &adj);
+        }
     }
 }

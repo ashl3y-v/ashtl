@@ -142,3 +142,6 @@ impl<T: Copy + Default + AddAssign + SubAssign + PartialOrd> DMST<T> {
         Some((ans, edge))
     }
 }
+
+// TODO: incremental MSF
+// https://judge.yosupo.jp/problem/incremental_minimum_spanning_forest

@@ -3,6 +3,7 @@ use std::{collections::HashMap, f64::consts::SQRT_2};
 use crate::ds::dsu::DSU;
 use rand::prelude::SliceRandom;
 
+/// O(m α(n))
 pub fn contract(
     n: usize,
     es: &[(usize, usize, usize)],
@@ -49,7 +50,7 @@ pub fn contract(
     (next_comp_id, new_edges)
 }
 
-/// O(n^2 log^3 n)
+/// O(n^2 log^3 n α(n))
 pub fn karger_stein(n: usize, raw_edges: &[(usize, usize)]) -> (usize, Vec<usize>) {
     let edges_with_id: Vec<(usize, usize, usize)> = raw_edges
         .iter()

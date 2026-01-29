@@ -875,8 +875,15 @@ impl<const M: u64> Mat<M> {
         t_inv * s * t
     }
 
+    // TODO: pfaffian
+    // https://judge.yosupo.jp/problem/pfaffian_of_matrix
+    pub fn pfaffian(mut self) -> E {
+        unimplemented!()
+    }
+
     // TODO: hafnian
     // https://maspypy.github.io/library/linalg/hafnian.hpp
+    // https://judge.yosupo.jp/problem/hafnian_of_matrix
     pub fn hafnian(mut self) -> FPS<M> {
         unimplemented!()
     }

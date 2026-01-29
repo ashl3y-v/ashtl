@@ -249,6 +249,12 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
 // https://ideone.com/q6PWgB
 // https://codeforces.com/blog/entry/104075
 // https://codeforces.com/blog/entry/95823
+// https://developers.google.com/optimization/reference/graph/min_cost_flow
+// https://www.cs.cmu.edu/~avrim/451f13/lectures/lect1010.pdf
+// https://ocw.mit.edu/courses/6-854j-advanced-algorithms-fall-2005/b312c6aa208fc322bab7654e55c0ab01_lec14_1999.pdf
+// https://people.orie.cornell.edu/dpw/orie633/LectureNotes/lecture14.pdf
+
+pub struct CostScaling {}
 
 // TODO: min cost b-flow using network simplex
 // https://judge.yosupo.jp/submission/313861
