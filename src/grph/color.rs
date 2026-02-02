@@ -79,6 +79,9 @@ pub fn dsatur(adj: &[Vec<usize>]) -> (HashMap<usize, usize>, usize) {
     (cols, max_col + 1)
 }
 
+// TODO: better k-coloring algorithm
+// https://atcoder.jp/contests/abc294/tasks/abc294_h
+
 /// O(2^n n)
 pub fn k_col(k: usize, adj: &[usize]) -> bool {
     let n = adj.len();

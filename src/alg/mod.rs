@@ -4,6 +4,7 @@ pub mod floor_sum;
 pub mod fps;
 pub mod gcd;
 pub mod gray;
+pub mod laplacian;
 pub mod lattice;
 pub mod linear;
 pub mod mat;

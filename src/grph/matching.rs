@@ -712,122 +712,17 @@ impl StableMatching {
     }
 }
 
-// TODO: O(n log n) regular bipartite perfect matching
-// https://judge.yosupo.jp/submission/342111
-
-// https://www.tau.ac.il/~nogaa/PDFS/lex2.pdf
-// O(m log m)
-// pub fn perfect_matching_regular_bipartite(
-//     n: usize,
-//     k: usize,
-//     edges: Vec<(usize, usize)>,
-// ) -> Vec<(usize, usize)> {
-//     #[derive(Clone, Copy)]
-//     struct DncItem {
-//         u: usize,
-//         v: usize,
-//         k: usize,
-//         idx: isize,
-//     }
-//     assert!(k > 0);
-//     let mut t = 0;
-//     while (1 << t) < k * n {
-//         t += 1;
-//     }
-//     let mut todnc: Vec<DncItem> = Vec::new();
-//     let alph = (1 << t) / k;
-//     let beta = (1 << t) - k * alph;
-//     for (i, &(u, v)) in edges.iter().enumerate() {
-//         todnc.push(DncItem {
-//             u,
-//             v: v + n,
-//             k: alph,
-//             idx: i as isize,
-//         });
-//     }
-//     if beta > 0 {
-//         for i in 0..n {
-//             todnc.push(DncItem {
-//                 u: i,
-//                 v: i + n,
-//                 k: beta,
-//                 idx: -1,
-//             });
-//         }
-//     }
-//     for _ in 0..t {
-//         let mut toeuler: Vec<(usize, usize)> = Vec::new();
-//         for item in &todnc {
-//             if item.k % 2 != 0 {
-//                 toeuler.push((item.u, item.v - n));
-//             }
-//         }
-//         let pth = split_euler_bipartite(2 * n, &toeuler);
-//         let mut parity = vec![0; toeuler.len()];
-//         for i in (1..pth.len()).step_by(2) {
-//             parity[pth[i]] = 1;
-//         }
-//         let mut sub0: Vec<DncItem> = Vec::new();
-//         let mut sub1: Vec<DncItem> = Vec::new();
-//         let mut ptr = 0;
-//         let mut bal = 0;
-//         for item in &todnc {
-//             let mut l = item.k / 2;
-//             let mut r = item.k / 2;
-//             if item.k % 2 != 0 {
-//                 if parity[ptr] == 1 {
-//                     r += 1;
-//                 } else {
-//                     l += 1;
-//                 }
-//                 ptr += 1;
-//             }
-//             if item.idx == -1 {
-//                 bal += l as isize - r as isize;
-//             }
-//             if l > 0 {
-//                 sub0.push(DncItem {
-//                     u: item.u,
-//                     v: item.v,
-//                     k: l,
-//                     idx: item.idx,
-//                 });
-//             }
-//             if r > 0 {
-//                 sub1.push(DncItem {
-//                     u: item.u,
-//                     v: item.v,
-//                     k: r,
-//                     idx: item.idx,
-//                 });
-//             }
-//         }
-//         if bal >= 0 {
-//             todnc = sub1;
-//         } else {
-//             todnc = sub0;
-//         }
-//     }
-//     let mut matching_edges = Vec::new();
-//     for item in &todnc {
-//         if item.idx != -1 {
-//             matching_edges.push(edges[item.idx as usize]);
-//         }
-//     }
-//     matching_edges
-// }
-
 pub struct BipartiteRegularMatching<F>
 where
     F: Fn(usize) -> usize,
 {
-    n: usize,
-    mtl: Vec<usize>,
-    mtr: Vec<usize>,
-    ord: Vec<usize>,
-    path: Vec<(usize, usize)>,
-    pos: Vec<usize>,
-    sample_out: F,
+    pub n: usize,
+    pub mtl: Vec<usize>,
+    pub mtr: Vec<usize>,
+    pub ord: Vec<usize>,
+    pub path: Vec<(usize, usize)>,
+    pub pos: Vec<usize>,
+    pub sample_out: F,
 }
 
 // https://arxiv.org/pdf/0909.3346
@@ -847,6 +742,27 @@ where
         };
         obj.ord.shuffle(&mut rand::rng());
         obj
+    }
+
+    /// O(n log n) ex.
+    pub fn solve(&mut self) {
+        self.mtl.fill(usize::MAX);
+        self.mtr.fill(usize::MAX);
+        for i in 0..self.n {
+            self.walk(self.ord[i]);
+        }
+        for v in 0..self.n {
+            if self.mtr[v] != usize::MAX {
+                self.mtl[self.mtr[v]] = v;
+            }
+        }
+    }
+
+    fn walk(&mut self, mut s: usize) {
+        while s != usize::MAX {
+            let v = (self.sample_out)(s);
+            (self.mtr[v], s) = (s, self.mtr[v]);
+        }
     }
 
     /// O(n log n)
@@ -872,27 +788,6 @@ where
                     }
                 }
             }
-        }
-    }
-
-    /// O(n log n) ex.
-    pub fn solve(&mut self) {
-        self.mtl.fill(usize::MAX);
-        self.mtr.fill(usize::MAX);
-        for i in 0..self.n {
-            self.walk(self.ord[i]);
-        }
-        for v in 0..self.n {
-            if self.mtr[v] != usize::MAX {
-                self.mtl[self.mtr[v]] = v;
-            }
-        }
-    }
-
-    fn walk(&mut self, mut s: usize) {
-        while s != usize::MAX {
-            let v = (self.sample_out)(s);
-            (self.mtr[v], s) = (s, self.mtr[v]);
         }
     }
 

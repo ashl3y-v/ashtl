@@ -1,12 +1,5 @@
-// TODO: improve
-// https://codeforces.com/blog/entry/80145
-// https://codeforces.com/blog/entry/75885
-// https://codeforces.com/blog/entry/67637
-// https://judge.yosupo.jp/submission/270678
-// https://judge.yosupo.jp/submission/278245
-
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LCTNode<T> {
+pub struct PLCTNode<T> {
     pub v: T,
     pub p: usize,
     pub ch: [usize; 2],
@@ -15,27 +8,27 @@ pub struct LCTNode<T> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LCT<T, Push, Pull, Rev>
+pub struct PLCT<T, Push, Pull, Rev>
 where
-    Pull: FnMut([usize; 3], &mut [LCTNode<T>]),
-    Push: FnMut([usize; 3], &mut [LCTNode<T>]),
-    Rev: FnMut(usize, &mut [LCTNode<T>]),
+    Pull: FnMut([usize; 3], &mut [PLCTNode<T>]),
+    Push: FnMut([usize; 3], &mut [PLCTNode<T>]),
+    Rev: FnMut(usize, &mut [PLCTNode<T>]),
 {
-    pub n: Vec<LCTNode<T>>,
+    pub ns: Vec<PLCTNode<T>>,
     pub pull: Pull,
     pub push: Push,
     pub rev: Rev,
 }
 
-impl<T, Push, Pull, Rev> LCT<T, Push, Pull, Rev>
+impl<T, Push, Pull, Rev> PLCT<T, Push, Pull, Rev>
 where
-    Pull: FnMut([usize; 3], &mut [LCTNode<T>]),
-    Push: FnMut([usize; 3], &mut [LCTNode<T>]),
-    Rev: FnMut(usize, &mut [LCTNode<T>]),
+    Pull: FnMut([usize; 3], &mut [PLCTNode<T>]),
+    Push: FnMut([usize; 3], &mut [PLCTNode<T>]),
+    Rev: FnMut(usize, &mut [PLCTNode<T>]),
 {
     pub fn new(init: T, pull: Pull, push: Push, rev: Rev) -> Self {
         Self {
-            n: vec![LCTNode {
+            ns: vec![PLCTNode {
                 v: init,
                 p: 0,
                 ch: [0; 2],
@@ -50,7 +43,7 @@ where
 
     pub fn with_capacity(capacity: usize, init: T, pull: Pull, push: Push, rev: Rev) -> Self {
         let mut nodes = Vec::with_capacity(capacity + 1);
-        nodes.push(LCTNode {
+        nodes.push(PLCTNode {
             v: init,
             p: 0,
             ch: [0; 2],
@@ -58,7 +51,7 @@ where
             k: -1,
         });
         Self {
-            n: nodes,
+            ns: nodes,
             pull,
             push,
             rev,
@@ -66,20 +59,20 @@ where
     }
 
     pub fn add_node(&mut self, v: T) -> usize {
-        self.n.push(LCTNode {
+        self.ns.push(PLCTNode {
             v,
             p: 0,
             ch: [0, 0],
             rev: false,
             k: -1,
         });
-        self.n.len() - 2
+        self.ns.len() - 2
     }
 
     fn reverse(&mut self, x: usize) {
         if x != 0 {
-            self.n[x].rev ^= true;
-            (self.rev)(x, &mut self.n);
+            self.ns[x].rev ^= true;
+            (self.rev)(x, &mut self.ns);
         }
     }
 
@@ -87,56 +80,55 @@ where
         if x == 0 {
             return;
         }
-        let [mut ch0, mut ch1] = self.n[x].ch;
-        if self.n[x].rev {
-            self.n[x].ch.swap(0, 1);
+        let [mut ch0, mut ch1] = self.ns[x].ch;
+        if self.ns[x].rev {
+            self.ns[x].ch.swap(0, 1);
             (ch0, ch1) = (ch1, ch0);
-            self.n[ch0].k = 0;
-            self.n[ch1].k = 1;
+            self.ns[ch0].k = 0;
+            self.ns[ch1].k = 1;
             self.reverse(ch0);
             self.reverse(ch1);
-            self.n[x].rev = false;
+            self.ns[x].rev = false;
         }
-        (self.push)([x, ch0, ch1], &mut self.n);
+        (self.push)([x, ch0, ch1], &mut self.ns);
     }
 
     fn pull(&mut self, x: usize) {
         if x == 0 {
             return;
         }
-        let [ch0, ch1] = self.n[x].ch;
-        (self.pull)([x, ch0, ch1], &mut self.n);
+        let [ch0, ch1] = self.ns[x].ch;
+        (self.pull)([x, ch0, ch1], &mut self.ns);
     }
 
     fn rot(&mut self, x: usize) {
         if x == 0 {
             return;
         }
-        let p = self.n[x].p;
+        let p = self.ns[x].p;
         if p == 0 {
             return;
         }
-        let g = self.n[p].p;
-        let k = self.n[x].k as usize;
-        let t = self.n[p].k;
-        let child = self.n[x].ch[k ^ 1];
-        self.n[child].p = p;
-        self.n[child].k = k as i8;
-        self.n[p].ch[k] = child;
-        self.n[p].p = x;
-        self.n[p].k = (k ^ 1) as i8;
-        self.n[x].ch[k ^ 1] = p;
-        self.n[x].p = g;
-        self.n[x].k = t;
+        let g = self.ns[p].p;
+        let k = self.ns[x].k as usize;
+        let t = self.ns[p].k;
+        let ch = self.ns[x].ch[k ^ 1];
+        self.ns[ch].p = p;
+        self.ns[ch].k = k as i8;
+        self.ns[p].ch[k] = ch;
+        self.ns[p].p = x;
+        self.ns[p].k = (k ^ 1) as i8;
+        self.ns[x].ch[k ^ 1] = p;
+        self.ns[x].p = g;
+        self.ns[x].k = t;
         if t != -1 {
-            self.n[g].ch[t as usize] = x;
+            self.ns[g].ch[t as usize] = x;
         }
         self.pull(p);
     }
 
-    #[inline]
     fn is_root(&self, x: usize) -> bool {
-        self.n[x].k == -1
+        self.ns[x].k == -1
     }
 
     fn splay(&mut self, x: usize) {
@@ -145,17 +137,17 @@ where
         }
         self.push(x);
         while !self.is_root(x) {
-            let p = self.n[x].p;
+            let p = self.ns[x].p;
             if self.is_root(p) {
                 self.push(p);
                 self.push(x);
                 self.rot(x);
             } else {
-                let g = self.n[p].p;
+                let g = self.ns[p].p;
                 self.push(g);
                 self.push(p);
                 self.push(x);
-                if self.n[x].k == self.n[p].k {
+                if self.ns[x].k == self.ns[p].k {
                     self.rot(p);
                     self.rot(x);
                 } else {
@@ -166,37 +158,35 @@ where
         }
     }
 
-    fn access(&mut self, x: usize) {
+    pub fn access(&mut self, x: usize) {
         if x == 0 {
             return;
         }
         self.splay(x);
-        let [_, ch1] = self.n[x].ch;
-        self.n[ch1].k = -1;
-        self.n[x].ch[1] = 0;
-        while self.n[x].p != 0 {
-            let p = self.n[x].p;
+        let [_, ch1] = self.ns[x].ch;
+        self.ns[ch1].k = -1;
+        self.ns[x].ch[1] = 0;
+        while self.ns[x].p != 0 {
+            let p = self.ns[x].p;
             self.splay(p);
-            let [_, ch1] = self.n[p].ch;
-            self.n[ch1].k = -1;
-            self.n[p].ch[1] = x;
-            self.n[x].k = 1;
+            let [_, ch1] = self.ns[p].ch;
+            self.ns[ch1].k = -1;
+            self.ns[p].ch[1] = x;
+            self.ns[x].k = 1;
             self.rot(x);
         }
     }
 
-    #[inline]
-    fn make_root(&mut self, x: usize) {
+    pub fn make_root(&mut self, x: usize) {
         self.access(x);
         self.reverse(x);
     }
 
-    #[inline]
     pub fn link(&mut self, mut w: usize, mut x: usize) {
         w += 1;
         x += 1;
         self.make_root(w);
-        self.n[w].p = x;
+        self.ns[w].p = x;
     }
 
     pub fn cut(&mut self, mut u: usize, mut v: usize) {
@@ -204,44 +194,44 @@ where
         v += 1;
         self.make_root(u);
         self.access(v);
-        let [ch0, _] = self.n[v].ch;
-        self.n[ch0].p = 0;
-        self.n[ch0].k = -1;
-        self.n[v].ch[0] = 0;
+        let [ch0, _] = self.ns[v].ch;
+        self.ns[ch0].p = 0;
+        self.ns[ch0].k = -1;
+        self.ns[v].ch[0] = 0;
         self.pull(v);
     }
 
     pub fn update<R>(
         &mut self,
         mut u: usize,
-        mut f: impl FnMut(usize, [usize; 2], &mut [LCTNode<T>]) -> R,
+        mut f: impl FnMut(usize, [usize; 2], &mut [PLCTNode<T>]) -> R,
     ) -> R {
         u += 1;
         self.splay(u);
-        f(u, self.n[u].ch, &mut self.n)
+        f(u, self.ns[u].ch, &mut self.ns)
     }
 
     pub fn query_root<R>(
         &mut self,
         mut u: usize,
-        mut f: impl FnMut(usize, [usize; 2], &mut [LCTNode<T>]) -> R,
+        mut f: impl FnMut(usize, [usize; 2], &mut [PLCTNode<T>]) -> R,
     ) -> R {
         u += 1;
         self.make_root(u);
-        f(u, self.n[u].ch, &mut self.n)
+        f(u, self.ns[u].ch, &mut self.ns)
     }
 
     pub fn query<R>(
         &mut self,
         mut u: usize,
         mut v: usize,
-        mut f: impl FnMut(usize, [usize; 2], usize, [usize; 2], &mut [LCTNode<T>]) -> R,
+        mut f: impl FnMut(usize, [usize; 2], usize, [usize; 2], &mut [PLCTNode<T>]) -> R,
     ) -> R {
         u += 1;
         v += 1;
         self.make_root(u);
         self.access(v);
-        f(u, self.n[u].ch, v, self.n[v].ch, &mut self.n)
+        f(u, self.ns[u].ch, v, self.ns[v].ch, &mut self.ns)
     }
 
     pub fn conn(&mut self, mut u: usize, mut v: usize) -> bool {
@@ -252,296 +242,265 @@ where
         } else {
             self.make_root(u);
             self.access(v);
-            self.n[u].p != 0
+            self.ns[u].p != 0
         }
     }
 
-    #[inline]
     pub fn parent(&mut self, mut v: usize, mut w: usize) {
         v += 1;
         w += 1;
-        self.n[v].p = w;
+        self.ns[v].p = w;
     }
 
-    #[inline]
     pub fn len(&self) -> usize {
-        self.n.len()
+        self.ns.len()
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Clone, Debug)]
+pub struct SLCTNode<T> {
+    pub v: T,
+    pub p: usize,
+    pub ch: [usize; 2],
+    pub rev: bool,
+    pub k: i8,
+}
 
-    fn create_simple_lct() -> LCT<
-        i32,
-        fn([usize; 3], &mut [LCTNode<i32>]),
-        fn([usize; 3], &mut [LCTNode<i32>]),
-        fn(usize, &mut [LCTNode<i32>]),
-    > {
-        LCT::new(0, |_, _| {}, |_, _| {}, |_, _| {})
-    }
+pub struct SLCT<T, Pull, Push, Rev, Virtual, Link, Cut> {
+    pub ns: Vec<SLCTNode<T>>,
+    pub pull: Pull,
+    pub push: Push,
+    pub rev: Rev,
+    pub virt: Virtual,
+    pub link: Link,
+    pub cut: Cut,
+}
 
-    fn create_sum_lct() -> LCT<
-        (i32, i32),
-        fn([usize; 3], &mut [LCTNode<(i32, i32)>]),
-        fn([usize; 3], &mut [LCTNode<(i32, i32)>]),
-        fn(usize, &mut [LCTNode<(i32, i32)>]),
-    > {
-        LCT::new(
-            (0, 0),
-            |[x, l, r], n| {
-                n[x].v.1 = n[l].v.1 + n[r].v.1 + n[x].v.0;
-            },
-            |_, _| {},
-            |_, _| {},
-        )
-    }
-
-    #[test]
-    fn test_basic_node_creation() {
-        let mut lct = create_simple_lct();
-        assert_eq!(lct.len(), 1); // Just dummy node
-        let n1 = lct.add_node(10);
-        let n2 = lct.add_node(20);
-        let n3 = lct.add_node(30);
-        assert_eq!(n1, 0);
-        assert_eq!(n2, 1);
-        assert_eq!(n3, 2);
-        assert_eq!(lct.len(), 4);
-        assert_eq!(lct.n[n1 + 1].v, 10);
-        assert_eq!(lct.n[n2 + 1].v, 20);
-        assert_eq!(lct.n[n3 + 1].v, 30);
-    }
-
-    #[test]
-    fn test_single_node_connectivity() {
-        let mut lct = create_simple_lct();
-        let n1 = lct.add_node(42);
-        assert_eq!(lct.conn(n1, n1), true);
-    }
-
-    #[test]
-    fn test_two_isolated_nodes() {
-        let mut lct = create_simple_lct();
-        let n1 = lct.add_node(10);
-        let n2 = lct.add_node(20);
-        assert!(!lct.conn(n1, n2));
-        assert!(!lct.conn(n2, n1));
-    }
-
-    #[test]
-    fn test_basic_link_connectivity() {
-        let mut lct = create_simple_lct();
-        let n1 = lct.add_node(10);
-        let n2 = lct.add_node(20);
-        lct.link(n1, n2);
-        assert!(lct.conn(n1, n2));
-        assert!(lct.conn(n2, n1));
-    }
-
-    #[test]
-    fn test_chain_connectivity() {
-        let mut lct = create_simple_lct();
-        let nodes: Vec<_> = (0..5).map(|i| lct.add_node(i * 10)).collect();
-        for i in 1..5 {
-            lct.link(nodes[i], nodes[i - 1]);
+impl<T, Pull, Push, Rev, Virtual, Link, Cut> SLCT<T, Pull, Push, Rev, Virtual, Link, Cut>
+where
+    Pull: FnMut(usize, [usize; 2], &mut [SLCTNode<T>]),
+    Push: FnMut(usize, usize, &mut [SLCTNode<T>]),
+    Rev: FnMut(usize, &mut [SLCTNode<T>]),
+    Virtual: FnMut(usize, usize, bool, &mut [SLCTNode<T>]),
+    Link: FnMut(usize, usize, &mut [SLCTNode<T>]),
+    Cut: FnMut(usize, usize, &mut [SLCTNode<T>]),
+{
+    pub fn new(
+        init: T,
+        pull: Pull,
+        push: Push,
+        rev: Rev,
+        virt: Virtual,
+        link: Link,
+        cut: Cut,
+    ) -> Self {
+        let mut ns = Vec::new();
+        ns.push(SLCTNode {
+            v: init,
+            p: 0,
+            ch: [0, 0],
+            rev: false,
+            k: -1,
+        });
+        Self {
+            ns,
+            pull,
+            push,
+            rev,
+            virt,
+            link,
+            cut,
         }
-        for i in 0..5 {
-            for j in 0..5 {
-                assert!(lct.conn(nodes[i], nodes[j]));
+    }
+
+    pub fn with_capacity(
+        cap: usize,
+        init: T,
+        pull: Pull,
+        push: Push,
+        rev: Rev,
+        virt: Virtual,
+        link: Link,
+        cut: Cut,
+    ) -> Self {
+        let mut nodes = Vec::with_capacity(cap + 1);
+        nodes.push(SLCTNode {
+            v: init,
+            p: 0,
+            ch: [0, 0],
+            rev: false,
+            k: -1,
+        });
+        Self {
+            ns: nodes,
+            pull,
+            push,
+            rev,
+            virt,
+            link,
+            cut,
+        }
+    }
+
+    pub fn maintain(&mut self, x: usize) {
+        if x == 0 {
+            return;
+        }
+        if self.ns[x].rev {
+            let [ch0, ch1] = self.ns[x].ch;
+            self.ns[x].ch.swap(0, 1);
+            if ch0 != 0 {
+                self.ns[ch0].k = 1;
+                self.reverse(ch0);
+            }
+            if ch1 != 0 {
+                self.ns[ch1].k = 0;
+                self.reverse(ch1);
+            }
+            self.ns[x].rev = false;
+        }
+    }
+
+    pub fn pull(&mut self, x: usize) {
+        (self.pull)(x, self.ns[x].ch, &mut self.ns);
+    }
+
+    pub fn reverse(&mut self, x: usize) {
+        if x != 0 {
+            self.ns[x].rev ^= true;
+            (self.rev)(x, &mut self.ns);
+        }
+    }
+
+    pub fn rot(&mut self, x: usize) {
+        let p = self.ns[x].p;
+        let g = self.ns[p].p;
+        let k = self.ns[x].k as usize;
+        let t = self.ns[p].k;
+        (self.push)(p, x, &mut self.ns);
+        let ch = self.ns[x].ch[k ^ 1];
+        self.ns[p].ch[k] = ch;
+        if ch != 0 {
+            self.ns[ch].p = p;
+            self.ns[ch].k = k as i8;
+        }
+        self.ns[p].p = x;
+        self.ns[p].k = (k ^ 1) as i8;
+        self.ns[x].ch[k ^ 1] = p;
+        self.ns[x].p = g;
+        self.ns[x].k = t;
+        if t != -1 {
+            self.ns[g].ch[t as usize] = x;
+        }
+        self.pull(p);
+    }
+
+    pub fn splay(&mut self, x: usize) {
+        if x == 0 {
+            return;
+        }
+        self.maintain(x);
+        while self.ns[x].k != -1 {
+            let p = self.ns[x].p;
+            if self.ns[p].k == -1 {
+                self.maintain(p);
+                self.maintain(x);
+                self.rot(x);
+            } else {
+                let g = self.ns[p].p;
+                self.maintain(g);
+                self.maintain(p);
+                self.maintain(x);
+                if self.ns[x].k == self.ns[p].k {
+                    self.rot(p);
+                    self.rot(x);
+                } else {
+                    self.rot(x);
+                    self.rot(x);
+                }
             }
         }
+        self.pull(x);
     }
 
-    #[test]
-    fn test_star_connectivity() {
-        let mut lct = create_simple_lct();
-        let center = lct.add_node(0);
-        let leaves: Vec<_> = (1..=4).map(|i| lct.add_node(i * 10)).collect();
-
-        // Create star: center connected to all leaves
-        for &leaf in &leaves {
-            lct.link(leaf, center);
+    pub fn access(&mut self, x: usize) {
+        self.splay(x);
+        let rs = self.ns[x].ch[1];
+        if rs != 0 {
+            self.ns[rs].k = -1;
+            (self.virt)(x, rs, true, &mut self.ns);
         }
-
-        // Center should be connected to all leaves
-        for &leaf in &leaves {
-            assert!(lct.conn(center, leaf));
-        }
-
-        // All leaves should be connected to each other through center
-        for i in 0..leaves.len() {
-            for j in 0..leaves.len() {
-                assert!(lct.conn(leaves[i], leaves[j]));
+        self.ns[x].ch[1] = 0;
+        self.pull(x);
+        while self.ns[x].p != 0 {
+            let p = self.ns[x].p;
+            self.splay(p);
+            let p_rs = self.ns[p].ch[1];
+            if p_rs != 0 {
+                self.ns[p_rs].k = -1;
+                (self.virt)(p, p_rs, true, &mut self.ns);
             }
+            (self.virt)(p, x, false, &mut self.ns);
+            self.ns[p].ch[1] = x;
+            self.ns[x].k = 1;
+            self.rot(x);
+            self.pull(x);
         }
     }
 
-    #[test]
-    fn test_cut_operation() {
-        let mut lct = create_simple_lct();
-        let n1 = lct.add_node(10);
-        let n2 = lct.add_node(20);
-        let n3 = lct.add_node(30);
-
-        // Create chain: n1 - n2 - n3
-        lct.link(n2, n1);
-        lct.link(n3, n2);
-
-        // All should be connected
-        assert!(lct.conn(n1, n3));
-
-        // Cut connection between n2 and n3
-        lct.cut(n2, n3);
-
-        // n1 and n2 should still be connected
-        assert!(lct.conn(n1, n2));
-
-        // n1 and n3 should no longer be connected
-        assert!(!lct.conn(n1, n3));
-        assert!(!lct.conn(n3, n1));
-
-        // n2 and n3 should no longer be connected
-        assert!(!lct.conn(n2, n3));
+    pub fn make_root(&mut self, x: usize) {
+        self.access(x);
+        self.reverse(x);
     }
 
-    #[test]
-    fn test_dynamic_tree_operations() {
-        let mut lct = create_simple_lct();
-        let nodes: Vec<_> = (0..6).map(|i| lct.add_node(i)).collect();
+    pub fn link(&mut self, u: usize, v: usize) {
+        if u == 0 || v == 0 || u == v {
+            return;
+        }
+        self.make_root(u);
+        self.access(v);
+        (self.link)(u, v, &mut self.ns);
+        self.ns[u].p = v;
+        (self.virt)(v, u, true, &mut self.ns);
+        self.pull(v);
+    }
 
-        // Initial tree: 0-1-2 and 3-4-5 (two components)
-        lct.link(nodes[1], nodes[0]);
-        lct.link(nodes[2], nodes[1]);
-        lct.link(nodes[4], nodes[3]);
-        lct.link(nodes[5], nodes[4]);
-
-        // Components should be internally connected but not across
-        assert!(lct.conn(nodes[0], nodes[2]));
-        assert!(lct.conn(nodes[3], nodes[5]));
-        assert!(!lct.conn(nodes[0], nodes[3]));
-
-        // Connect the two components
-        lct.link(nodes[2], nodes[3]);
-
-        // Now all nodes should be connected
-        for i in 0..6 {
-            for j in 0..6 {
-                assert!(lct.conn(nodes[i], nodes[j]));
-            }
+    pub fn cut(&mut self, u: usize, v: usize) {
+        self.make_root(u);
+        self.access(v);
+        let ch0 = self.ns[v].ch[0];
+        if ch0 != 0 {
+            (self.cut)(ch0, v, &mut self.ns);
+            self.ns[ch0].p = 0;
+            self.ns[ch0].k = -1;
+            self.ns[v].ch[0] = 0;
+            self.pull(v);
         }
     }
 
-    #[test]
-    fn test_large_chain() {
-        let mut lct = create_simple_lct();
-        let nodes: Vec<_> = (0..100).map(|i| lct.add_node(i)).collect();
-
-        // Create long chain
-        for i in 1..100 {
-            lct.link(nodes[i], nodes[i - 1]);
-        }
-
-        // Test connectivity across the chain
-        assert!(lct.conn(nodes[0], nodes[99]));
-        assert!(lct.conn(nodes[25], nodes[75]));
+    pub fn update<R>(
+        &mut self,
+        u: usize,
+        p: usize,
+        mut f: impl FnMut(usize, &mut [SLCTNode<T>]) -> R,
+    ) -> R {
+        self.access(u);
+        self.reverse(u);
+        self.access(p);
+        let res = f(u, &mut self.ns);
+        self.pull(u);
+        res
     }
 
-    #[test]
-    fn test_complex_tree_structure() {
-        let mut lct = create_simple_lct();
-
-        // Create a more complex tree:
-        //       0
-        //      / \
-        //     1   2
-        //    /|   |\
-        //   3 4   5 6
-        //         |
-        //         7
-
-        let nodes: Vec<_> = (0..8).map(|i| lct.add_node(i * 10)).collect();
-
-        // Build the tree structure
-        lct.link(nodes[1], nodes[0]);
-        lct.link(nodes[2], nodes[0]);
-        lct.link(nodes[3], nodes[1]);
-        lct.link(nodes[4], nodes[1]);
-        lct.link(nodes[5], nodes[2]);
-        lct.link(nodes[6], nodes[2]);
-        lct.link(nodes[7], nodes[5]);
-
-        // Test connectivity - all nodes should be connected
-        for i in 0..8 {
-            for j in 0..8 {
-                assert!(lct.conn(nodes[i], nodes[j]));
-            }
-        }
-    }
-
-    #[test]
-    fn test_sum_aggregation_with_connectivity() {
-        let mut lct = create_sum_lct();
-
-        let nodes: Vec<_> = (1..=5)
-            .map(|i| {
-                lct.add_node((i * 10, 0)) // (value, sum)
-            })
-            .collect();
-
-        // Create path: n0 - n1 - n2 - n3 - n4
-        for i in 1..5 {
-            lct.link(nodes[i], nodes[i - 1]);
-        }
-
-        // Test connectivity
-        assert!(lct.conn(nodes[0], nodes[4]));
-
-        // Test path sum query
-        let sum = lct.query(nodes[0], nodes[4], |_, _, v, [l, _], n| n[l].v.1 + n[v].v.0);
-
-        // Should sum values from n0 to n4: 10 + 20 + 30 + 40 + 50 = 150
-        assert_eq!(sum, 150);
-    }
-
-    #[test]
-    fn test_with_capacity() {
-        let mut lct = LCT::with_capacity(
-            100,
-            (0, 0),
-            |[x, l, r], n| n[x].v.1 = n[l].v.1 + n[r].v.1 + n[x].v.0,
-            |_, _| {},
-            |_, _| {},
-        );
-        assert_eq!(lct.len(), 1); // Just dummy node initially
-
-        // Add nodes up to capacity
-        for i in 0..50 {
-            let n = lct.add_node((i as i32, 0));
-            assert_eq!(n, i);
-        }
-
-        assert_eq!(lct.len(), 51);
-
-        // Test connectivity after capacity initialization
-        lct.link(1, 2);
-        lct.link(3, 2);
-
-        assert!(lct.conn(1, 3));
-        // assert_eq!(lct.lca(1, 3), 2);
-
-        // Can still add more beyond initial capacity
-        let n = lct.add_node((999, 0));
-        assert_eq!(n, 50);
-
-        let result = lct.query(n, n, |_, _, v, [l, _], n| n[l].v.1 + n[v].v.0);
-        assert_eq!(result, 999);
-        lct.link(n, 1);
-        lct.cut(2, 1);
-        lct.link(n, 2);
-
-        let result = lct.query(2, n, |_, _, v, [l, _], n| n[l].v.1 + n[v].v.0);
-        assert_eq!(result, 1001);
+    pub fn query<R>(
+        &mut self,
+        u: usize,
+        p: usize,
+        mut f: impl FnMut(usize, usize, &mut [SLCTNode<T>]) -> R,
+    ) -> R {
+        self.access(u);
+        self.reverse(u);
+        self.access(p);
+        f(u, p, &mut self.ns)
     }
 }

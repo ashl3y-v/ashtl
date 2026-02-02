@@ -245,7 +245,7 @@ impl StaticTopTree {
     }
 }
 
-pub trait TopTreeMonoid {
+pub trait StaticTopTreeMonoid {
     type Path: Clone;
     type Point: Clone;
 
@@ -256,13 +256,13 @@ pub trait TopTreeMonoid {
     fn rake(l: &Self::Point, r: &Self::Point) -> Self::Point;
 }
 
-pub struct DynamicTreeDp<'a, M: TopTreeMonoid> {
+pub struct DynamicTreeDp<'a, M: StaticTopTreeMonoid> {
     stt: &'a StaticTopTree,
     pub path: Vec<Option<M::Path>>,
     pub point: Vec<Option<M::Point>>,
 }
 
-impl<'a, M: TopTreeMonoid> DynamicTreeDp<'a, M> {
+impl<'a, M: StaticTopTreeMonoid> DynamicTreeDp<'a, M> {
     pub fn new(stt: &'a StaticTopTree) -> Self {
         let mut dp = Self {
             stt,
@@ -321,12 +321,6 @@ impl<'a, M: TopTreeMonoid> DynamicTreeDp<'a, M> {
     }
 }
 
-// TODO: top tree
-// https://codeforces.com/blog/entry/103726
-// https://codeforces.com/blog/entry/128556
-// https://blog.niuez.net/cp-cpp-library/data_structures/trees/toptree.html
-// https://judge.yosupo.jp/submission/205066
-
 // TODO: dyanmic rerooting tree DP structure
 // https://maspypy.github.io/library/graph/ds/dynamic_tree_dp.hpp
 // https://maspypy.github.io/library/graph/ds/dynamic_rerooting_tree_dp.hpp
@@ -378,7 +372,6 @@ impl<'a, M: RerootTreeDpTrait> DynamicRerootingTreeDp<'a, M> {
     fn update(&mut self, i: usize) {
         let l = self.stt.l[i];
         let r = self.stt.r[i];
-
         match self.stt.typ[i] {
             StaticTopTreeNodeType::Vertex => {
                 self.dp[i] = (M::vertex(i), M::vertex2(i));
@@ -409,16 +402,13 @@ impl<'a, M: RerootTreeDpTrait> DynamicRerootingTreeDp<'a, M> {
         let mut a = Some(self.dp[i].1.clone());
         let mut b: Option<M::X> = None;
         let mut c: Option<M::X> = None;
-
         while i != usize::MAX {
             let p = self.stt.p[i];
             if p == usize::MAX {
                 break;
             }
-
             let l = self.stt.l[p];
             let r = self.stt.r[p];
-
             match self.stt.typ[p] {
                 StaticTopTreeNodeType::Vertex => unreachable!(),
                 StaticTopTreeNodeType::Compress => {
@@ -475,7 +465,6 @@ impl<'a, M: RerootTreeDpTrait> DynamicRerootingTreeDp<'a, M> {
                     if let Some(val_a) = a {
                         a = Some(M::add_vertex2(&val_a, p));
                     }
-                    // Update siblings (b, c) too because they are passing through the wrapper
                     if let Some(val_b) = b {
                         b = Some(M::add_vertex(&val_b, p));
                     }
@@ -517,9 +506,473 @@ impl<'a, M: RerootTreeDpTrait> DynamicRerootingTreeDp<'a, M> {
     }
 }
 
-// ==========================================================
-// Tests
-// ==========================================================
+// TODO: top tree
+// https://codeforces.com/blog/entry/103726
+// https://codeforces.com/blog/entry/128556
+// https://blog.niuez.net/cp-cpp-library/data_structures/trees/toptree.html
+// https://judge.yosupo.jp/submission/205066
+
+pub trait TopTreeMonoid {
+    type Path: Clone + Default;
+    type Point: Clone + Default;
+    type Info: Clone + Default;
+
+    fn vertex(info: &Self::Info) -> Self::Path;
+    fn compress(p: &Self::Path, c: &Self::Path) -> Self::Path;
+    fn rake(l: &Self::Point, r: &Self::Point) -> Self::Point;
+    fn add_edge(p: &Self::Path) -> Self::Point;
+    fn add_vertex(p: &Self::Point, i: &Self::Info) -> Self::Path;
+}
+
+#[derive(Clone, Default)]
+struct TopTreeNode<S: TopTreeMonoid> {
+    l: usize,
+    r: usize,
+    p: usize,
+    info: S::Info,
+    key: S::Path,
+    sum: S::Path,
+    mus: S::Path,
+    light: usize,
+    belong: usize,
+    rev: bool,
+}
+
+#[derive(Clone, Default)]
+struct TopTreeDashedNode<S: TopTreeMonoid> {
+    l: usize,
+    r: usize,
+    p: usize,
+    key: S::Point,
+    sum: S::Point,
+}
+
+pub struct TopTree<S: TopTreeMonoid> {
+    nodes: Vec<TopTreeNode<S>>,
+    dashed: Vec<TopTreeDashedNode<S>>,
+    dashed_free: Vec<usize>,
+}
+
+impl<S: Default + TopTreeMonoid> TopTree<S> {
+    pub fn new(n: usize, infos: Vec<S::Info>) -> Self {
+        let mut nodes = Vec::with_capacity(n + 1);
+        nodes.push(TopTreeNode::default());
+        for info in infos {
+            let key = S::vertex(&info);
+            nodes.push(TopTreeNode {
+                l: 0,
+                r: 0,
+                p: 0,
+                info,
+                key: key.clone(),
+                sum: key.clone(),
+                mus: key,
+                light: 0,
+                belong: 0,
+                rev: false,
+            });
+        }
+        let mut dashed = Vec::new();
+        dashed.push(TopTreeDashedNode::default());
+        Self {
+            nodes,
+            dashed,
+            dashed_free: Vec::new(),
+        }
+    }
+
+    fn alloc_dashed(&mut self, key: S::Point) -> usize {
+        if let Some(idx) = self.dashed_free.pop() {
+            self.dashed[idx] = TopTreeDashedNode {
+                l: 0,
+                r: 0,
+                p: 0,
+                key: key.clone(),
+                sum: key,
+            };
+            idx
+        } else {
+            let idx = self.dashed.len();
+            self.dashed.push(TopTreeDashedNode {
+                l: 0,
+                r: 0,
+                p: 0,
+                key: key.clone(),
+                sum: key,
+            });
+            idx
+        }
+    }
+
+    fn free_dashed(&mut self, idx: usize) {
+        if idx != 0 {
+            self.dashed_free.push(idx);
+        }
+    }
+
+    fn dashed_update(&mut self, t: usize) {
+        if t == 0 {
+            return;
+        }
+        let mut sum = self.dashed[t].key.clone();
+        let l = self.dashed[t].l;
+        let r = self.dashed[t].r;
+        if l != 0 {
+            sum = S::rake(&sum, &self.dashed[l].sum);
+        }
+        if r != 0 {
+            sum = S::rake(&sum, &self.dashed[r].sum);
+        }
+        self.dashed[t].sum = sum;
+    }
+
+    fn dashed_rotate(&mut self, t: usize, right: bool) {
+        let p = self.dashed[t].p;
+        let g = self.dashed[p].p;
+        if right {
+            // Rotate Right
+            let r = self.dashed[t].r;
+            self.dashed[p].l = r;
+            if r != 0 {
+                self.dashed[r].p = p;
+            }
+            self.dashed[t].r = p;
+            self.dashed[p].p = t;
+        } else {
+            // Rotate Left
+            let l = self.dashed[t].l;
+            self.dashed[p].r = l;
+            if l != 0 {
+                self.dashed[l].p = p;
+            }
+            self.dashed[t].l = p;
+            self.dashed[p].p = t;
+        }
+        self.dashed_update(p);
+        self.dashed_update(t);
+        self.dashed[t].p = g;
+        if g != 0 {
+            if self.dashed[g].l == p {
+                self.dashed[g].l = t;
+            } else {
+                self.dashed[g].r = t;
+            }
+        }
+    }
+
+    fn dashed_splay(&mut self, t: usize) {
+        while self.dashed[t].p != 0 {
+            let p = self.dashed[t].p;
+            let g = self.dashed[p].p;
+            if g == 0 {
+                // Zig
+                if self.dashed[p].l == t {
+                    self.dashed_rotate(t, true);
+                } else {
+                    self.dashed_rotate(t, false);
+                }
+            } else {
+                let p_left = self.dashed[g].l == p;
+                let t_left = self.dashed[p].l == t;
+                if p_left == t_left {
+                    // Zig-Zig
+                    if p_left {
+                        self.dashed_rotate(p, true);
+                        self.dashed_rotate(t, true);
+                    } else {
+                        self.dashed_rotate(p, false);
+                        self.dashed_rotate(t, false);
+                    }
+                } else {
+                    // Zig-Zag
+                    if t_left {
+                        self.dashed_rotate(t, true);
+                        self.dashed_rotate(t, false);
+                    } else {
+                        self.dashed_rotate(t, false);
+                        self.dashed_rotate(t, true);
+                    }
+                }
+            }
+        }
+    }
+
+    fn dashed_insert(&mut self, root: usize, val: S::Point) -> usize {
+        let node = self.alloc_dashed(val);
+        if root == 0 {
+            return node;
+        }
+        // Insert as rightmost child to maintain order if needed,
+        // though rake order technically doesn't matter for commutative ops.
+        // Usually rake trees are just binary search trees or unsorted.
+        // We'll append to the right.
+        let mut cur = root;
+        while self.dashed[cur].r != 0 {
+            cur = self.dashed[cur].r;
+        }
+        self.dashed_splay(cur); // Splay the rightmost to root
+        // Now cur is root and has no right child
+        self.dashed[cur].r = node;
+        self.dashed[node].p = cur;
+        self.dashed_update(cur);
+        self.dashed_splay(node);
+        node
+    }
+
+    fn dashed_erase(&mut self, t: usize) -> usize {
+        self.dashed_splay(t);
+        let l = self.dashed[t].l;
+        let r = self.dashed[t].r;
+        self.free_dashed(t);
+        if l == 0 {
+            if r != 0 {
+                self.dashed[r].p = 0;
+            }
+            return r;
+        }
+        if r == 0 {
+            self.dashed[l].p = 0;
+            return l;
+        }
+        self.dashed[l].p = 0;
+        self.dashed[r].p = 0;
+        // Join l and r: find rightmost of l, splay it, attach r
+        let mut cur = l;
+        while self.dashed[cur].r != 0 {
+            cur = self.dashed[cur].r;
+        }
+        self.dashed_splay(cur);
+        self.dashed[cur].r = r;
+        self.dashed[r].p = cur;
+        self.dashed_update(cur);
+        cur
+    }
+
+    fn is_root(&self, t: usize) -> bool {
+        let p = self.nodes[t].p;
+        p == 0 || (self.nodes[p].l != t && self.nodes[p].r != t)
+    }
+
+    fn reverse(&mut self, t: usize) {
+        if t == 0 {
+            return;
+        }
+        let l = self.nodes[t].l;
+        let r = self.nodes[t].r;
+        self.nodes[t].l = r;
+        self.nodes[t].r = l;
+        let sum = self.nodes[t].sum.clone();
+        let mus = self.nodes[t].mus.clone();
+        self.nodes[t].sum = mus;
+        self.nodes[t].mus = sum;
+        self.nodes[t].rev ^= true;
+    }
+
+    fn push(&mut self, t: usize) {
+        if t == 0 {
+            return;
+        }
+        if self.nodes[t].rev {
+            let l = self.nodes[t].l;
+            let r = self.nodes[t].r;
+            self.reverse(l);
+            self.reverse(r);
+            self.nodes[t].rev = false;
+        }
+    }
+
+    fn update(&mut self, t: usize) {
+        if t == 0 {
+            return;
+        }
+        // Rake dashed edges into key
+        let light = self.nodes[t].light;
+        let key = if light != 0 {
+            S::add_vertex(&self.dashed[light].sum, &self.nodes[t].info)
+        } else {
+            S::vertex(&self.nodes[t].info)
+        };
+        let mut sum = key.clone();
+        let mut mus = key.clone();
+        let l = self.nodes[t].l;
+        let r = self.nodes[t].r;
+        if l != 0 {
+            sum = S::compress(&self.nodes[l].sum, &sum);
+            mus = S::compress(&mus, &self.nodes[l].mus);
+        }
+        if r != 0 {
+            sum = S::compress(&sum, &self.nodes[r].sum);
+            mus = S::compress(&self.nodes[r].mus, &mus);
+        }
+        self.nodes[t].key = key;
+        self.nodes[t].sum = sum;
+        self.nodes[t].mus = mus;
+    }
+
+    fn rotate(&mut self, t: usize, right: bool) {
+        let p = self.nodes[t].p;
+        let g = self.nodes[p].p;
+        // Push rev flags before structural change
+        // In top-down splay/expose we usually push beforehand,
+        // but here we do it inside rotate to be safe.
+        self.push(p);
+        self.push(t);
+        if right {
+            let r = self.nodes[t].r;
+            self.nodes[p].l = r;
+            if r != 0 {
+                self.nodes[r].p = p;
+            }
+            self.nodes[t].r = p;
+            self.nodes[p].p = t;
+        } else {
+            let l = self.nodes[t].l;
+            self.nodes[p].r = l;
+            if l != 0 {
+                self.nodes[l].p = p;
+            }
+            self.nodes[t].l = p;
+            self.nodes[p].p = t;
+        }
+        self.update(p);
+        self.update(t);
+        self.nodes[t].p = g;
+        if g != 0 {
+            if self.nodes[g].l == p {
+                self.nodes[g].l = t;
+            } else if self.nodes[g].r == p {
+                self.nodes[g].r = t;
+            }
+            // If p was connected via light/belong pointers (path parent but not tree parent),
+            // g's l/r won't point to p, so we don't update g's children.
+        }
+        // Maintain 'belong' pointer (path-parent pointer logic)
+        self.nodes[t].belong = self.nodes[p].belong;
+        self.nodes[p].belong = 0;
+    }
+
+    fn splay(&mut self, t: usize) {
+        self.push(t);
+        while !self.is_root(t) {
+            let p = self.nodes[t].p;
+            if self.is_root(p) {
+                self.push(p);
+                self.push(t);
+                if self.nodes[p].l == t {
+                    self.rotate(t, true);
+                } else {
+                    self.rotate(t, false);
+                }
+            } else {
+                let g = self.nodes[p].p;
+                self.push(g);
+                self.push(p);
+                self.push(t);
+                let p_left = self.nodes[g].l == p;
+                let t_left = self.nodes[p].l == t;
+                if p_left == t_left {
+                    if p_left {
+                        self.rotate(p, true);
+                        self.rotate(t, true);
+                    } else {
+                        self.rotate(p, false);
+                        self.rotate(t, false);
+                    }
+                } else {
+                    if t_left {
+                        self.rotate(t, true);
+                        self.rotate(t, false);
+                    } else {
+                        self.rotate(t, false);
+                        self.rotate(t, true);
+                    }
+                }
+            }
+        }
+    }
+
+    fn expose(&mut self, t: usize) -> usize {
+        let mut rp = 0;
+        let mut cur = t;
+        while cur != 0 {
+            self.splay(cur);
+            // Move current right child (heavy) to light (dashed)
+            let r = self.nodes[cur].r;
+            if r != 0 {
+                let val = S::add_edge(&self.nodes[r].sum);
+                let dashed_node = self.dashed_insert(self.nodes[cur].light, val);
+                self.nodes[cur].light = dashed_node;
+                self.nodes[r].belong = dashed_node;
+            }
+            // Move rp (which was light) to heavy (right child)
+            self.nodes[cur].r = rp;
+            // Remove rp from light (dashed)
+            if rp != 0 {
+                let belong = self.nodes[rp].belong;
+                self.dashed_splay(belong);
+                // Note: The structure of dashed tree changed, update light pointer of cur
+                // But wait, 'belong' points to the dashed node representing 'rp'.
+                // If we erase it, the root of the dashed tree might change.
+                self.nodes[cur].light = self.dashed_erase(belong);
+                self.nodes[rp].belong = 0;
+            }
+            self.update(cur);
+            rp = cur;
+            cur = self.nodes[cur].p;
+        }
+        self.splay(t);
+        rp
+    }
+
+    pub fn link(&mut self, child: usize, parent: usize) {
+        if child == 0 || parent == 0 {
+            return;
+        }
+        self.expose(child);
+        self.reverse(child);
+        self.push(child); // Evert
+        self.expose(parent);
+        self.nodes[child].p = parent;
+        self.nodes[parent].r = child;
+        self.update(parent);
+    }
+
+    pub fn cut(&mut self, u: usize, v: usize) {
+        if u == 0 || v == 0 {
+            return;
+        }
+        self.expose(u);
+        self.reverse(u);
+        self.push(u); // Evert u
+        self.expose(v);
+        // v should be the root of the splay, u should be left child if connected
+        if self.nodes[v].l == u {
+            self.nodes[v].l = 0;
+            self.nodes[u].p = 0;
+            self.update(v);
+        }
+    }
+
+    pub fn set_info(&mut self, u: usize, info: S::Info) {
+        if u == 0 {
+            return;
+        }
+        self.expose(u);
+        self.nodes[u].info = info;
+        self.update(u);
+    }
+
+    pub fn query(&mut self, u: usize) -> S::Path {
+        if u == 0 {
+            return S::Path::default();
+        }
+        self.expose(u);
+        self.reverse(u);
+        self.push(u);
+        self.nodes[u].sum.clone()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -686,5 +1139,305 @@ mod tests {
         let dp = DynamicRerootingTreeDp::<TreeDist>::new(&stt);
         assert_eq!(dp.prod_all(0).sum, 3);
         assert_eq!(dp.prod_all(1).sum, 5);
+    }
+}
+
+#[cfg(test)]
+mod tests_p {
+    use super::*;
+
+    // --- 1. Define a Simple Specification for Testing ---
+    // This Spec calculates the sum of all node values in the component.
+    #[derive(Default)]
+    struct SumSpec;
+
+    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+    struct SumPath(i64);
+    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+    struct SumPoint(i64);
+    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+    struct SumInfo(i64);
+
+    impl TopTreeMonoid for SumSpec {
+        type Path = SumPath;
+        type Point = SumPoint;
+        type Info = SumInfo;
+
+        fn vertex(info: &Self::Info) -> Self::Path {
+            SumPath(info.0)
+        }
+        fn compress(p: &Self::Path, c: &Self::Path) -> Self::Path {
+            // Combining two segments of a heavy path
+            SumPath(p.0 + c.0)
+        }
+        fn rake(l: &Self::Point, r: &Self::Point) -> Self::Point {
+            // Combining two light edges
+            SumPoint(l.0 + r.0)
+        }
+        fn add_edge(p: &Self::Path) -> Self::Point {
+            // Converting a heavy path to a light edge
+            SumPoint(p.0)
+        }
+        fn add_vertex(p: &Self::Point, i: &Self::Info) -> Self::Path {
+            // Adding a vertex to the aggregated light edges below it
+            SumPath(p.0 + i.0)
+        }
+    }
+
+    // --- 2. Test Cases ---
+
+    #[test]
+    fn test_initial_state() {
+        let values = vec![1, 10, 100];
+        let infos = values.iter().map(|&x| SumInfo(x)).collect();
+        let mut dtt = TopTree::<SumSpec>::new(3, infos);
+
+        // Initially, all nodes are disjoint.
+        // Querying a node should return its own value.
+        // Recall: Nodes are 1-based.
+        assert_eq!(dtt.query(1).0, 1);
+        assert_eq!(dtt.query(2).0, 10);
+        assert_eq!(dtt.query(3).0, 100);
+    }
+
+    #[test]
+    fn test_link_basic() {
+        let values = vec![1, 10, 100];
+        let infos = values.iter().map(|&x| SumInfo(x)).collect();
+        let mut dtt = TopTree::<SumSpec>::new(3, infos);
+
+        // Link 1 and 2. Component {1, 2} sum = 11. Node 3 is 100.
+        dtt.link(1, 2);
+
+        assert_eq!(dtt.query(1).0, 11);
+        assert_eq!(dtt.query(2).0, 11);
+        assert_eq!(dtt.query(3).0, 100);
+    }
+
+    #[test]
+    fn test_path_graph() {
+        // Create a line: 1 - 2 - 3 - 4
+        // Values: 1, 1, 1, 1
+        let infos = vec![SumInfo(1); 4];
+        let mut dtt = TopTree::<SumSpec>::new(4, infos);
+
+        dtt.link(1, 2);
+        dtt.link(2, 3);
+        dtt.link(3, 4);
+
+        // Any node query should return 4
+        for i in 1..=4 {
+            assert_eq!(dtt.query(i).0, 4, "Node {} should see sum 4", i);
+        }
+    }
+
+    #[test]
+    fn test_cut_split() {
+        // 1 - 2 - 3
+        // Val: 10, 20, 30. Total 60.
+        let infos = vec![SumInfo(10), SumInfo(20), SumInfo(30)];
+        let mut dtt = TopTree::<SumSpec>::new(3, infos);
+
+        dtt.link(1, 2);
+        dtt.link(2, 3);
+
+        assert_eq!(dtt.query(1).0, 60);
+
+        // Cut edge 1-2.
+        // Components: {1} (10) and {2, 3} (50).
+        dtt.cut(1, 2);
+
+        assert_eq!(dtt.query(1).0, 10);
+        assert_eq!(dtt.query(2).0, 50);
+        assert_eq!(dtt.query(3).0, 50);
+    }
+
+    #[test]
+    fn test_update_value() {
+        let infos = vec![SumInfo(5), SumInfo(5)];
+        let mut dtt = TopTree::<SumSpec>::new(2, infos);
+
+        dtt.link(1, 2);
+        assert_eq!(dtt.query(1).0, 10);
+
+        // Change Node 1 from 5 to 50. Total should be 55.
+        dtt.set_info(1, SumInfo(50));
+
+        assert_eq!(dtt.query(1).0, 55);
+        assert_eq!(dtt.query(2).0, 55);
+    }
+
+    #[test]
+    fn test_star_graph() {
+        // Center 1, Leaves 2, 3, 4, 5
+        // All values = 1.
+        let n = 5;
+        let infos = vec![SumInfo(1); n];
+        let mut dtt = TopTree::<SumSpec>::new(n, infos);
+
+        for i in 2..=n {
+            dtt.link(i, 1);
+        }
+
+        assert_eq!(dtt.query(1).0, 5);
+        assert_eq!(dtt.query(3).0, 5);
+
+        // Cut leaf 3.
+        dtt.cut(3, 1);
+
+        // 3 is isolated (1), others are 4.
+        assert_eq!(dtt.query(1).0, 4);
+        assert_eq!(dtt.query(3).0, 1);
+        assert_eq!(dtt.query(2).0, 4);
+    }
+
+    // --- 1. Mock Affine Spec using i64 (No ModInt needed) ---
+    #[derive(Default)]
+    struct MockAffineSpec;
+
+    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+    struct AffinePath {
+        a: i64,
+        b: i64,
+        s: i64,
+        x: i64,
+    }
+
+    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+    struct AffinePoint {
+        s: i64,
+        x: i64,
+    }
+
+    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+    struct AffineInfo {
+        is_vertex: bool,
+        x: i64, // acts as value for vertex, or 'b' (multiplier) for edge
+        y: i64, // acts as 'c' (adder) for edge
+    }
+
+    impl TopTreeMonoid for MockAffineSpec {
+        type Path = AffinePath;
+        type Point = AffinePoint;
+        type Info = AffineInfo;
+
+        fn vertex(i: &Self::Info) -> Self::Path {
+            if i.is_vertex {
+                // Vertex: a=1, b=0, s=value, x=1 (size)
+                AffinePath {
+                    a: 1,
+                    b: 0,
+                    s: i.x,
+                    x: 1,
+                }
+            } else {
+                // Edge: a=x, b=y
+                AffinePath {
+                    a: i.x,
+                    b: i.y,
+                    s: 0,
+                    x: 0,
+                }
+            }
+        }
+
+        fn compress(p: &Self::Path, c: &Self::Path) -> Self::Path {
+            // Standard Affine Composition
+            AffinePath {
+                a: p.a * c.a,
+                b: p.a * c.b + p.b,
+                s: p.s + p.a * c.s + p.b * c.x,
+                x: p.x + c.x,
+            }
+        }
+
+        fn rake(l: &Self::Point, r: &Self::Point) -> Self::Point {
+            AffinePoint {
+                s: l.s + r.s,
+                x: l.x + r.x,
+            }
+        }
+
+        fn add_edge(p: &Self::Path) -> Self::Point {
+            AffinePoint { s: p.s, x: p.x }
+        }
+
+        fn add_vertex(p: &Self::Point, i: &Self::Info) -> Self::Path {
+            if i.is_vertex {
+                AffinePath {
+                    a: 1,
+                    b: 0,
+                    s: p.s + i.x,
+                    x: p.x + 1,
+                }
+            } else {
+                // For an edge-node converting Point->Path (rake -> compress)
+                AffinePath {
+                    a: i.x,
+                    b: i.y,
+                    s: p.s * i.x + p.x * i.y,
+                    x: p.x,
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_affine_logic_with_sum_simulation() {
+        let mut infos = vec![];
+
+        // Node 1: Vertex, Value=10
+        infos.push(AffineInfo {
+            is_vertex: true,
+            x: 10,
+            y: 0,
+        });
+
+        // Node 2: Vertex, Value=20
+        infos.push(AffineInfo {
+            is_vertex: true,
+            x: 20,
+            y: 0,
+        });
+
+        // Node 3: Edge Node connecting 1 and 2
+        // Multiplier (x) = 1, Adder (y) = 0 -> Identity edge
+        infos.push(AffineInfo {
+            is_vertex: false,
+            x: 1,
+            y: 0,
+        });
+
+        // Note: New expects size 3, indices will be 1, 2, 3
+        let mut dtt = TopTree::<MockAffineSpec>::new(3, infos);
+
+        // Connect Vertex 1 to Edge 3
+        dtt.link(1, 3);
+        // Connect Edge 3 to Vertex 2
+        dtt.link(3, 2);
+
+        // Query Root (Vertex 1)
+        // Path should sum 10 + 20 = 30
+        let res = dtt.query(1);
+        assert_eq!(res.s, 30);
+
+        // Update Edge 3: Multiplier=1, Adder=5
+        // This adds 5 * (size of subtree below edge) to the sum
+        dtt.set_info(
+            3,
+            AffineInfo {
+                is_vertex: false,
+                x: 1,
+                y: 5,
+            },
+        );
+
+        let res2 = dtt.query(1);
+
+        // The exact math depends on rooting, but it should definitely NOT be 30 anymore.
+        // If 1 is root, 3 is child of 1, 2 is child of 3.
+        // 2 has size 1. Edge 3 adds 5*1 = 5 to the sum coming from 2.
+        // Total should be 10 + (20 + 5) = 35.
+        assert_eq!(res2.s, 35);
     }
 }

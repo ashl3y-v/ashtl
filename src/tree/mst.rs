@@ -4,11 +4,11 @@ use crate::ds::dsu::{DSU, RollbackDSU};
 
 pub struct DMST<T> {
     n: usize,
-    ns: Vec<DirectedMSTNode<T>>,
+    ns: Vec<DMSTNode<T>>,
     heap: Vec<usize>,
 }
 
-struct DirectedMSTNode<T> {
+struct DMSTNode<T> {
     l: usize,
     r: usize,
     from: usize,
@@ -34,7 +34,7 @@ impl<T: Copy + Default + AddAssign + SubAssign + PartialOrd> DMST<T> {
 
     pub fn add_edge(&mut self, from: usize, to: usize, weight: T) {
         let i = self.ns.len();
-        self.ns.push(DirectedMSTNode {
+        self.ns.push(DMSTNode {
             l: usize::MAX,
             r: usize::MAX,
             from,
