@@ -32,15 +32,15 @@ fn main() {
 }
 
 // TODO ORDER:
-// top tree
+// ----------------------------------------------------------------------
 // dominator tree
+// matroid intersection
 // weighted blossom
 // m √n blossom
 // O(log^2 n) dynamic connectivity https://loj.ac/s/2497274
 // AM tree https://arxiv.org/pdf/2504.04619v1 https://judge.yosupo.jp/submission/345113
 // incremental msf
-// matroid intersection
-// ----------------------------------------------------------------------
+// top tree
 // https://judge.yosupo.jp/problem/dynamic_graph_vertex_add_component_sum
 // min ham cycle
 // hafnian

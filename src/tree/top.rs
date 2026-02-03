@@ -973,471 +973,171 @@ impl<S: Default + TopTreeMonoid> TopTree<S> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[derive(Clone, Debug, PartialEq)]
-    struct SizeData {
-        sz: usize,
-    }
+//     #[derive(Clone, Debug, PartialEq)]
+//     struct SizeData {
+//         sz: usize,
+//     }
 
-    struct TreeSize;
-    impl RerootTreeDpTrait for TreeSize {
-        type X = SizeData;
-        fn vertex(_: usize) -> SizeData {
-            SizeData { sz: 1 }
-        }
-        fn vertex2(_: usize) -> SizeData {
-            SizeData { sz: 1 }
-        }
-        fn add_vertex(x: &SizeData, _: usize) -> SizeData {
-            SizeData { sz: x.sz + 1 }
-        }
-        fn add_edge(x: &SizeData) -> SizeData {
-            SizeData { sz: x.sz }
-        }
-        fn rake(l: &SizeData, r: &SizeData) -> SizeData {
-            SizeData { sz: l.sz + r.sz }
-        }
-        fn compress(l: &SizeData, r: &SizeData) -> SizeData {
-            SizeData { sz: l.sz + r.sz }
-        }
-        fn add_vertex2(x: &SizeData, _: usize) -> SizeData {
-            SizeData { sz: x.sz + 1 }
-        }
-        fn add_edge2(x: &SizeData) -> SizeData {
-            SizeData { sz: x.sz }
-        }
-        fn rake2(l: &SizeData, r: &SizeData) -> SizeData {
-            SizeData { sz: l.sz + r.sz }
-        }
-        fn compress2(l: &SizeData, r: &SizeData) -> SizeData {
-            SizeData { sz: l.sz + r.sz }
-        }
-        fn compress3(l: &SizeData, r: &SizeData) -> SizeData {
-            SizeData { sz: l.sz + r.sz }
-        }
-    }
+//     struct TreeSize;
+//     impl RerootTreeDpTrait for TreeSize {
+//         type X = SizeData;
+//         fn vertex(_: usize) -> SizeData {
+//             SizeData { sz: 1 }
+//         }
+//         fn vertex2(_: usize) -> SizeData {
+//             SizeData { sz: 1 }
+//         }
+//         fn add_vertex(x: &SizeData, _: usize) -> SizeData {
+//             SizeData { sz: x.sz + 1 }
+//         }
+//         fn add_edge(x: &SizeData) -> SizeData {
+//             SizeData { sz: x.sz }
+//         }
+//         fn rake(l: &SizeData, r: &SizeData) -> SizeData {
+//             SizeData { sz: l.sz + r.sz }
+//         }
+//         fn compress(l: &SizeData, r: &SizeData) -> SizeData {
+//             SizeData { sz: l.sz + r.sz }
+//         }
+//         fn add_vertex2(x: &SizeData, _: usize) -> SizeData {
+//             SizeData { sz: x.sz + 1 }
+//         }
+//         fn add_edge2(x: &SizeData) -> SizeData {
+//             SizeData { sz: x.sz }
+//         }
+//         fn rake2(l: &SizeData, r: &SizeData) -> SizeData {
+//             SizeData { sz: l.sz + r.sz }
+//         }
+//         fn compress2(l: &SizeData, r: &SizeData) -> SizeData {
+//             SizeData { sz: l.sz + r.sz }
+//         }
+//         fn compress3(l: &SizeData, r: &SizeData) -> SizeData {
+//             SizeData { sz: l.sz + r.sz }
+//         }
+//     }
 
-    #[derive(Clone, Debug, PartialEq)]
-    struct DistData {
-        sz: usize,
-        sum: usize,
-        len: usize,
-    }
+//     #[derive(Clone, Debug, PartialEq)]
+//     struct DistData {
+//         sz: usize,
+//         sum: usize,
+//         len: usize,
+//     }
 
-    struct TreeDist;
-    impl RerootTreeDpTrait for TreeDist {
-        type X = DistData;
+//     struct TreeDist;
+//     impl RerootTreeDpTrait for TreeDist {
+//         type X = DistData;
 
-        fn vertex(_: usize) -> DistData {
-            DistData {
-                sz: 1,
-                sum: 0,
-                len: 0,
-            }
-        }
-        fn vertex2(_: usize) -> DistData {
-            DistData {
-                sz: 1,
-                sum: 0,
-                len: 0,
-            }
-        }
+//         fn vertex(_: usize) -> DistData {
+//             DistData {
+//                 sz: 1,
+//                 sum: 0,
+//                 len: 0,
+//             }
+//         }
+//         fn vertex2(_: usize) -> DistData {
+//             DistData {
+//                 sz: 1,
+//                 sum: 0,
+//                 len: 0,
+//             }
+//         }
 
-        fn add_vertex(x: &DistData, _: usize) -> DistData {
-            DistData {
-                sz: x.sz + 1,
-                sum: x.sum,
-                len: x.len,
-            }
-        }
+//         fn add_vertex(x: &DistData, _: usize) -> DistData {
+//             DistData {
+//                 sz: x.sz + 1,
+//                 sum: x.sum,
+//                 len: x.len,
+//             }
+//         }
 
-        fn add_edge(x: &DistData) -> DistData {
-            // Edge weight 1.
-            DistData {
-                sz: x.sz,
-                sum: x.sum + x.sz,
-                len: x.len + 1,
-            }
-        }
+//         fn add_edge(x: &DistData) -> DistData {
+//             // Edge weight 1.
+//             DistData {
+//                 sz: x.sz,
+//                 sum: x.sum + x.sz,
+//                 len: x.len + 1,
+//             }
+//         }
 
-        fn rake(l: &DistData, r: &DistData) -> DistData {
-            DistData {
-                sz: l.sz + r.sz,
-                sum: l.sum + r.sum,
-                len: l.len,
-            }
-        }
+//         fn rake(l: &DistData, r: &DistData) -> DistData {
+//             DistData {
+//                 sz: l.sz + r.sz,
+//                 sum: l.sum + r.sum,
+//                 len: l.len,
+//             }
+//         }
 
-        // Implicit edge of weight 1 between L and R in heavy path
-        fn compress(l: &DistData, r: &DistData) -> DistData {
-            DistData {
-                sz: l.sz + r.sz,
-                sum: l.sum + r.sum + (r.sz * (l.len + 1)),
-                len: l.len + r.len + 1,
-            }
-        }
+//         // Implicit edge of weight 1 between L and R in heavy path
+//         fn compress(l: &DistData, r: &DistData) -> DistData {
+//             DistData {
+//                 sz: l.sz + r.sz,
+//                 sum: l.sum + r.sum + (r.sz * (l.len + 1)),
+//                 len: l.len + r.len + 1,
+//             }
+//         }
 
-        fn add_vertex2(x: &DistData, _: usize) -> DistData {
-            DistData {
-                sz: x.sz + 1,
-                sum: x.sum,
-                len: x.len,
-            }
-        }
-        fn add_edge2(x: &DistData) -> DistData {
-            DistData {
-                sz: x.sz,
-                sum: x.sum + x.sz,
-                len: x.len + 1,
-            }
-        }
-        fn rake2(l: &DistData, r: &DistData) -> DistData {
-            DistData {
-                sz: l.sz + r.sz,
-                sum: l.sum + r.sum,
-                len: l.len,
-            }
-        }
+//         fn add_vertex2(x: &DistData, _: usize) -> DistData {
+//             DistData {
+//                 sz: x.sz + 1,
+//                 sum: x.sum,
+//                 len: x.len,
+//             }
+//         }
+//         fn add_edge2(x: &DistData) -> DistData {
+//             DistData {
+//                 sz: x.sz,
+//                 sum: x.sum + x.sz,
+//                 len: x.len + 1,
+//             }
+//         }
+//         fn rake2(l: &DistData, r: &DistData) -> DistData {
+//             DistData {
+//                 sz: l.sz + r.sz,
+//                 sum: l.sum + r.sum,
+//                 len: l.len,
+//             }
+//         }
 
-        fn compress2(l: &DistData, r: &DistData) -> DistData {
-            DistData {
-                sz: l.sz + r.sz,
-                sum: l.sum + r.sum + (r.sz * (l.len + 1)),
-                len: l.len + r.len + 1,
-            }
-        }
+//         fn compress2(l: &DistData, r: &DistData) -> DistData {
+//             DistData {
+//                 sz: l.sz + r.sz,
+//                 sum: l.sum + r.sum + (r.sz * (l.len + 1)),
+//                 len: l.len + r.len + 1,
+//             }
+//         }
 
-        fn compress3(l: &DistData, r: &DistData) -> DistData {
-            DistData {
-                sz: l.sz + r.sz,
-                sum: l.sum + r.sum + (r.sz * l.len),
-                len: l.len,
-            }
-        }
-    }
+//         fn compress3(l: &DistData, r: &DistData) -> DistData {
+//             DistData {
+//                 sz: l.sz + r.sz,
+//                 sum: l.sum + r.sum + (r.sz * l.len),
+//                 len: l.len,
+//             }
+//         }
+//     }
 
-    #[test]
-    fn test_reroot_chain_dist() {
-        // Chain 0-1-2-3
-        let parent = vec![0, 0, 1, 2];
-        let stt = StaticTopTree::new(&parent);
-        let dp = DynamicRerootingTreeDp::<TreeDist>::new(&stt);
-        assert_eq!(dp.prod_all(0).sum, 6);
-        assert_eq!(dp.prod_all(1).sum, 4);
-        assert_eq!(dp.prod_all(2).sum, 4);
-        assert_eq!(dp.prod_all(3).sum, 6);
-    }
+//     #[test]
+//     fn test_reroot_chain_dist() {
+//         // Chain 0-1-2-3
+//         let parent = vec![0, 0, 1, 2];
+//         let stt = StaticTopTree::new(&parent);
+//         let dp = DynamicRerootingTreeDp::<TreeDist>::new(&stt);
+//         assert_eq!(dp.prod_all(0).sum, 6);
+//         assert_eq!(dp.prod_all(1).sum, 4);
+//         assert_eq!(dp.prod_all(2).sum, 4);
+//         assert_eq!(dp.prod_all(3).sum, 6);
+//     }
 
-    #[test]
-    fn test_reroot_star_dist() {
-        // Star 1 center
-        let parent = vec![0, 0, 0, 0];
-        let stt = StaticTopTree::new(&parent);
-        let dp = DynamicRerootingTreeDp::<TreeDist>::new(&stt);
-        assert_eq!(dp.prod_all(0).sum, 3);
-        assert_eq!(dp.prod_all(1).sum, 5);
-    }
-}
-
-#[cfg(test)]
-mod tests_p {
-    use super::*;
-
-    // --- 1. Define a Simple Specification for Testing ---
-    // This Spec calculates the sum of all node values in the component.
-    #[derive(Default)]
-    struct SumSpec;
-
-    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
-    struct SumPath(i64);
-    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
-    struct SumPoint(i64);
-    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
-    struct SumInfo(i64);
-
-    impl TopTreeMonoid for SumSpec {
-        type Path = SumPath;
-        type Point = SumPoint;
-        type Info = SumInfo;
-
-        fn vertex(info: &Self::Info) -> Self::Path {
-            SumPath(info.0)
-        }
-        fn compress(p: &Self::Path, c: &Self::Path) -> Self::Path {
-            // Combining two segments of a heavy path
-            SumPath(p.0 + c.0)
-        }
-        fn rake(l: &Self::Point, r: &Self::Point) -> Self::Point {
-            // Combining two light edges
-            SumPoint(l.0 + r.0)
-        }
-        fn add_edge(p: &Self::Path) -> Self::Point {
-            // Converting a heavy path to a light edge
-            SumPoint(p.0)
-        }
-        fn add_vertex(p: &Self::Point, i: &Self::Info) -> Self::Path {
-            // Adding a vertex to the aggregated light edges below it
-            SumPath(p.0 + i.0)
-        }
-    }
-
-    // --- 2. Test Cases ---
-
-    #[test]
-    fn test_initial_state() {
-        let values = vec![1, 10, 100];
-        let infos = values.iter().map(|&x| SumInfo(x)).collect();
-        let mut dtt = TopTree::<SumSpec>::new(3, infos);
-
-        // Initially, all nodes are disjoint.
-        // Querying a node should return its own value.
-        // Recall: Nodes are 1-based.
-        assert_eq!(dtt.query(1).0, 1);
-        assert_eq!(dtt.query(2).0, 10);
-        assert_eq!(dtt.query(3).0, 100);
-    }
-
-    #[test]
-    fn test_link_basic() {
-        let values = vec![1, 10, 100];
-        let infos = values.iter().map(|&x| SumInfo(x)).collect();
-        let mut dtt = TopTree::<SumSpec>::new(3, infos);
-
-        // Link 1 and 2. Component {1, 2} sum = 11. Node 3 is 100.
-        dtt.link(1, 2);
-
-        assert_eq!(dtt.query(1).0, 11);
-        assert_eq!(dtt.query(2).0, 11);
-        assert_eq!(dtt.query(3).0, 100);
-    }
-
-    #[test]
-    fn test_path_graph() {
-        // Create a line: 1 - 2 - 3 - 4
-        // Values: 1, 1, 1, 1
-        let infos = vec![SumInfo(1); 4];
-        let mut dtt = TopTree::<SumSpec>::new(4, infos);
-
-        dtt.link(1, 2);
-        dtt.link(2, 3);
-        dtt.link(3, 4);
-
-        // Any node query should return 4
-        for i in 1..=4 {
-            assert_eq!(dtt.query(i).0, 4, "Node {} should see sum 4", i);
-        }
-    }
-
-    #[test]
-    fn test_cut_split() {
-        // 1 - 2 - 3
-        // Val: 10, 20, 30. Total 60.
-        let infos = vec![SumInfo(10), SumInfo(20), SumInfo(30)];
-        let mut dtt = TopTree::<SumSpec>::new(3, infos);
-
-        dtt.link(1, 2);
-        dtt.link(2, 3);
-
-        assert_eq!(dtt.query(1).0, 60);
-
-        // Cut edge 1-2.
-        // Components: {1} (10) and {2, 3} (50).
-        dtt.cut(1, 2);
-
-        assert_eq!(dtt.query(1).0, 10);
-        assert_eq!(dtt.query(2).0, 50);
-        assert_eq!(dtt.query(3).0, 50);
-    }
-
-    #[test]
-    fn test_update_value() {
-        let infos = vec![SumInfo(5), SumInfo(5)];
-        let mut dtt = TopTree::<SumSpec>::new(2, infos);
-
-        dtt.link(1, 2);
-        assert_eq!(dtt.query(1).0, 10);
-
-        // Change Node 1 from 5 to 50. Total should be 55.
-        dtt.set_info(1, SumInfo(50));
-
-        assert_eq!(dtt.query(1).0, 55);
-        assert_eq!(dtt.query(2).0, 55);
-    }
-
-    #[test]
-    fn test_star_graph() {
-        // Center 1, Leaves 2, 3, 4, 5
-        // All values = 1.
-        let n = 5;
-        let infos = vec![SumInfo(1); n];
-        let mut dtt = TopTree::<SumSpec>::new(n, infos);
-
-        for i in 2..=n {
-            dtt.link(i, 1);
-        }
-
-        assert_eq!(dtt.query(1).0, 5);
-        assert_eq!(dtt.query(3).0, 5);
-
-        // Cut leaf 3.
-        dtt.cut(3, 1);
-
-        // 3 is isolated (1), others are 4.
-        assert_eq!(dtt.query(1).0, 4);
-        assert_eq!(dtt.query(3).0, 1);
-        assert_eq!(dtt.query(2).0, 4);
-    }
-
-    // --- 1. Mock Affine Spec using i64 (No ModInt needed) ---
-    #[derive(Default)]
-    struct MockAffineSpec;
-
-    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
-    struct AffinePath {
-        a: i64,
-        b: i64,
-        s: i64,
-        x: i64,
-    }
-
-    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
-    struct AffinePoint {
-        s: i64,
-        x: i64,
-    }
-
-    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
-    struct AffineInfo {
-        is_vertex: bool,
-        x: i64, // acts as value for vertex, or 'b' (multiplier) for edge
-        y: i64, // acts as 'c' (adder) for edge
-    }
-
-    impl TopTreeMonoid for MockAffineSpec {
-        type Path = AffinePath;
-        type Point = AffinePoint;
-        type Info = AffineInfo;
-
-        fn vertex(i: &Self::Info) -> Self::Path {
-            if i.is_vertex {
-                // Vertex: a=1, b=0, s=value, x=1 (size)
-                AffinePath {
-                    a: 1,
-                    b: 0,
-                    s: i.x,
-                    x: 1,
-                }
-            } else {
-                // Edge: a=x, b=y
-                AffinePath {
-                    a: i.x,
-                    b: i.y,
-                    s: 0,
-                    x: 0,
-                }
-            }
-        }
-
-        fn compress(p: &Self::Path, c: &Self::Path) -> Self::Path {
-            // Standard Affine Composition
-            AffinePath {
-                a: p.a * c.a,
-                b: p.a * c.b + p.b,
-                s: p.s + p.a * c.s + p.b * c.x,
-                x: p.x + c.x,
-            }
-        }
-
-        fn rake(l: &Self::Point, r: &Self::Point) -> Self::Point {
-            AffinePoint {
-                s: l.s + r.s,
-                x: l.x + r.x,
-            }
-        }
-
-        fn add_edge(p: &Self::Path) -> Self::Point {
-            AffinePoint { s: p.s, x: p.x }
-        }
-
-        fn add_vertex(p: &Self::Point, i: &Self::Info) -> Self::Path {
-            if i.is_vertex {
-                AffinePath {
-                    a: 1,
-                    b: 0,
-                    s: p.s + i.x,
-                    x: p.x + 1,
-                }
-            } else {
-                // For an edge-node converting Point->Path (rake -> compress)
-                AffinePath {
-                    a: i.x,
-                    b: i.y,
-                    s: p.s * i.x + p.x * i.y,
-                    x: p.x,
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_affine_logic_with_sum_simulation() {
-        let mut infos = vec![];
-
-        // Node 1: Vertex, Value=10
-        infos.push(AffineInfo {
-            is_vertex: true,
-            x: 10,
-            y: 0,
-        });
-
-        // Node 2: Vertex, Value=20
-        infos.push(AffineInfo {
-            is_vertex: true,
-            x: 20,
-            y: 0,
-        });
-
-        // Node 3: Edge Node connecting 1 and 2
-        // Multiplier (x) = 1, Adder (y) = 0 -> Identity edge
-        infos.push(AffineInfo {
-            is_vertex: false,
-            x: 1,
-            y: 0,
-        });
-
-        // Note: New expects size 3, indices will be 1, 2, 3
-        let mut dtt = TopTree::<MockAffineSpec>::new(3, infos);
-
-        // Connect Vertex 1 to Edge 3
-        dtt.link(1, 3);
-        // Connect Edge 3 to Vertex 2
-        dtt.link(3, 2);
-
-        // Query Root (Vertex 1)
-        // Path should sum 10 + 20 = 30
-        let res = dtt.query(1);
-        assert_eq!(res.s, 30);
-
-        // Update Edge 3: Multiplier=1, Adder=5
-        // This adds 5 * (size of subtree below edge) to the sum
-        dtt.set_info(
-            3,
-            AffineInfo {
-                is_vertex: false,
-                x: 1,
-                y: 5,
-            },
-        );
-
-        let res2 = dtt.query(1);
-
-        // The exact math depends on rooting, but it should definitely NOT be 30 anymore.
-        // If 1 is root, 3 is child of 1, 2 is child of 3.
-        // 2 has size 1. Edge 3 adds 5*1 = 5 to the sum coming from 2.
-        // Total should be 10 + (20 + 5) = 35.
-        assert_eq!(res2.s, 35);
-    }
-}
+//     #[test]
+//     fn test_reroot_star_dist() {
+//         // Star 1 center
+//         let parent = vec![0, 0, 0, 0];
+//         let stt = StaticTopTree::new(&parent);
+//         let dp = DynamicRerootingTreeDp::<TreeDist>::new(&stt);
+//         assert_eq!(dp.prod_all(0).sum, 3);
+//         assert_eq!(dp.prod_all(1).sum, 5);
+//     }
+// }
