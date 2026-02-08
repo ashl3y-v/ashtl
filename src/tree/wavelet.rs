@@ -52,24 +52,23 @@ impl Wavelet {
     }
 
     /// O(log σ)
-    pub fn rank(&self, mut k: usize, x: u64) -> usize {
+    pub fn rank(&self, mut l: usize, mut r: usize, x: u64) -> usize {
         if (x >> self.b) > 0 {
             return 0;
         }
-        let mut l = 0;
         for b in (0..self.b).rev() {
             let pl = self.ls[b].rank(l);
-            let pr = self.ls[b].rank(k);
+            let pr = self.ls[b].rank(r);
             if (x >> b) & 1 == 0 {
                 l = pl;
-                k = pr;
+                r = pr;
             } else {
                 let t = self.ls[b].count();
                 l = l - pl + t;
-                k = k - pr + t;
+                r = r - pr + t;
             }
         }
-        k - l
+        r - l
     }
 
     /// O(log σ)
@@ -102,16 +101,16 @@ impl Wavelet {
         self.range_freq(l, r, ub) - self.range_freq(l, r, lb)
     }
 
-    /// O(log n log σ)
-    pub fn select(&self, k: usize, x: u64) -> usize {
-        let mut lo = 0;
-        let mut hi = self.ls[0].bv.len();
-        if self.rank(hi, x) <= k {
-            return hi;
+    /// O(log(r-l) log σ)
+    pub fn select(&self, l: usize, r: usize, k: usize, x: u64) -> usize {
+        if self.rank(l, r, x) <= k {
+            return r;
         }
+        let mut lo = l;
+        let mut hi = r;
         while lo < hi {
             let m = lo.midpoint(hi);
-            if self.rank(m + 1, x) <= k {
+            if self.rank(l, m + 1, x) <= k {
                 lo = m + 1;
             } else {
                 hi = m;

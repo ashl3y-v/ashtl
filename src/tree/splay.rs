@@ -1,4 +1,5 @@
 use crate::ds::bit_vec::BitVec;
+use std::ops::{Bound, RangeBounds};
 
 const NULL: usize = 0;
 
@@ -7,7 +8,6 @@ pub struct SplayNode<T> {
     pub v: T,
     pub l: usize,
     pub r: usize,
-    pub p: usize,
     pub size: usize,
 }
 
@@ -20,6 +20,7 @@ where
     pub ns: Vec<SplayNode<T>>,
     pub push: Push,
     pub pull: Pull,
+    pub rt: usize,
     pub nxt: usize,
     pub removed: usize,
     pub open: BitVec,
@@ -37,11 +38,11 @@ where
                 v: init,
                 l: NULL,
                 r: NULL,
-                p: NULL,
                 size: 0,
             }],
             push,
             pull,
+            rt: NULL,
             nxt: 1,
             removed: 0,
             open: BitVec::new(1, false),
@@ -71,71 +72,22 @@ where
     #[inline]
     fn zig(&mut self, x: usize) -> usize {
         let l = self.ns[x].l;
-        let p = self.ns[x].p;
         self.ns[x].l = self.ns[l].r;
-        if self.ns[l].r != NULL {
-            let lr = self.ns[l].r;
-            self.ns[lr].p = x;
-        }
         self.pull(x);
         self.ns[l].r = x;
-        self.ns[x].p = l;
-        self.ns[l].p = p;
         l
     }
 
     #[inline]
     fn zag(&mut self, x: usize) -> usize {
         let r = self.ns[x].r;
-        let p = self.ns[x].p;
         self.ns[x].r = self.ns[r].l;
-        if self.ns[r].l != NULL {
-            let rl = self.ns[r].l;
-            self.ns[rl].p = x;
-        }
         self.pull(x);
         self.ns[r].l = x;
-        self.ns[x].p = r;
-        self.ns[r].p = p;
         r
     }
 
-    pub fn splay(&mut self, x: usize) {
-        if x == NULL {
-            return;
-        }
-        while self.ns[x].p != NULL {
-            let p = self.ns[x].p;
-            let g = self.ns[p].p;
-            if g != NULL {
-                if (self.ns[g].l == p) == (self.ns[p].l == x) {
-                    if self.ns[g].l == p {
-                        self.zig(g);
-                        self.zig(p);
-                    } else {
-                        self.zag(g);
-                        self.zag(p);
-                    }
-                } else {
-                    if self.ns[g].l == p {
-                        self.zag(p);
-                        self.zig(g);
-                    } else {
-                        self.zig(p);
-                        self.zag(g);
-                    }
-                }
-            } else {
-                if self.ns[p].l == x {
-                    self.zig(p);
-                } else {
-                    self.zag(p);
-                }
-            }
-        }
-    }
-
-    pub fn splay_at(&mut self, x: usize, mut k: usize) -> usize {
+    pub fn splay(&mut self, x: usize, mut k: usize) -> usize {
         self.push(x);
         let l = self.ns[x].l;
         let size = self.ns[l].size;
@@ -148,11 +100,11 @@ where
             if k == ll_size {
                 self.zig(x)
             } else if k < ll_size {
-                self.ns[l].l = self.splay_at(ll, k);
+                self.ns[l].l = self.splay(ll, k);
                 let new_l = self.zig(x);
                 self.zig(new_l)
             } else {
-                self.ns[l].r = self.splay_at(lr, k - ll_size - 1);
+                self.ns[l].r = self.splay(lr, k - ll_size - 1);
                 self.ns[x].l = self.zag(l);
                 self.zig(x)
             }
@@ -165,11 +117,11 @@ where
             if k == rl_size {
                 self.zag(x)
             } else if k < rl_size {
-                self.ns[r].l = self.splay_at(rl, k);
+                self.ns[r].l = self.splay(rl, k);
                 self.ns[x].r = self.zig(r);
                 self.zag(x)
             } else {
-                self.ns[r].r = self.splay_at(rr, k - rl_size - 1);
+                self.ns[r].r = self.splay(rr, k - rl_size - 1);
                 let new_r = self.zag(x);
                 self.zag(new_r)
             }
@@ -177,47 +129,40 @@ where
     }
 
     #[inline]
-    pub fn get(&mut self, k: usize, mut rt: usize) -> (Option<&T>, usize) {
-        if k < self.len(rt) && rt != NULL {
-            rt = self.splay_at(rt, k);
-            self.pull(rt);
-            self.push(rt);
-            (Some(&self.ns[rt].v), rt)
+    pub fn get(&mut self, k: usize) -> Option<&T> {
+        if k < self.len() && self.rt != NULL {
+            self.rt = self.splay(self.rt, k);
+            self.pull(self.rt);
+            self.push(self.rt);
+            Some(&self.ns[self.rt].v)
         } else {
-            (None, rt)
+            None
         }
     }
 
     #[inline]
-    pub fn get_mut(&mut self, k: usize, mut rt: usize) -> (Option<&mut T>, usize) {
-        if k < self.len(rt) && rt != NULL {
-            rt = self.splay_at(rt, k);
-            self.pull(rt);
-            self.push(rt);
-            (Some(&mut self.ns[rt].v), rt)
+    pub fn get_mut(&mut self, k: usize) -> Option<&mut T> {
+        if k < self.len() && self.rt != NULL {
+            self.rt = self.splay(self.rt, k);
+            self.pull(self.rt);
+            self.push(self.rt);
+            Some(&mut self.ns[self.rt].v)
         } else {
-            (None, rt)
+            None
         }
     }
 
-    pub fn get_index(&mut self, x: usize) -> usize {
-        self.splay(x);
-        let l = self.ns[x].l;
-        self.ns[l].size
-    }
-
-    pub fn insert(&mut self, k: usize, v: T, mut rt: usize) -> usize {
+    pub fn insert(&mut self, k: usize, v: T) -> &mut Self {
         let len = self.ns.len();
         while self.nxt < self.ns.len() && !self.open[self.nxt] {
             self.nxt += 1;
         }
         let nxt = self.nxt;
-        if self.len(rt) <= k {
+        if self.len() <= k {
             let n = SplayNode {
                 v,
-                l: rt,
+                l: self.rt,
                 r: NULL,
-                p: NULL,
                 size: 0,
             };
             if nxt < len {
@@ -228,17 +173,16 @@ where
                 self.open.push(false);
             }
         } else {
-            rt = self.splay_at(rt, k);
-            self.pull(rt);
-            self.push(rt);
-            let l = self.ns[rt].l;
-            self.ns[rt].l = NULL;
-            self.pull(rt);
+            self.rt = self.splay(self.rt, k);
+            self.pull(self.rt);
+            self.push(self.rt);
+            let l = self.ns[self.rt].l;
+            self.ns[self.rt].l = NULL;
+            self.pull(self.rt);
             let n = SplayNode {
                 v,
                 l,
-                r: rt,
-                p: NULL,
+                r: self.rt,
                 size: 0,
             };
             if nxt < len {
@@ -251,23 +195,23 @@ where
         }
         self.pull(nxt);
         self.push(nxt);
-        rt = nxt;
+        self.rt = nxt;
         self.nxt += 1;
-        rt
+        self
     }
 
-    pub fn remove(&mut self, k: usize, mut rt: usize) -> usize {
-        if k < self.len(rt) && rt != NULL {
-            rt = self.splay_at(rt, k);
-            self.open.set(rt, true);
-            self.push(rt);
-            let r = self.ns[rt].r;
+    pub fn remove(&mut self, k: usize) -> &mut Self {
+        if k < self.len() && self.rt != NULL {
+            self.rt = self.splay(self.rt, k);
+            self.open.set(self.rt, true);
+            self.push(self.rt);
+            let r = self.ns[self.rt].r;
             if r != NULL {
-                let r = self.splay_at(r, 0);
-                (self.ns[r].l, self.ns[rt].l, rt) = (self.ns[rt].l, NULL, r);
+                let r = self.splay(r, 0);
+                (self.ns[r].l, self.ns[self.rt].l, self.rt) = (self.ns[self.rt].l, NULL, r);
                 self.pull(r);
             } else {
-                (rt, self.ns[rt].l) = (self.ns[rt].l, NULL);
+                (self.rt, self.ns[self.rt].l) = (self.ns[self.rt].l, NULL);
             }
         }
         self.removed += 1;
@@ -276,7 +220,7 @@ where
             self.nxt = self.open.iter().position(|v| v == true).unwrap_or(len);
             self.removed = 0;
         }
-        rt
+        self
     }
 
     pub fn merge_nodes(&mut self, mut a: usize, b: usize) -> usize {
@@ -286,27 +230,15 @@ where
             return a;
         }
         let a_size = self.ns[a].size;
-        a = self.splay_at(a, a_size - 1);
+        a = self.splay(a, a_size - 1);
         self.pull(a);
         self.push(a);
         self.ns[a].r = b;
-        self.ns[b].p = a;
         self.pull(a);
         a
     }
 
-    pub fn split_node(&mut self, x: usize) -> (usize, usize) {
-        self.splay(x);
-        let l = self.ns[x].l;
-        self.ns[x].l = NULL;
-        if l != NULL {
-            self.ns[l].p = NULL;
-        }
-        self.pull(x);
-        (l, x)
-    }
-
-    pub fn split_node_at(&mut self, mut a: usize, k: usize) -> (usize, usize) {
+    pub fn split_node(&mut self, mut a: usize, k: usize) -> (usize, usize) {
         if a == NULL {
             (NULL, NULL)
         } else if k == NULL {
@@ -316,13 +248,12 @@ where
             self.push(a);
             (a, NULL)
         } else {
-            a = self.splay_at(a, k - 1);
+            a = self.splay(a, k - 1);
             self.pull(a);
             self.push(a);
             let r = self.ns[a].r;
             self.ns[a].r = NULL;
             if r != NULL {
-                self.ns[r].p = NULL;
                 self.push(r);
             }
             self.pull(a);
@@ -330,31 +261,41 @@ where
         }
     }
 
-    pub fn range<R, F>(&mut self, l: usize, r: usize, mut f: F, mut rt: usize) -> (Option<R>, usize)
+    pub fn range<R, F>(&mut self, range: impl RangeBounds<usize>, mut f: F) -> Option<R>
     where
         F: FnMut(usize, &mut [SplayNode<T>]) -> R,
     {
+        let l = match range.start_bound() {
+            Bound::Included(l) => *l,
+            Bound::Excluded(l) => *l + 1,
+            Bound::Unbounded => 0,
+        };
+        let r = match range.end_bound() {
+            Bound::Included(r) => *r + 1,
+            Bound::Excluded(r) => *r,
+            Bound::Unbounded => self.len(),
+        };
         if l >= r {
-            return (None, rt);
+            return None;
         }
-        let (a, b) = self.split_node_at(rt, l);
-        let (b, c) = self.split_node_at(b, r - l);
+        let (a, b) = self.split_node(self.rt, l);
+        let (b, c) = self.split_node(b, r - l);
         let res = if b != NULL {
             Some(f(b, &mut self.ns))
         } else {
             None
         };
         let merged_ab = self.merge_nodes(a, b);
-        rt = self.merge_nodes(merged_ab, c);
-        (res, rt)
+        self.rt = self.merge_nodes(merged_ab, c);
+        res
     }
 
     #[inline]
-    pub fn for_each<F>(&mut self, mut f: F, rt: usize) -> &mut Self
+    pub fn for_each<F>(&mut self, mut f: F) -> &mut Self
     where
         F: FnMut(&T),
     {
-        self.for_each_node(rt, &mut f);
+        self.for_each_node(self.rt, &mut f);
         self
     }
 
@@ -372,13 +313,17 @@ where
     }
 
     #[inline]
-    pub fn len(&self, rt: usize) -> usize {
-        if rt != NULL { self.ns[rt].size } else { 0 }
+    pub fn len(&self) -> usize {
+        if self.rt != NULL {
+            self.ns[self.rt].size
+        } else {
+            0
+        }
     }
 
     #[inline]
-    pub fn is_empty(&self, rt: usize) -> bool {
-        rt == NULL
+    pub fn is_empty(&self) -> bool {
+        self.rt == NULL
     }
 }
 
@@ -410,7 +355,7 @@ where
         mut elem: impl FnMut(&S) -> T,
         push: Push,
         pull: Pull,
-    ) -> (Splay<T, Push, Pull>, usize) {
+    ) -> Splay<T, Push, Pull> {
         let len = v.len();
         let mut s = Splay {
             ns: vec![
@@ -418,18 +363,18 @@ where
                     v: init,
                     l: NULL,
                     r: NULL,
-                    p: NULL,
                     size: 0
                 };
                 len + 1
             ],
             push,
             pull,
+            rt: NULL,
             nxt: len,
             removed: 0,
             open: BitVec::new(len + 1, false),
         };
-        let rt = s.build(v, &mut elem, 1, len + 1);
-        (s, rt)
+        s.rt = s.build(v, &mut elem, 1, len + 1);
+        s
     }
 }

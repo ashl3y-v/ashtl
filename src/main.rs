@@ -21,36 +21,42 @@ impl Scanner {
 #[allow(unused_imports)]
 use std::str::FromStr;
 
-fn main() {
-    let mut sc = Scanner::default();
-    let n: usize = sc.next();
-    let m: u64 = sc.next();
-    if n == 1 {
-        println!("1");
-        return;
-    }
-}
+// fn main() {
+//     let mut sc = Scanner::default();
+//     let n: usize = sc.next();
+//     let m: u64 = sc.next();
+//     if n == 1 {
+//         println!("1");
+//         return;
+//     }
+// }
+
+use rand::Rng;
+use rand::seq::SliceRandom;
+use std::cmp::{max, min};
+use std::time::Instant;
+
+use ashtl::grph::matching::blossom;
+
+fn main() {}
 
 // TODO ORDER:
-// ----------------------------------------------------------------------
-// dominator tree
-// matroid intersection
 // weighted blossom
 // m √n blossom
+// matroid intersection
+// floor sum
 // O(log^2 n) dynamic connectivity https://loj.ac/s/2497274
-// AM tree https://arxiv.org/pdf/2504.04619v1 https://judge.yosupo.jp/submission/345113
-// incremental msf
+// ----------------------------------------------------------------------
+// Persistent Range Affine Range Sum
+// Range Linear Add Range Min
+// Deque Operate All Composite
+// hampath heuristic
 // top tree
-// https://judge.yosupo.jp/problem/dynamic_graph_vertex_add_component_sum
 // min ham cycle
 // hafnian
-// hampath heuristic
-// dsu potential
-// persistent dsu
 // faster mod ops
 // slope trick utils
 // st numbering
-// floor sum
 // mod linear shit
 // dynamic rerooting tree dp
 // ----------------------------------------------------------------------

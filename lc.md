@@ -1,0 +1,237 @@
+## Data Structure
+- [x] Associative Array
+- [ ] Predecessor Problem
+- [ ] Ordered Set
+- [ ] Double-Ended Priority Queue
+- [x] Unionfind
+- [x] Unionfind with Potential
+- [x] Unionfind with Potential (Non-Commutative Group)
+- [x] Range Parallel Unionfind
+- [x] Static Range Sum
+- [x] Static RMQ
+- [ ] Point Add Range Sum
+- [x] Point Set Range Composite
+- [x] Point Set Range Composite (Large Array)
+- [ ] Range Affine Point Get
+- [x] Range Affine Range Sum
+- [x] Range Affine Range Sum (Large Array)
+- [ ] Persistent Range Affine Range Sum
+- [ ] Range Set Range Composite
+- [ ] Range Chmin Chmax Add Range Sum
+- [x] Range Kth Smallest
+- [ ] Point Set Range Sort Range Composite
+- [x] Range Reverse Range Sum
+- [x] Dynamic Sequence Range Affine Range Sum
+- [ ] Range Linear Add Range Min
+- [x] Set Xor-Min
+- [x] Line Add Get Min
+- [x] Segment Add Get Min
+- [ ] Queue Operate All Composite
+- [ ] Deque Operate All Composite
+- [x] Static Range Frequency
+- [ ] Static Range Count Distinct
+- [ ] Static Range Mode Query
+- [ ] Static Range LIS Query
+- [ ] Static Range Inversions Query
+- [ ] Point Set Range Frequency
+- [ ] Rectangle Sum
+- [ ] Point Add Rectangle Sum
+- [ ] Rectangle Add Point Get
+- [ ] Static Rectangle Add Rectangle Sum
+- [ ] Dynamic Point Rectangle Affine Rectangle Sum
+- [ ] Area of Union of Rectangles
+- [ ] Persistent Queue
+- [x] Persistent Unionfind
+## Graph
+- [ ] Cycle Detection (Directed)
+- [ ] Cycle Detection (Undirected)
+- [x] Shortest Path
+- [x] Strongly Connected Components
+- [x] Strongly Connected Components (Incremental)
+- [x] K-Shortest Walk
+- [ ] Two-Edge-Connected Components
+- [ ] Three-Edge-Connected Components
+- [ ] Biconnected Components
+- [x] Connected Components of Complement Graph
+- [ ] Eulerian Trail (Directed)
+- [ ] Eulerian Trail (Undirected)
+- [ ] st-Numbering
+- [ ] Minimum Cost b-flow
+- [x] Matching on Bipartite Graph
+- [x] Matching on General Graph
+- [ ] General Weighted Matching
+- [x] Edge Coloring of Bipartite Graph
+- [x] Assignment Problem
+- [x] Minimum Spanning Tree
+- [x] Directed MST
+- [ ] Minimum Diameter Spanning Tree
+- [x] Dominator Tree
+- [ ] Maximum Independent Set
+- [x] Chromatic Number
+- [x] Chromatic Polynomial
+- [ ] Enumerate Triangles
+- [ ] Enumerate Cliques
+- [ ] Counting C4's
+- [ ] Tree Decomposition (Width 2)
+- [ ] Global Minimum Cut of Dynamic Star Augmented Graph
+- [ ] Chordal Graph Recognition
+- [x] Dynamic Graph Vertex Add Component Sum
+- [x] Counting Eulerian Circuits
+- [x] Counting Spanning Trees (Undirected)
+- [x] Counting Spanning Trees (Directed)
+## Tree
+- [x] Tree Diameter
+- [x] Lowest Common Ancestor
+- [ ] Jump on Tree
+- [ ] Frequency Table of Tree Distance
+- [ ] Rooted Tree Isomorphism Classification
+- [ ] Tree Path Composite Sum
+- [ ] Vertex Add Path Sum
+- [x] Vertex Set Path Composite
+- [x] Vertex Add Subtree Sum
+- [ ] Vertex Add Range Contour Sum on Tree
+- [ ] Vertex Get Range Contour Add on Tree
+- [x] Point Set Tree Path Composite Sum (Fixed Root)
+- [ ] Point Set Tree Path Composite Sum
+- [x] Dynamic Tree Vertex Add Path Sum
+- [x] Dynamic Tree Vertex Set Path Composite
+- [x] Dynamic Tree Vertex Add Subtree Sum
+- [x] Dynamic Tree Subtree Add Subtree Sum
+- [x] Cartesian Tree
+- [ ] Common Interval Decomposition Tree
+- [x] Rooted Tree Topological Order with Minimum Inversions
+## Convolution
+- [ ] Convolution
+- [ ] Convolution (Mod 1,000,000,007)
+- [ ] Convolution (Mod 2^64)
+- [ ] Convolution (Large)
+- [x] Bitwise And Convolution
+- [x] Bitwise Xor Convolution
+- [x] Gcd Convolution
+- [x] Lcm Convolution
+- [ ] Multidimensional Convolution (Truncated)
+- [ ] Multidimensional Convolution (Circular)
+- [ ] Convolution on the Multiplicative Monoid of Z/PZ
+- [ ] Convolution on the Multiplicative Monoid of Z/2^NZ
+- [x] Min Plus Convolution (Convex and Arbitrary)
+- [x] Min Plus Convolution (Convex and Convex)
+- [x] Min Plus Convolution (Concave and Arbitrary)
+## Number Theory
+- [ ] Enumerate Quotients
+- [x] Primality Test
+- [ ] Counting Primes
+- [ ] Enumerate Primes
+- [ ] Factorize
+- [x] Primitive Root
+- [ ] Sum of Floor of Linear
+- [ ] Min of Mod of Linear
+- [ ] Rational Approximation
+- [ ] Stern–Brocot Tree
+- [ ] Counting Square-free Integers
+- [ ] Sum of Totient Function
+- [ ] Sum of Multiplicative Function (Large)
+- [x] Bernoulli Number
+- [x] Sqrt Mod
+- [ ] Kth Root (Mod)
+- [ ] Kth Root (Integer)
+- [ ] Discrete Logarithm
+- [ ] Tetration Mod
+- [ ] Gcd of Gaussian Integers
+- [ ] Represent A Number As Two Square Sum
+- [ ] Nim Product (F_{2^64})
+## Polynomial
+- [x] Inv of Formal Power Series
+- [x] Exp of Formal Power Series
+- [x] Log of Formal Power Series
+- [x] Pow of Formal Power Series
+- [x] Sqrt of Formal Power Series
+- [x] Composition of Formal Power Series
+- [x] Compositional Inverse of Formal Power Series
+- [ ] Inv of Formal Power Series (Sparse)
+- [ ] Exp of Formal Power Series (Sparse)
+- [ ] Log of Formal Power Series (Sparse)
+- [ ] Pow of Formal Power Series (Sparse)
+- [ ] Sqrt of Formal Power Series (Sparse)
+- [x] Product of Polynomial Sequence
+- [x] Multipoint Evaluation
+- [x] Multipoint Evaluation (Geometric Sequence)
+- [x] Polynomial Interpolation
+- [x] Polynomial Interpolation (Geometric Sequence)
+- [x] Polynomial Taylor Shift
+- [ ] Shift of Sampling Points of Polynomial
+- [x] Division of Polynomials
+- [x] Inv of Polynomials
+- [ ] Conversion from Monomial Basis to Newton Basis
+- [x] Polynomial Root Finding (Mod 998244353)
+- [x] Composition of Formal Power Series (Large)
+- [x] Compositional Inverse of Formal Power Series (Large)
+## Set Power Series
+- [x] Subset Convolution
+- [x] Power Projection of Set Power Series
+- [x] Exp of Set Power Series
+- [x] Polynomial Composite Set Power Series
+## Enumerative Combinatorics
+- [ ] Factorial
+- [ ] Many Factorials
+- [ ] Montmort Number
+- [x] Bell Number
+- [ ] Binomial Coefficient
+- [x] Binomial Coefficient (Prime Mod)
+- [x] q-Binomial Coefficient (Prime Mod)
+- [x] Partition Function
+- [x] Stirling Number of the First Kind
+- [x] Stirling Number of the First Kind (Fixed K)
+- [x] Stirling Number of the Second Kind
+- [x] Stirling Number of the Second Kind (Fixed K)
+- [ ] Stirling Number of the First Kind (Small p, Large n)
+- [ ] Stirling Number of the Second Kind (Small p, Large n)
+- [x] #_p Subset Sum
+- [ ] Number of Subsequences
+- [ ] Number of Increasing Sequences Between Two Sequences
+## Linear Algebra
+- [ ] Matrix Product
+- [ ] Matrix Product (Mod 2)
+- [x] Pow of Matrix
+- [x] Determinant of Matrix
+- [ ] Determinant of Matrix (Arbitrary Mod)
+- [ ] Determinant of Matrix (Mod 2)
+- [ ] Determinant of Sparse Matrix
+- [x] Rank of Matrix
+- [ ] Rank of Matrix (Mod 2)
+- [x] System of Linear Equations
+- [ ] System of Linear Equations (Mod 2)
+- [x] Inverse Matrix
+- [ ] Inverse Matrix (Mod 2)
+- [x] Adjugate Matrix
+- [x] Characteristic Polynomial
+- [ ] Hafnian of Matrix
+- [ ] Intersection of F_2 vector spaces
+## String
+- [x] Z Algorithm
+- [x] Enumerate Palindromes
+- [x] Suffix Array
+- [x] Number of Substrings
+- [ ] Run Enumerate
+- [ ] Prefix-Substring LCS
+- [x] Lyndon Factorization
+- [ ] Longest Common Substring
+- [x] Eertree
+- [ ] Palindromes in Deque
+- [x] Wildcard Pattern Matching
+## Geometry
+- [x] Sort Points by Argument
+- [x] Static Convex Hull
+- [ ] Count Points in Triangles
+- [x] Closest Pair of Points
+- [x] Furthest Pair of Points
+- [ ] Convex Layers
+- [ ] Manhattan MST
+- [ ] Euclidean MST
+## Other
+- [x] 2 Sat
+- [x] Longest Increasing Subsequence
+- [ ] sum_{i=0}^{n-1} r^i i^d
+- [ ] sum_{i=0}^\infty r^i i^d
+- [x] Find Linear Recurrence
+- [x] Kth term of Linearly Recurrent Sequence
+- [ ] Consecutive Terms of Linear Recurrent Sequence

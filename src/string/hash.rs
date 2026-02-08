@@ -2,15 +2,19 @@ use std::ops::Index;
 
 pub struct RollingPoly<const M: u64> {
     pub pows: Vec<u64>,
+    p: u64,
 }
 
 impl<const M: u64> RollingPoly<M> {
-    pub fn new() -> Self {
-        Self { pows: Vec::new() }
+    pub fn new(p: u64) -> Self {
+        Self {
+            pows: Vec::new(),
+            p,
+        }
     }
 
     pub fn extend(&mut self, n: usize) {
-        let p = 263;
+        let p = self.p;
         let mut l = self.pows.len();
         if l == 0 {
             self.pows.push(1);
@@ -24,13 +28,13 @@ impl<const M: u64> RollingPoly<M> {
         }
     }
 
-    pub fn eval(s: &str) -> u64 {
-        let p = 263;
+    pub fn eval(&self, s: &str) -> u64 {
+        let p = self.p;
         s.bytes().fold(0, |hash, c| (hash * p + c as u64 + 1) % M)
     }
 
-    pub fn prefixes(s: &str) -> Vec<u64> {
-        let p = 263;
+    pub fn prefixes(&self, s: &str) -> Vec<u64> {
+        let p = self.p;
         let mut hashes = Vec::with_capacity(s.len() + 1);
         hashes.push(0);
         let mut h = 0;
@@ -83,11 +87,11 @@ impl<const M: u64> Index<usize> for RollingPoly<M> {
     }
 }
 
-pub fn hash_occurrences<const M: u64>(s: &str, t: &str) -> impl Iterator<Item = usize> {
-    let mut h = RollingPoly::<M>::new();
+pub fn hash_occurrences<const M: u64>(s: &str, t: &str, p: u64) -> impl Iterator<Item = usize> {
+    let mut h = RollingPoly::<M>::new(p);
     let (n, m) = (s.len(), t.len());
     h.extend(n + 1);
-    let h_s = RollingPoly::<M>::eval(&s);
-    let h_t = RollingPoly::<M>::prefixes(&t);
+    let h_s = h.eval(&s);
+    let h_t = h.prefixes(&t);
     (0..m + 1 - n).filter(move |&i| h.query(&h_t, i, i + n) == h_s)
 }

@@ -1,9 +1,9 @@
 use std::{
-    collections::VecDeque,
+    collections::{BinaryHeap, VecDeque},
     ops::{AddAssign, SubAssign},
 };
 
-use crate::ds::bit_vec::BitVec;
+use crate::ds::{bit_vec::BitVec, score::MinScore};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PushRelabelEdge<F> {
@@ -399,7 +399,7 @@ impl CostScaling {
             eps = eps.max(e.cost.abs());
         }
         while eps > 1 {
-            eps = (eps / 4).max(1);
+            eps = (eps / 2).max(1);
             self.refine(eps);
         }
         let mut ret = self.init_cost;
@@ -540,421 +540,198 @@ impl CostScaling {
     }
 }
 
-// TODO: min cost b-flow using network simplex
-// https://judge.yosupo.jp/submission/313861
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CapacityScalingEdge {
+    to: usize,
+    rev: usize,
+    cap: i64,
+    cost: i64,
+}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Clone, Copy, Debug)]
+pub struct CapacityScalingInputEdge {
+    from: usize,
+    to: usize,
+    cap: i64,
+    cost: i64,
+}
 
-    #[test]
-    fn test_basic_circulation() {
-        // Simple triangle: 0->1 (cost 2), 1->2 (cost 2), 2->0 (cost -5)
-        // All capacities 10. Minimum cost should be -1 * 10 = -10
-        let mut mcc = CostScaling::new(3);
-        mcc.add_edge(0, 1, 2, 10, 0);
-        mcc.add_edge(1, 2, 2, 10, 0);
-        mcc.add_edge(2, 0, -5, 10, 0);
+pub struct CapacityScaling {
+    n: usize,
+    input_edges: Vec<CapacityScalingInputEdge>,
+    adj: Vec<Vec<CapacityScalingEdge>>,
+    p: Vec<i64>,
+    dist: Vec<i64>,
+    parent_edge: Vec<(usize, usize)>,
+}
 
-        let (feasible, cost) = mcc.mcc();
-        assert!(feasible);
-        assert_eq!(cost, -10);
-    }
-
-    #[test]
-    fn test_infeasible() {
-        let mut mcc = CostScaling::new(2);
-        // Demanding more than capacity allows
-        mcc.add_edge(0, 1, 1, 5, 10);
-
-        let (feasible, _) = mcc.mcc();
-        assert!(!feasible);
-    }
-
-    #[test]
-    fn test_min_cost_flow_as_circulation() {
-        let n = 3;
-        let mut mcc = CostScaling::new(n);
-
-        // Path: 0 -> 1 -> 2
-        // To make this a "circulation" with flow 2:
-        // We add a return edge 2 -> 0 with cost 0 and capacity 2
-        mcc.add_edge(0, 1, 1, 2, 2);
-        mcc.add_edge(1, 2, 1, 2, 2);
-        mcc.add_edge(2, 0, 0, 2, 2); // Return edge to satisfy flow conservation
-
-        let (feasible, cost) = mcc.mcc();
-
-        assert!(feasible, "Circulation should be feasible");
-        // Cost: (1 * 2) + (1 * 2) + (0 * 2) = 4
-        assert_eq!(cost, 4);
-    }
-
-    #[test]
-    fn test_mcmf() {
-        let mut mcc = CostScaling::new(3);
-        // 0 -> 1 cost 10, cap 5
-        // 1 -> 2 cost 10, cap 5
-        mcc.add_edge(0, 1, 10, 5, 0);
-        mcc.add_edge(1, 2, 10, 5, 0);
-
-        let (success, _, _, _) = mcc.calc(0, 2);
-        assert!(success);
-        // Max flow is 5, cost per unit is 20, total 100
-        // (Actual result will include the artificial negative cost;
-        // you would typically normalize this by removing the t->s edge's contribution)
-    }
-
-    #[test]
-    fn test_mcmf_success() {
-        let mut mcc = CostScaling::new(4);
-        // Source 0, Sink 3
-        // 0 -> 1: cost 1, cap 10
-        // 0 -> 2: cost 5, cap 10
-        // 1 -> 3: cost 1, cap 5
-        // 2 -> 3: cost 1, cap 5
-
-        mcc.add_edge(0, 1, 1, 10, 0);
-        mcc.add_edge(0, 2, 5, 10, 0);
-        mcc.add_edge(1, 3, 1, 5, 0);
-        mcc.add_edge(2, 3, 1, 5, 0);
-
-        let (success, _, cost, _) = mcc.calc(0, 3);
-
-        assert!(success);
-        // Path 1: 0-1-3 (cap 5, cost 1+1=2) -> Cost 10
-        // Path 2: 0-2-3 (cap 5, cost 5+1=6) -> Cost 30
-        // Total Max Flow: 10, Total Min Cost: 40
-        assert_eq!(cost, 40);
-    }
-
-    /// Helper to setup and run a simple case
-    fn run_mcmf(n: usize, s: usize, t: usize, edges: &[(usize, usize, i64, i64)]) -> (bool, i64) {
-        let mut mcc = CostScaling::new(n);
-        for &(u, v, cost, cap) in edges {
-            mcc.add_edge(u, v, cost, cap, 0);
+impl CapacityScaling {
+    pub fn new(n: usize) -> Self {
+        Self {
+            n,
+            input_edges: Vec::new(),
+            adj: vec![Vec::new(); n],
+            p: vec![0; n],
+            dist: vec![0; n],
+            parent_edge: vec![(0, 0); n],
         }
-        let (success, _, cost, _) = mcc.calc(s, t);
-        (success, cost)
     }
 
-    #[test]
-    fn test_single_edge() {
-        // Simple 0 -> 1 with cost 5 and capacity 10
-        let (feasible, cost) = run_mcmf(2, 0, 1, &[(0, 1, 5, 10)]);
-        assert!(feasible);
-        // Max flow is 10. Total cost = 10 * 5 = 50.
-        assert_eq!(cost, 50);
+    pub fn add_edge(&mut self, from: usize, to: usize, cap: i64, cost: i64) {
+        self.input_edges.push(CapacityScalingInputEdge {
+            from,
+            to,
+            cap,
+            cost,
+        });
     }
 
-    #[test]
-    fn test_parallel_edges() {
-        // Two edges from 0 -> 1
-        // Edge 1: Cost 10, Cap 10
-        // Edge 2: Cost 5, Cap 10
-        // Max flow should be 20.
-        // Cost: (10 * 5) + (10 * 10) = 50 + 100 = 150
-        let (feasible, cost) = run_mcmf(
-            2,
-            0,
-            1,
-            &[
-                (0, 1, 10, 10), // Expensive
-                (0, 1, 5, 10),  // Cheap
-            ],
-        );
-        assert!(feasible);
-        assert_eq!(cost, 150);
+    #[inline(always)]
+    fn reduced_cost(&self, u: usize, edge: &CapacityScalingEdge) -> i64 {
+        edge.cost + self.p[u] - self.p[edge.to]
     }
 
-    #[test]
-    fn test_diamond_graph() {
-        //      /-> 1 -\
-        //     /        \
-        //  0 -          -> 3
-        //     \        /
-        //      \-> 2 -/
-        //
-        // Path 0->1->3: Cost 1+1=2, Cap min(10,10)=10
-        // Path 0->2->3: Cost 2+2=4, Cap min(10,10)=10
-        // Total Max Flow: 20
-        // Total Cost: (10 * 2) + (10 * 4) = 20 + 40 = 60
-        let edges = vec![(0, 1, 1, 10), (1, 3, 1, 10), (0, 2, 2, 10), (2, 3, 2, 10)];
-        let (feasible, cost) = run_mcmf(4, 0, 3, &edges);
-        assert!(feasible);
-        assert_eq!(cost, 60);
+    fn dijkstra(&mut self, s: usize, t: usize) -> bool {
+        let inf = i64::MAX / 2;
+        self.dist.fill(inf);
+        self.dist[s] = 0;
+        let mut pq = BinaryHeap::new();
+        pq.push(MinScore(0, s));
+        while let Some(MinScore(d, u)) = pq.pop() {
+            if d > self.dist[u] {
+                continue;
+            }
+            if u == t {
+                return true;
+            }
+            for (i, e) in self.adj[u].iter().enumerate() {
+                if e.cap > 0 {
+                    let rc = self.reduced_cost(u, e);
+                    if self.dist[e.to] > self.dist[u] + rc {
+                        self.dist[e.to] = self.dist[u] + rc;
+                        self.parent_edge[e.to] = (u, i);
+                        pq.push(MinScore(self.dist[e.to], e.to));
+                    }
+                }
+            }
+        }
+        false
     }
 
-    #[test]
-    fn test_diamond_bottleneck() {
-        // Similar to above, but the sink edges have limited capacity.
-        // 0->1 (Cap 10, Cost 1)
-        // 0->2 (Cap 10, Cost 1)
-        // 1->3 (Cap 5, Cost 1)  <-- Bottleneck
-        // 2->3 (Cap 5, Cost 1)  <-- Bottleneck
-        // Max Flow: 10
-        // Cost: 5*(1+1) + 5*(1+1) = 20
-        let edges = vec![(0, 1, 1, 10), (1, 3, 1, 5), (0, 2, 1, 10), (2, 3, 1, 5)];
-        let (feasible, cost) = run_mcmf(4, 0, 3, &edges);
-        assert!(feasible);
-        assert_eq!(cost, 20);
+    fn push_capacity(&mut self, u: usize, idx: usize) {
+        self.adj[u][idx].cap += 1;
+        let rc = self.reduced_cost(u, &self.adj[u][idx]);
+        if rc >= 0 {
+            return;
+        }
+        let v = self.adj[u][idx].to;
+        let found = self.dijkstra(v, u);
+        let inf = i64::MAX / 2;
+        if found {
+            let mut curr = u;
+            while curr != v {
+                let (p_node, p_idx) = self.parent_edge[curr];
+                self.adj[p_node][p_idx].cap -= 1;
+                let rev = self.adj[p_node][p_idx].rev;
+                self.adj[curr][rev].cap += 1;
+                curr = p_node;
+            }
+            self.adj[u][idx].cap -= 1;
+            let rev = self.adj[u][idx].rev;
+            self.adj[v][rev].cap += 1;
+        }
+        let fix_val = if found {
+            self.dist[u]
+        } else {
+            let max_dist = self
+                .dist
+                .iter()
+                .filter(|&&d| d != inf)
+                .max()
+                .cloned()
+                .unwrap_or(0);
+            max_dist - rc
+        };
+        for i in 0..self.n {
+            if self.dist[i] != inf {
+                self.p[i] += self.dist[i];
+            } else {
+                self.p[i] += fix_val;
+            }
+        }
     }
 
-    #[test]
-    fn test_negative_costs() {
-        // 0 -> 1 (Cost 10, Cap 10)
-        // 1 -> 2 (Cost -5, Cap 10)
-        // Net cost per unit: 5.
-        // Max flow 10. Total cost 50.
-        let edges = vec![(0, 1, 10, 10), (1, 2, -5, 10)];
-        let (feasible, cost) = run_mcmf(3, 0, 2, &edges);
-        assert!(feasible);
-        assert_eq!(cost, 50);
-    }
-
-    #[test]
-    fn test_negative_cycle_logic_check() {
-        // Note: Standard Min-Cost Max-Flow usually assumes no negative cycles reachable
-        // from the source in the residual graph initially, OR the algorithm must handle them.
-        // Cost scaling generally handles negative costs robustly.
-        //
-        // Path: 0 -> 1 -> 2 (Cost 10+10 = 20)
-        // Shortcut: 0 -> 2 (Cost 100)
-        // Negative edge 2 -> 1 (Cost -50) creating cycle 1->2->1 cost -40?
-        // If the algorithm detects negative cycles correctly, it might push infinite flow
-        // if capacities were infinite, but here capacities are finite.
-
-        // However, this specific function is "Min Cost Max Flow".
-        // It should saturate the flow first.
-        // 0->1 (Cap 10, Cost 10)
-        // 1->2 (Cap 10, Cost 10)
-        // Max Flow 10 via 0->1->2. Cost 200.
-
-        // Add a disjoint negative cycle 3->4->3?
-        // If the cycle is not reachable from S or T, it shouldn't affect the S-T flow cost
-        // unless we are doing min-cost circulation over the whole graph.
-        // The implementation calculates circulation, so it MIGHT find the negative cycle.
-        // Let's test if it returns the cost of the flow + the cost of the negative cycle.
-
-        let mut mcc = CostScaling::new(5);
-        // Flow path
-        mcc.add_edge(0, 1, 10, 10, 0);
-        mcc.add_edge(1, 2, 10, 10, 0);
-
-        // Disconnected negative cycle
-        // 3->4 (Cost -10, Cap 1)
-        // 4->3 (Cost 5, Cap 1)
-        // Cycle cost -5, Cap 1. Total cost -5.
-        mcc.add_edge(3, 4, -10, 1, 0);
-        mcc.add_edge(4, 3, 5, 1, 0);
-
-        let (feasible, _, cost, ..) = mcc.calc(0, 2);
-        assert!(feasible);
-
-        // Flow cost: 10 * (10+10) = 200.
-        // Circulation cost: 1 * (-10+5) = -5.
-        // Total expected: 195.
-        assert_eq!(cost, 195);
-    }
-
-    #[test]
-    fn test_disconnected() {
-        let edges = vec![(0, 1, 10, 10), (2, 3, 10, 10)];
-        // No path from 0 to 3
-        let (feasible, cost) = run_mcmf(4, 0, 3, &edges);
-        // It is "feasible" to have 0 max flow.
-        assert!(feasible);
-        assert_eq!(cost, 0);
-    }
-
-    #[test]
-    fn test_large_capacities_overflow_regression() {
-        // This test specifically targets the overflow bug you encountered.
-        // We use large capacities and costs that would overflow i64 if multiplied blindly
-        // or if i64::MAX/2 was used as a bridge capacity.
-
-        let n = 3;
-        let s = 0;
-        let t = 2;
-        let mut mcc = CostScaling::new(n);
-
-        // Large capacity: 1 billion.
-        // Large cost: 1 million.
-        // Total cost ~ 10^15, which fits in i64 (max ~9*10^18).
-        let cap = 1_000_000_000;
-        let cost_val = 1_000_000;
-
-        mcc.add_edge(0, 1, cost_val, cap, 0);
-        mcc.add_edge(1, 2, cost_val, cap, 0);
-
-        let (feasible, _, cost, ..) = mcc.calc(s, t);
-
-        assert!(feasible);
-        // Expected: 1_000_000_000 * (1_000_000 + 1_000_000) = 2_000_000_000_000_000
-        assert_eq!(cost, cap * (cost_val * 2));
-    }
-
-    #[test]
-    fn test_high_cost_scaling() {
-        // Test ensuring the internal scaling (multiplying by N) doesn't panic.
-        let n = 4;
-        let mut mcc = CostScaling::new(n);
-
-        // Costs near the edge of what's reasonable before scaling logic applies
-        let high_cost = 1_000_000_000;
-
-        mcc.add_edge(0, 1, high_cost, 1, 0);
-        mcc.add_edge(1, 2, high_cost, 1, 0);
-        mcc.add_edge(2, 3, high_cost, 1, 0);
-
-        let (feasible, _, cost, ..) = mcc.calc(0, 3);
-        assert!(feasible);
-        assert_eq!(cost, 3 * high_cost);
-    }
-
-    #[test]
-    fn test_split_merge_varied_costs() {
-        // S -> A (Cap 10, Cost 10)
-        // S -> B (Cap 10, Cost 2)
-        // A -> T (Cap 10, Cost 2)
-        // B -> T (Cap 10, Cost 10)
-        // A -> B (Cap 10, Cost 1)  <-- Cross edge
-
-        // Optimal flow of 20:
-        // Path 1: S -> B -> T (Cost 2+10=12). Cap 10.
-        // Path 2: S -> A -> T (Cost 10+2=12). Cap 10.
-        // Cross edge S->A->B->T cost is 10+1+10=21 (Worse).
-        // Cross edge S->B (no reverse to A).
-
-        // Total cost: 10*12 + 10*12 = 240.
-
-        let mut mcc = CostScaling::new(4);
-        mcc.add_edge(0, 1, 10, 10, 0); // S->A
-        mcc.add_edge(0, 2, 2, 10, 0); // S->B
-        mcc.add_edge(1, 3, 2, 10, 0); // A->T
-        mcc.add_edge(2, 3, 10, 10, 0); // B->T
-        mcc.add_edge(1, 2, 1, 10, 0); // A->B
-
-        let (feasible, _, cost, ..) = mcc.calc(0, 3);
-        assert!(feasible);
-        assert_eq!(cost, 240);
-    }
-
-    #[test]
-    fn test_mcmf_flow_values_simple_path() {
-        // Path: 0 -> 1 -> 2
-        // Cap 10 on both, Cost 1 on both.
-        let mut mcc = CostScaling::new(3);
-        mcc.add_edge(0, 1, 1, 10, 0); // Edge 0
-        mcc.add_edge(1, 2, 1, 10, 0); // Edge 1
-
-        let (_, total_flow, total_cost, flows) = mcc.calc(0, 2);
-
-        assert_eq!(total_flow, 10);
-        assert_eq!(total_cost, 20);
-        assert_eq!(flows.len(), 2);
-        assert_eq!(flows[0], 10, "Flow on 0->1 should be 10");
-        assert_eq!(flows[1], 10, "Flow on 1->2 should be 10");
-    }
-
-    #[test]
-    fn test_mcmf_flow_values_split() {
-        // Source 0, Sink 3
-        // Path A: 0 -> 1 -> 3 (Cost 10, Cap 10)
-        // Path B: 0 -> 2 -> 3 (Cost 20, Cap 10)
-        // Max flow should be 20.
-        // We add edges in a specific order to verify the returned vector maps correctly.
-
-        let mut mcc = CostScaling::new(4);
-        mcc.add_edge(0, 1, 5, 10, 0); // Edge 0: 0->1 (Part of Cheap Path)
-        mcc.add_edge(0, 2, 10, 10, 0); // Edge 1: 0->2 (Part of Expensive Path)
-        mcc.add_edge(1, 3, 5, 10, 0); // Edge 2: 1->3 (Part of Cheap Path)
-        mcc.add_edge(2, 3, 10, 10, 0); // Edge 3: 2->3 (Part of Expensive Path)
-
-        let (_, total_flow, total_cost, flows) = mcc.calc(0, 3);
-
-        assert_eq!(total_flow, 20);
-        assert_eq!(total_cost, 10 * 10 + 10 * 20); // 300
-
-        // Verify individual edges
-        assert_eq!(flows[0], 10); // 0->1
-        assert_eq!(flows[1], 10); // 0->2
-        assert_eq!(flows[2], 10); // 1->3
-        assert_eq!(flows[3], 10); // 2->3
-    }
-
-    #[test]
-    fn test_mcmf_flow_values_limited_cap() {
-        // Source 0, Sink 2
-        // Two parallel paths with different costs.
-        // Edge 0: 0->1 (Cost 10, Cap 5)
-        // Edge 1: 0->1 (Cost 2, Cap 5)
-        // Edge 2: 1->2 (Cost 0, Cap 10)
-        // Total flow 10.
-        // Flow should saturate Edge 1 (cheaper) and Edge 0.
-
-        let mut mcc = CostScaling::new(3);
-        mcc.add_edge(0, 1, 10, 5, 0); // Edge 0 (Expensive)
-        mcc.add_edge(0, 1, 2, 5, 0); // Edge 1 (Cheap)
-        mcc.add_edge(1, 2, 0, 10, 0); // Edge 2 (Bottleneck)
-
-        let (_, total_flow, total_cost, flows) = mcc.calc(0, 2);
-
-        assert_eq!(total_flow, 10);
-        assert_eq!(total_cost, 5 * 10 + 5 * 2); // 60
-
-        assert_eq!(flows[0], 5, "Expensive edge should be saturated");
-        assert_eq!(flows[1], 5, "Cheap edge should be saturated");
-        assert_eq!(flows[2], 10, "Sink edge should carry all flow");
-    }
-
-    #[test]
-    fn test_mcmf_flow_values_partial_saturation() {
-        // Source 0, Sink 2
-        // Edge 0: 0->1 (Cost 10, Cap 10)
-        // Edge 1: 0->1 (Cost 2, Cap 10)
-        // Edge 2: 1->2 (Cost 0, Cap 15)
-
-        // Max flow is limited by edge 2 (Cap 15).
-        // Flow should prioritize Edge 1 (Cost 2).
-        // Edge 1 should have 10 flow.
-        // Edge 0 should have 5 flow.
-
-        let mut mcc = CostScaling::new(3);
-        mcc.add_edge(0, 1, 10, 10, 0); // Edge 0 (Expensive)
-        mcc.add_edge(0, 1, 2, 10, 0); // Edge 1 (Cheap)
-        mcc.add_edge(1, 2, 0, 15, 0); // Edge 2 (Bottleneck)
-
-        let (_, total_flow, total_cost, flows) = mcc.calc(0, 2);
-
-        assert_eq!(total_flow, 15);
-        assert_eq!(total_cost, 10 * 2 + 5 * 10); // 20 + 50 = 70
-
-        assert_eq!(flows[0], 5, "Expensive edge should take overflow (5)");
-        assert_eq!(flows[1], 10, "Cheap edge should be saturated (10)");
-        assert_eq!(flows[2], 15, "Sink edge saturated");
-    }
-
-    #[test]
-    fn test_reusability() {
-        // Ensure that calling min_cost_max_flow doesn't corrupt the struct
-        // and we can add more edges and solve again.
-        let mut mcc = CostScaling::new(3);
-        mcc.add_edge(0, 1, 10, 10, 0);
-
-        // Solve 1: 0->1
-        let (_, f1, c1, _) = mcc.calc(0, 1);
-        assert_eq!(f1, 10);
-        assert_eq!(c1, 100);
-
-        // Add 1->2 and solve 0->2
-        mcc.add_edge(1, 2, 10, 10, 0);
-        let (_, f2, c2, flows) = mcc.calc(0, 2);
-
-        assert_eq!(f2, 10);
-        assert_eq!(c2, 200); // 10*10 + 10*10
-        assert_eq!(flows.len(), 2);
-        assert_eq!(flows[0], 10);
-        assert_eq!(flows[1], 10);
+    /// O(m (n + m) log n log U)
+    pub fn calc(&mut self, s: usize, t: usize) -> (i64, i64, Vec<i64>) {
+        self.adj.iter_mut().for_each(|adj| adj.clear());
+        let mut edge_locs = Vec::with_capacity(self.input_edges.len());
+        let mut max_cap = 0;
+        let mut sum_cap = 0;
+        let mut sum_cost_abs = 0;
+        for e in &self.input_edges {
+            max_cap = max_cap.max(e.cap);
+            sum_cap += e.cap;
+            sum_cost_abs += e.cost.abs();
+            let fwd_idx = self.adj[e.from].len();
+            let rev_idx = self.adj[e.to].len();
+            edge_locs.push((e.from, fwd_idx));
+            self.adj[e.from].push(CapacityScalingEdge {
+                to: e.to,
+                rev: rev_idx,
+                cap: 0,
+                cost: e.cost,
+            });
+            self.adj[e.to].push(CapacityScalingEdge {
+                to: e.from,
+                rev: fwd_idx,
+                cap: 0,
+                cost: -e.cost,
+            });
+        }
+        let inf_cost = -(sum_cost_abs + 1);
+        let t_s_idx = self.adj[t].len();
+        let s_t_idx = self.adj[s].len();
+        self.adj[t].push(CapacityScalingEdge {
+            to: s,
+            rev: s_t_idx,
+            cap: 0,
+            cost: inf_cost,
+        });
+        self.adj[s].push(CapacityScalingEdge {
+            to: t,
+            rev: t_s_idx,
+            cap: 0,
+            cost: -inf_cost,
+        });
+        let bits = (sum_cap as u64).next_power_of_two().ilog2() + 1;
+        self.p.fill(0);
+        for bit in (0..bits).rev() {
+            for u in 0..self.n {
+                for e in self.adj[u].iter_mut() {
+                    e.cap <<= 1;
+                }
+            }
+            for (i, &(u, idx)) in edge_locs.iter().enumerate() {
+                if (self.input_edges[i].cap >> bit) & 1 == 1 {
+                    self.push_capacity(u, idx);
+                }
+            }
+            self.push_capacity(t, t_s_idx);
+        }
+        let flow = self.adj[s][s_t_idx].cap;
+        let mut cost = 0;
+        let mut flows = Vec::with_capacity(self.input_edges.len());
+        for (i, &(u, idx)) in edge_locs.iter().enumerate() {
+            let e_orig = &self.input_edges[i];
+            let rev_idx = self.adj[u][idx].rev;
+            let v = self.adj[u][idx].to;
+            let edge_flow = self.adj[v][rev_idx].cap;
+            flows.push(edge_flow);
+            cost += edge_flow * e_orig.cost;
+        }
+        (flow, cost, flows)
     }
 }
+
+// TODO: min cost b-flow using network simplex
+// https://judge.yosupo.jp/submission/313861

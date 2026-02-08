@@ -12,9 +12,8 @@ pub fn min_enclosing_circle(mut pts: Vec<Point<f64>>) -> Circle<f64> {
             radius: 0.0,
         };
     }
-    let mut rng = rand::rng();
-    pts.shuffle(&mut rng);
-    let mut boundary: Vec<Point<f64>> = Vec::with_capacity(3);
+    pts.shuffle(&mut rand::rng());
+    let mut boundary: Vec<Point<_>> = Vec::with_capacity(3);
     fn trivial(boundary: &[Point<f64>]) -> Circle<f64> {
         match boundary.len() {
             0 => Circle {

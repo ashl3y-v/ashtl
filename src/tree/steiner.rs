@@ -53,7 +53,7 @@ where
     dp[(1 << t) - 1][term[0]]
 }
 
-/// O(2^k * m * n^2) time, O(n^2) space
+/// O(2^k m n^2) time, O(n^2) space
 pub fn nederlof<const M: u64>(
     n: usize,
     g: &[usize],

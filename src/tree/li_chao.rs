@@ -5,7 +5,7 @@ pub trait LiChaoFunc: Clone {
 }
 
 pub trait LiChaoLazy<F>: Clone + PartialEq + Default {
-    fn apply_to_func(&self, f: &mut F);
+    fn apply(&self, f: &mut F);
 
     fn merge(&mut self, parent: &Self);
 }
@@ -14,7 +14,7 @@ pub trait LiChaoLazy<F>: Clone + PartialEq + Default {
 pub struct NoLazy;
 
 impl<F: LiChaoFunc> LiChaoLazy<F> for NoLazy {
-    fn apply_to_func(&self, _f: &mut F) {}
+    fn apply(&self, _f: &mut F) {}
     fn merge(&mut self, _parent: &Self) {}
 }
 
@@ -84,9 +84,9 @@ impl<F: LiChaoFunc, Z: LiChaoLazy<F>> LiChao<F, Z> {
         let rc = self.ns[i].r;
         let lazy = self.ns[i].lazy.clone();
         self.ns[lc].lazy.merge(&lazy);
-        lazy.apply_to_func(&mut self.ns[lc].x);
+        lazy.apply(&mut self.ns[lc].x);
         self.ns[rc].lazy.merge(&lazy);
-        lazy.apply_to_func(&mut self.ns[rc].x);
+        lazy.apply(&mut self.ns[rc].x);
         self.ns[i].lazy = Z::default();
     }
 
@@ -112,7 +112,7 @@ impl<F: LiChaoFunc, Z: LiChaoLazy<F>> LiChao<F, Z> {
             return;
         } else if l >= ql && r <= qr {
             self.ns[i].lazy.merge(&val);
-            val.apply_to_func(&mut self.ns[i].x);
+            val.apply(&mut self.ns[i].x);
             return;
         }
         self.push(i);

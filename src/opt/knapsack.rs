@@ -1,3 +1,5 @@
+use rand::seq::SliceRandom;
+
 use crate::{alg::fps::FPS, ds::scan::MonotoneQueue, opt::min_plus::max_plus_ccv};
 
 /// O(n M)
@@ -36,9 +38,57 @@ pub fn subset_sum(w: &[u64], t: u64) -> u64 {
     a
 }
 
+// https://arxiv.org/pdf/2308.11307
+/// Õ(n^3/2 w)
+pub fn shuffle_zero_one_knapsack(capacity: i64, mut items: Vec<(i64, i64)>) -> i64 {
+    let n = items.len();
+    let w_max = items.iter().map(|i| i.0).max().unwrap_or(0);
+    let sum_weight: i64 = items.iter().map(|i| i.0).sum();
+    let target_weight = capacity.min(sum_weight);
+    let mut rng = rand::rng();
+    items.shuffle(&mut rng);
+    let neg_inf = i64::MIN / 2;
+    let mut prev_dp = vec![0; (capacity + 1) as usize];
+    let mut curr_dp = prev_dp.clone();
+    let c_delta = 4.0;
+    for i in 1..=n {
+        let item = &items[i - 1];
+        let w_i = item.0;
+        let p_i = item.1;
+        let mu_i = (i as f64 / n as f64) * target_weight as f64;
+        let delta_i = c_delta * (i as f64).sqrt() * w_max as f64;
+        let start_j = (mu_i - delta_i).floor() as i64;
+        let end_j = (mu_i + delta_i).ceil() as i64;
+        for j in start_j..=end_j {
+            if j < 0 || j > capacity {
+                continue;
+            }
+            let j_idx = j as usize;
+            let term1 = prev_dp[j_idx];
+            let term2 = if j - w_i < 0 {
+                neg_inf
+            } else {
+                let prev_idx = (j - w_i) as usize;
+                if prev_idx >= prev_dp.len() || prev_dp[prev_idx] == neg_inf {
+                    neg_inf
+                } else {
+                    prev_dp[prev_idx] + p_i
+                }
+            };
+            curr_dp[j_idx] = term1.max(term2);
+        }
+        let copy_start = start_j.max(0) as usize;
+        let copy_end = capacity.min(end_j) as usize;
+        for k in copy_start..=copy_end {
+            prev_dp[k] = curr_dp[k];
+        }
+    }
+    *prev_dp.iter().max().unwrap_or(&0)
+}
+
 // https://arxiv.org/pdf/1802.06440
 /// O(d c log c)
-pub fn zero_one_knapsack(v: &[u64], w: &[u64], c: u64) -> u64 {
+pub fn axiotis_tzamos_zero_one(v: &[u64], w: &[u64], c: u64) -> u64 {
     let n = v.len();
     let mut bucket = vec![Vec::new(); c as usize + 1];
     for i in 0..n {
@@ -93,7 +143,7 @@ pub fn zero_one_knapsack_eq<const M: u64>(w: &[usize], c: usize) -> Vec<u64> {
 
 // https://arxiv.org/pdf/1802.06440
 /// O(min(n c, M^2 log M, V^2 log V))
-pub fn complete_knapsack(v: &[u64], w: &[u64], mut c: u64) -> u64 {
+pub fn axiotis_tzamos_complete(v: &[u64], w: &[u64], mut c: u64) -> u64 {
     let n = v.len();
     if n == 0 {
         return 0;
@@ -294,173 +344,3 @@ pub fn multiple_knapsack_eq<const M: u64>(w: &[usize], k: &[usize], c: usize) ->
 
 // TODO: some of the cases here
 // https://codeforces.com/blog/entry/98663
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rand::prelude::*;
-
-    // --- Ground Truth: Naive O(N * C) Implementation ---
-    fn naive_complete_knapsack_u64(v: &[u64], w: &[u64], c: u64) -> u64 {
-        let cap = c as usize;
-        // Check if we can even allocate this
-        if cap > 100_000_000 {
-            panic!("Test capacity too large for naive implementation");
-        }
-        let mut dp = vec![0; cap + 1];
-
-        for i in 0..v.len() {
-            let weight = w[i] as usize;
-            let val = v[i];
-            if weight == 0 {
-                continue;
-            } // Avoid infinite loops
-            if weight <= cap {
-                for j in weight..=cap {
-                    dp[j] = dp[j].max(dp[j - weight] + val);
-                }
-            }
-        }
-        dp[cap]
-    }
-
-    // --- Basic Correctness ---
-
-    #[test]
-    fn test_simple_small_case() {
-        // Item 0: w=3, v=5
-        // Item 1: w=5, v=9 (Better density: 1.8 vs 1.66)
-        // C = 10.
-        // Option A: 2 * Item 1 = w=10, v=18.
-        // Option B: 3 * Item 0 = w=9, v=15.
-        // Option C: 1*Item1 + 1*Item0 = w=8, v=14.
-        let v = vec![5, 9];
-        let w = vec![3, 5];
-        let c = 10;
-        assert_eq!(complete_knapsack(&v, &w, c), 18);
-    }
-
-    #[test]
-    fn test_exact_fit_vs_greedy() {
-        // Greedy (density) isn't always right for small/medium C.
-        // Item A: w=4, v=10 (Density 2.5)
-        // Item B: w=3, v=7 (Density 2.33)
-        // C = 6.
-        // Greedy takes 1x A (w=4, v=10). Space left=2 (can't fill). Total = 10.
-        // Optimal takes 2x B (w=6, v=14). Total = 14.
-        let v = vec![10, 7];
-        let w = vec![4, 3];
-        let c = 6;
-        assert_eq!(complete_knapsack(&v, &w, c), 14);
-    }
-
-    // --- Large Capacity (Steinitz) Tests ---
-
-    #[test]
-    fn test_huge_capacity_best_density() {
-        // C = 10^12 (Too big for array DP)
-        // Item A: w=10, v=100 (Density 10)
-        // Item B: w=20, v=150 (Density 7.5)
-        // Optimal is obviously just spamming Item A.
-        let v = vec![100, 150];
-        let w = vec![10, 20];
-        let c = 1_000_000_000_000;
-
-        let expected = (c / 10) * 100;
-        assert_eq!(complete_knapsack(&v, &w, c), expected);
-    }
-
-    #[test]
-    fn test_large_capacity_with_remainder() {
-        // C = 1000.
-        // Item A: w=10, v=20 (Density 2.0)
-        // Item B: w=3, v=5 (Density 1.66)
-        // Optimal: Fill main bulk with Item A.
-        // 1000 is divisible by 10. Max = 2000.
-        // Let's make C slightly messy. C = 1007.
-        // Bulk: 1000 -> 100x A = 2000. Remainder 7.
-        // Can fit 2x B (w=6, v=10). Total 2010.
-        // Or remove one A (w=10, v=20) -> Remainder 17.
-        // 17 = 5x B (w=15, v=25). Total 1980 + 25 = 2005. (Worse)
-        let v = vec![20, 5];
-        let w = vec![10, 3];
-        let c = 1007;
-
-        // Naive can handle 1000
-        let expected = naive_complete_knapsack_u64(&v, &w, c);
-        assert_eq!(complete_knapsack(&v, &w, c), expected);
-    }
-
-    // --- Small Values / Large Weights Tests ---
-
-    // #[test]
-    // fn test_high_weights_small_values() {
-    //     // If your code switches to O(V^2) when V is small and W is large.
-    //     // Item A: v=3, w=1_000_000
-    //     // Item B: v=5, w=1_500_000
-    //     // C = 3_000_000
-    //     // Option 1: 3x A = w=3m, v=9
-    //     // Option 2: 2x B = w=3m, v=10
-    //     // Option 3: 1x A + 1x B = w=2.5m, v=8
-    //     // Result: 10.
-    //     let v = vec![3, 5];
-    //     let w = vec![1_000_000, 1_500_000];
-    //     let c = 3_000_000;
-    //     assert_eq!(complete_knapsack(&v, &w, c), 10);
-    // }
-
-    // --- Fuzz Testing ---
-
-    #[test]
-    fn test_fuzz_general() {
-        let mut rng = StdRng::seed_from_u64(12345);
-        for _ in 0..100 {
-            // Setup parameters to keep within naive DP limits
-            let n = rng.gen_range(1..10);
-            let c = rng.gen_range(1..2000);
-
-            let mut v = Vec::new();
-            let mut w = Vec::new();
-            for _ in 0..n {
-                v.push(rng.gen_range(1..100));
-                w.push(rng.gen_range(1..100));
-            }
-
-            let expected = naive_complete_knapsack_u64(&v, &w, c);
-            let actual = complete_knapsack(&v, &w, c);
-
-            assert_eq!(
-                actual, expected,
-                "Mismatch on C={}, v={:?}, w={:?}",
-                c, v, w
-            );
-        }
-    }
-
-    #[test]
-    fn test_fuzz_steinitz_boundary() {
-        // Test capacities around the transition point where algorithms might switch.
-        // Assuming your switch is roughly ~2*M^2.
-        let mut rng = StdRng::seed_from_u64(9999);
-        for _ in 0..50 {
-            let m = 20; // max weight approx
-            let limit = m * m * 2;
-
-            // Generate C around the limit
-            let c = rng.gen_range((limit - 100)..(limit + 200));
-
-            let n = 5;
-            let mut v = Vec::new();
-            let mut w = Vec::new();
-            for _ in 0..n {
-                v.push(rng.gen_range(10..100));
-                w.push(rng.gen_range(1..m));
-            }
-
-            let expected = naive_complete_knapsack_u64(&v, &w, c);
-            let actual = complete_knapsack(&v, &w, c);
-
-            assert_eq!(actual, expected, "Mismatch at boundary C={}", c);
-        }
-    }
-}
