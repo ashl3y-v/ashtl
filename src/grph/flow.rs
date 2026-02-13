@@ -90,14 +90,19 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
                 nc = i;
             }
         }
+        if nh == usize::MAX {
+            nh = n + 1;
+        }
         self.h[u] = nh;
         self.cur[u] = nc;
-        self.co[nh] += 1;
-        self.co[hi] -= 1;
+        if nh < self.co.len() {
+            self.co[nh] += 1;
+        }
+        self.co[hi] = self.co[hi].saturating_sub(1);
         if hi < n && self.co[hi] == 0 {
             for i in 0..n {
                 if self.h[i] > hi && self.h[i] < n {
-                    self.co[self.h[i]] = 0;
+                    self.co[self.h[i]] = self.co[self.h[i]].saturating_sub(1);
                     self.h[i] = n + 1;
                 }
             }
@@ -127,7 +132,7 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
                 }
                 hi -= 1;
             }
-            let u = unsafe { self.hs[hi].pop().unwrap_unchecked() };
+            let u = self.hs[hi].pop().unwrap();
             while self.ec[u] > F::default() {
                 if self.cur[u] == self.g[u].len() {
                     hi = self.relabel(u, hi);
@@ -246,15 +251,6 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
         paths
     }
 }
-
-// TODO: cost scaling min-cost max flow
-// https://koosaga.com/289
-// https://ideone.com/q6PWgB
-// https://codeforces.com/blog/entry/104075
-// https://codeforces.com/blog/entry/95823
-// https://developers.google.com/optimization/reference/graph/min_cost_flow
-// https://ocw.mit.edu/courses/6-854j-advanced-algorithms-fall-2005/b312c6aa208fc322bab7654e55c0ab01_lec14_1999.pdf
-// https://people.orie.cornell.edu/dpw/orie633/LectureNotes/lecture14.pdf
 
 #[derive(Clone, Copy, Debug)]
 pub struct CostScalingInputEdge {

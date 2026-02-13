@@ -2335,6 +2335,234 @@ impl<const M: u64> FPS<M> {
         s
     }
 
+    /// O(p log p)
+    #[inline]
+    pub fn faulhaber_kp(k: u64, p: usize) -> E {
+        let mut a = 0;
+        let b = Self::bernoulli_plus(p + 1).inv_borel().kci(p + 1);
+        let mut kp1mr = k;
+        for i in (0..=p).rev() {
+            a += b[i] * kp1mr as E;
+            a %= M as E;
+            kp1mr = (kp1mr * k) % M;
+        }
+        a / (p as E + 1)
+    }
+
+    /// O(p log p)
+    #[inline]
+    pub fn faulhaber_xp(p: usize) -> Self {
+        let b = Self::bernoulli_plus(p + 1)
+            .inv_borel()
+            .kci(p + 1)
+            .reverse_k(p + 1);
+        let mut s = b / (p as E + 1);
+        s[0] = 0;
+        s
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn pref_x(mut self) -> Self {
+        let d;
+        (self, d) = self.truncate_deg_or_0();
+        let b = Self::bernoulli_plus(d + 1).reverse_k(d);
+        let p0 = self.coeff[0] % M as E;
+        let mut s = ((self.inv_borel() * b) >> d - 1).borel().mod_xn(d + 2);
+        s[0] = p0;
+        s
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn sum_pows_k(k: usize, n: usize) -> Self {
+        let mut e = Self::exp_x(n + 1);
+        e = ((-e.clone() + 1) >> 1).inv(n).unwrap().normalize()
+            * ((e - Self::exp_ax(k as E + 1, n + 1)) >> 1).normalize();
+        if e.is_zero() {
+            e.coeff.push(0);
+        }
+        e
+    }
+
+    /// O(n^1/2)
+    /// + O(n) for initialization
+    #[inline]
+    pub fn pent(n: usize) -> Self {
+        let mut p = vec![0; n];
+        p[0] = 1;
+        let mut i = 1;
+        let mut p0 = 1;
+        let mut p1 = 2;
+        let mut sign = 1;
+        while p0 < n {
+            sign = -sign;
+            p[p0] = sign;
+            p0 += 3 * i + 1;
+            if p1 > n {
+                continue;
+            }
+            p[p1] = sign;
+            p1 += 3 * i + 2;
+            i += 1;
+        }
+        Self::new(p)
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn log_q_fact(k: usize, n: usize) -> Self {
+        let n = (n.min((k * (k - 1) >> 1) + 1)).next_power_of_two();
+        let mut p = vec![0; n];
+        for d in 1..=k.min(n - 1) {
+            for j in (d..n).step_by(d) {
+                p[j] += d as E;
+            }
+        }
+        p.iter_mut()
+            .zip(inverses_n_div::<M>(n))
+            .for_each(|(v, j)| *v = ((k as E - *v) * j as E) % M as E);
+        Self::new(p)
+    }
+
+    /// O(n log n)
+    /// assumes a is sorted
+    #[inline]
+    pub fn log_q_multinom(a: &[usize], n: usize) -> Self {
+        let k = a.iter().sum::<usize>();
+        let mut d = k * (k - 1) >> 1;
+        for &k in a {
+            d -= k * (k - 1) >> 1;
+        }
+        let n = (n.min(d + 1)).next_power_of_two();
+        let mut p = vec![0; n];
+        let mut s = a.len() as E - 1;
+        let mut l = 1;
+        for i in 0..a.len() - 1 {
+            if s != 0 {
+                for d in l..=a[i] {
+                    for j in (d..n).step_by(d) {
+                        p[j] += s * d as E;
+                    }
+                }
+            }
+            l = a[i] + 1;
+            s -= 1;
+            if l >= n {
+                break;
+            }
+        }
+        for d in a[a.len() - 1] + 1..=k.min(n - 1) {
+            for j in (d..n).step_by(d) {
+                p[j] -= d as E;
+            }
+        }
+        Self::new(p).integr_divx()
+    }
+
+    /// O(n log n)
+    #[inline]
+    pub fn partition(n: usize) -> Self {
+        Self::pent(n).inv(n).unwrap()
+    }
+
+    /// O(n log n)
+    /// ((∑_i x^{i^2})^k = ∏_i (1 - x^{2i})^k (1 + x^{2i-1})^{2k})
+    pub fn log_squares_k(k: usize, n: usize) -> Self {
+        let n = n.next_power_of_two();
+        let mut p = vec![0; n];
+        for i in (1..n).step_by(2) {
+            let v = ((k << 1) * i) as E;
+            let mut sign = 1;
+            for j in (i..n).step_by(i) {
+                sign = -sign;
+                p[j] -= v * sign;
+            }
+        }
+        for i in (2..n).step_by(2) {
+            let v = (k * i) as E;
+            for j in (i..n).step_by(i) {
+                p[j] -= v;
+            }
+        }
+        Self::new(p).integr_divx()
+    }
+
+    /// O(n log log n)
+    pub fn log_euler_trans(self, n: usize) -> Self {
+        let n = n.next_power_of_two();
+        self.diff_x()
+            .resize(n)
+            .divisor(&mult::sieve_primes(n).0)
+            .integr_divx()
+    }
+
+    /// O(n log n)
+    pub fn fibonacci_poly(mut n: u64) -> Self {
+        if n == 0 {
+            return Self::new(vec![]);
+        } else if n == 1 {
+            return Self::new(vec![1]);
+        }
+        let (mut a, mut b, mut c) = if n & 1 == 0 {
+            (
+                Self::new(vec![0]),
+                Self::new(vec![0, 1]),
+                Self::new(vec![2, 0, 1]),
+            )
+        } else {
+            (
+                Self::new(vec![1]),
+                Self::new(vec![-1]),
+                Self::new(vec![2, 0, 1]),
+            )
+        };
+        n >>= 1;
+        while n > 1 {
+            if n & 1 == 0 {
+                b = (b * c.clone() + &a).normalize();
+            } else {
+                a = (a * c.clone() + &b).normalize();
+            }
+            c = (c.square() - 2).normalize();
+            n >>= 1;
+        }
+        a * c + b
+    }
+
+    /// O(n log n)
+    pub fn lucas_poly(mut n: u64) -> Self {
+        if n == 0 {
+            return Self::new(vec![2]);
+        } else if n == 1 {
+            return Self::new(vec![0, 1]);
+        }
+        let (mut a, mut b, mut c) = if n & 1 == 0 {
+            (
+                Self::new(vec![2]),
+                Self::new(vec![-2, 0, -1]),
+                Self::new(vec![2, 0, 1]),
+            )
+        } else {
+            (
+                Self::new(vec![0, 1]),
+                Self::new(vec![0, 1]),
+                Self::new(vec![2, 0, 1]),
+            )
+        };
+        n >>= 1;
+        while n > 1 {
+            if n & 1 == 0 {
+                b = (b * c.clone() + &a).normalize();
+            } else {
+                a = (a * c.clone() + &b).normalize();
+            }
+            c = (c.square() - 2).normalize();
+            n >>= 1;
+        }
+        a * c + b
+    }
+
     /// O(n log n)
     pub fn cyclotomic(n: usize) -> Self {
         if n == 0 {
@@ -2435,6 +2663,13 @@ impl<const M: u64> FPS<M> {
     #[inline]
     pub fn bernoulli(n: usize) -> Self {
         (Self::exp_x(n + 1) >> 1).inv(n).unwrap()
+    }
+
+    #[inline]
+    pub fn bernoulli_plus(n: usize) -> Self {
+        let mut b = Self::bernoulli(n);
+        b[1] = -b[1];
+        b
     }
 
     /// O(k log_k n)
@@ -2686,6 +2921,9 @@ impl<const M: u64> FPS<M> {
     pub fn inv_borel(mut self) -> Self {
         self = self.truncate_deg().0;
         let mut a = 1;
+        if self.coeff.len() == 0 {
+            return self;
+        }
         self.coeff[0] %= M as E;
         if self.len() < 2 {
             return self;
@@ -3407,6 +3645,21 @@ impl<const M: u64> FPS<M> {
             }
         }
         Self::new(p).integr_divx()
+    }
+
+    /// O(n log log n)
+    pub fn divisor(mut self, primes: &[usize]) -> Self {
+        let n = self.len();
+        for &p in primes {
+            let mut i = 1;
+            let mut j = p;
+            while j < n {
+                self.coeff[j] += self.coeff[i];
+                i += 1;
+                j += p;
+            }
+        }
+        self
     }
 
     /// O(n log n)

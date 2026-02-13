@@ -1,9 +1,8 @@
 use crate::grph::flow::PushRelabel;
 use std::ops::{AddAssign, SubAssign};
 
-// TODO: Gomory-Hu proof
-
-pub fn gomory_hu<F: Copy + Default + Ord + AddAssign + SubAssign>(
+/// O(n^3 √m)
+pub fn gomory_hu<F: Copy + Default + PartialOrd + AddAssign + SubAssign>(
     n: usize,
     es: &[(usize, usize, F)],
 ) -> (Vec<(usize, usize, F)>, Vec<usize>) {

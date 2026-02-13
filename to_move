@@ -1,35 +1,3 @@
-
-/// O(n log^3 n)
-    pub fn vandermonde_tree(tree: &mut [Self], a: &[E], s: &mut E, v: usize, l: usize, r: usize) {
-        if r - l == 1 {
-            tree[v] = Self::new(vec![-a[l], 1]);
-        } else {
-            let m = l + (r - l >> 1);
-            Self::vandermonde_tree(tree, a, s, v << 1, l, m);
-            Self::vandermonde_tree(tree, a, s, v << 1 | 1, m, r);
-            let t = tree[v << 1 | 1]
-                .clone()
-                .evals(&a[l..m])
-                .coeff
-                .into_iter()
-                .fold(1, |a, b| a * b % M as E);
-            tree[v] = (std::mem::take(&mut tree[v << 1]) * std::mem::take(&mut tree[v << 1 | 1]))
-                .truncate_deg()
-                .0;
-            *s = (*s * t) % M as E;
-        }
-    }
-
-    /// O(n log^3 n)
-    #[inline]
-    pub fn vandermonde(a: &[E]) -> E {
-        let n = a.len();
-        let mut tree = vec![Self::new(vec![]); n.next_power_of_two() << 1];
-        let mut s = 1;
-        Self::vandermonde_tree(&mut tree, &a, &mut s, 1, 0, n);
-        s
-    }
-
     /// O(p log p)
     #[inline]
     pub fn faulhaber_kp(k: u64, p: usize) -> E {

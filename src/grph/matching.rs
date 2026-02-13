@@ -1,4 +1,4 @@
-use std::collections::{BinaryHeap, VecDeque};
+use std::collections::{BinaryHeap, LinkedList, VecDeque};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 use rand::prelude::SliceRandom;
@@ -11,7 +11,7 @@ use crate::tree::top::StaticTopTree;
 
 const INF: i64 = i64::MAX / 2;
 
-/// O(√n m)
+// O(√n m)
 pub fn hopcroft_karp(
     n: usize,
     k: usize,
@@ -286,12 +286,12 @@ impl<T: Copy + PartialOrd + Default + Add<Output = T> + Sub<Output = T> + AddAss
         }
         let mut l_mt = vec![usize::MAX; n];
         let mut r_mt = vec![usize::MAX; m];
-        let mut l_label = self
+        let mut l_pt = self
             .val
             .chunks_exact(m)
             .map(|a| a.iter().fold(self.init, |a, &b| if b > a { b } else { a }))
             .collect::<Vec<_>>();
-        let mut r_label = vec![T::default(); m];
+        let mut r_pt = vec![T::default(); m];
         let mut slack = vec![self.inf; m];
         let mut from_v = vec![0; m];
         let mut l_vis = BitVec::new(n, false);
@@ -341,7 +341,7 @@ impl<T: Copy + PartialOrd + Default + Add<Output = T> + Sub<Output = T> + AddAss
                         if r_vis[to] {
                             continue;
                         }
-                        let gap = l_label[l] + r_label[to] - self.val[l * m + to];
+                        let gap = l_pt[l] + r_pt[to] - self.val[l * m + to];
                         if slack[to] >= gap {
                             from_v[to] = l;
                             if gap == T::default() {
@@ -365,12 +365,12 @@ impl<T: Copy + PartialOrd + Default + Add<Output = T> + Sub<Output = T> + AddAss
                 }
                 for l in 0..n {
                     if l_vis[l] {
-                        l_label[l] -= delta;
+                        l_pt[l] -= delta;
                     }
                 }
                 for r in 0..m {
                     if r_vis[r] {
-                        r_label[r] += delta;
+                        r_pt[r] += delta;
                     } else {
                         slack[r] -= delta;
                     }
@@ -428,12 +428,12 @@ impl<T: Copy + PartialOrd + Default + Add<Output = T> + Sub<Output = T> + AddAss
         }
         let mut l_mt = vec![usize::MAX; n];
         let mut r_mt = vec![usize::MAX; m];
-        let mut l_label = vec![self.init; n];
-        let mut r_label = vec![T::default(); m];
+        let mut l_pt = vec![self.init; n];
+        let mut r_pt = vec![T::default(); m];
         for u in 0..n {
             for &(_, w) in &self.adj[u] {
-                if w > l_label[u] {
-                    l_label[u] = w;
+                if w > l_pt[u] {
+                    l_pt[u] = w;
                 }
             }
         }
@@ -444,7 +444,7 @@ impl<T: Copy + PartialOrd + Default + Add<Output = T> + Sub<Output = T> + AddAss
         let mut pq = BinaryHeap::new();
         for i in 0..n {
             for &(j, w) in &self.adj[i] {
-                let slack = l_label[i] + r_label[j] - w;
+                let slack = l_pt[i] + r_pt[j] - w;
                 if slack < dist[j] {
                     if dist[j] == self.inf {
                         touched.push(j);
@@ -471,7 +471,7 @@ impl<T: Copy + PartialOrd + Default + Add<Output = T> + Sub<Output = T> + AddAss
                 }
                 let ml = r_mt[u];
                 for &(v, w) in &self.adj[ml] {
-                    let weight = l_label[ml] + r_label[v] - w;
+                    let weight = l_pt[ml] + r_pt[v] - w;
                     let new_dist = d + weight;
                     if new_dist < dist[v] {
                         if dist[v] == self.inf {
@@ -484,12 +484,12 @@ impl<T: Copy + PartialOrd + Default + Add<Output = T> + Sub<Output = T> + AddAss
                 }
             }
             if end_node != usize::MAX {
-                l_label[i] -= path_len;
+                l_pt[i] -= path_len;
                 for &j in &touched {
                     if dist[j] <= path_len {
-                        r_label[j] += path_len - dist[j];
+                        r_pt[j] += path_len - dist[j];
                         if r_mt[j] != usize::MAX {
-                            l_label[r_mt[j]] -= path_len - dist[j];
+                            l_pt[r_mt[j]] -= path_len - dist[j];
                         }
                     }
                 }
@@ -647,7 +647,7 @@ pub struct WeightedBlossom {
     n: usize,
     n_x: usize,
     g: Vec<Vec<WeightedBlossomEdge>>,
-    lab: Vec<i64>,
+    pt: Vec<i64>,
     mate: Vec<usize>,
     slack: Vec<usize>,
     bl: Vec<usize>,
@@ -673,7 +673,7 @@ impl WeightedBlossom {
             n,
             n_x: n,
             g,
-            lab: vec![0; max_size],
+            pt: vec![0; max_size],
             mate: vec![0; max_size],
             slack: vec![0; max_size],
             bl: vec![0; max_size],
@@ -695,7 +695,7 @@ impl WeightedBlossom {
     }
 
     fn e_delta(&self, e: &WeightedBlossomEdge) -> i64 {
-        self.lab[e.u] + self.lab[e.v] - e.w * 2
+        self.pt[e.u] + self.pt[e.v] - e.w * 2
     }
 
     fn update_slack(&mut self, u: usize, x: usize) {
@@ -803,7 +803,7 @@ impl WeightedBlossom {
         if b > self.n_x {
             self.n_x += 1;
         }
-        self.lab[b] = 0;
+        self.pt[b] = 0;
         self.typ[b] = 0;
         self.mate[b] = self.mate[lca];
         self.flo[b] = vec![lca];
@@ -941,7 +941,7 @@ impl WeightedBlossom {
             let mut d = INF;
             for b in (self.n + 1)..=self.n_x {
                 if self.bl[b] == b && self.typ[b] == 1 {
-                    d = d.min(self.lab[b] / 2);
+                    d = d.min(self.pt[b] / 2);
                 }
             }
             for x in 1..=self.n_x {
@@ -957,20 +957,20 @@ impl WeightedBlossom {
             }
             for u in 1..=self.n {
                 if self.typ[self.bl[u]] == 0 {
-                    if self.lab[u] <= d {
+                    if self.pt[u] <= d {
                         return false;
                     }
-                    self.lab[u] -= d;
+                    self.pt[u] -= d;
                 } else if self.typ[self.bl[u]] == 1 {
-                    self.lab[u] += d;
+                    self.pt[u] += d;
                 }
             }
             for b in (self.n + 1)..=self.n_x {
                 if self.bl[b] == b {
-                    if self.typ[self.bl[b]] == 0 {
-                        self.lab[b] += d * 2;
-                    } else if self.typ[self.bl[b]] == 1 {
-                        self.lab[b] -= d * 2;
+                    if self.typ[b] == 0 {
+                        self.pt[b] += d * 2;
+                    } else if self.typ[b] == 1 {
+                        self.pt[b] -= d * 2;
                     }
                 }
             }
@@ -986,7 +986,7 @@ impl WeightedBlossom {
                 }
             }
             for b in (self.n + 1)..=self.n_x {
-                if self.bl[b] == b && self.typ[b] == 1 && self.lab[b] == 0 {
+                if self.bl[b] == b && self.typ[b] == 1 && self.pt[b] == 0 {
                     self.expand_blossom(b);
                 }
             }
@@ -1013,7 +1013,7 @@ impl WeightedBlossom {
             }
         }
         for u in 1..=self.n {
-            self.lab[u] = w_max;
+            self.pt[u] = w_max;
         }
         while self.matching() {
             n_matches += 1;
@@ -1027,142 +1027,82 @@ impl WeightedBlossom {
     }
 }
 
-/// Represents an edge in the graph.
-#[derive(Clone, Copy, Debug)]
-pub struct Edge {
-    pub u: usize,
-    pub v: usize,
-}
-
-/// Helper struct for Disjoint Set Union (DSU) operations.
-struct DisjointSetUnion {
-    par: Vec<usize>,
-}
-
-impl DisjointSetUnion {
-    fn new(n: usize) -> Self {
-        let mut par = vec![0; n];
-        for i in 0..n {
-            par[i] = i;
-        }
-        Self { par }
-    }
-
-    fn find(&mut self, u: usize) -> usize {
-        if self.par[u] == u {
-            u
-        } else {
-            let p = self.par[u];
-            let root = self.find(p);
-            self.par[u] = root;
-            root
-        }
-    }
-
-    // Note: The algorithm relies on specific directionality: par[v] = u
-    fn unite_into(&mut self, u: usize, v: usize) {
-        let root_u = self.find(u);
-        let root_v = self.find(v);
-        if root_u != root_v {
-            self.par[root_v] = root_u;
-        }
-    }
-}
-
-/// Helper struct for managing linked lists (used for buckets and blossoms).
-struct LinkedList {
-    head: Vec<i32>,
-    next: Vec<i32>,
-}
-
-impl LinkedList {
-    fn new(head_size: usize, next_size: usize) -> Self {
-        Self {
-            head: vec![-1; head_size],
-            next: vec![0; next_size], // Default 0, written before read
-        }
-    }
-
-    fn clear(&mut self) {
-        self.head.fill(-1);
-    }
-
-    fn push(&mut self, h: usize, u: usize) {
-        if h < self.head.len() {
-            self.next[u] = self.head[h];
-            self.head[h] = u as i32;
-        }
-    }
-}
-
-pub struct GabowMatching {
+pub struct GabowBlossom {
     n: usize,
     nh: usize,
-    ofs: Vec<usize>,
-    edges: Vec<Edge>,
+    g: Vec<(usize, usize)>,
+    d: Vec<usize>,
     mate: Vec<usize>,
-    potential: Vec<i64>,
-    label: Vec<i64>,
-    link: Vec<Edge>,
-    que: VecDeque<usize>,
-    dsu: DisjointSetUnion,
-    list: LinkedList,
-    blossom: LinkedList,
+    p: Vec<i64>,
+    pt: Vec<i64>,
+    link: Vec<(usize, usize)>,
+    q: VecDeque<usize>,
+    dsu: DSU,
+    list: Vec<LinkedList<usize>>,
+    bl: Vec<LinkedList<usize>>,
     dsu_changelog: Vec<(usize, usize)>,
     dsu_changelog_last: usize,
     dsu_changelog_size: usize,
-    stack: Vec<usize>,
+    stk: Vec<usize>,
     time_current: i64,
     time_augment: i64,
     contract_count: i64,
     outer_id: i64,
 }
 
-impl GabowMatching {
+impl GabowBlossom {
     const K_INNER: i64 = -1;
     const K_FREE: i64 = 0;
 
     pub fn new(n: usize, input_edges: &[(usize, usize)]) -> Self {
         let nh = n >> 1;
-        let mut ofs = vec![0; n + 2];
+        let mut d = vec![0; n + 2];
         let m = input_edges.len();
-        let mut edges = vec![Edge { u: 0, v: 0 }; m * 2];
+        let mut g = vec![(0, 0); m * 2];
         for &(u, v) in input_edges {
-            ofs[u + 2] += 1;
-            ofs[v + 2] += 1;
+            d[u + 2] += 1;
+            d[v + 2] += 1;
         }
         for i in 1..=n + 1 {
-            ofs[i] += ofs[i - 1];
+            d[i] += d[i - 1];
         }
         for &(u, v) in input_edges {
             let u1 = u + 1;
             let v1 = v + 1;
-            edges[ofs[u1]] = Edge { u: u1, v: v1 };
-            ofs[u1] += 1;
-            edges[ofs[v1]] = Edge { u: v1, v: u1 };
-            ofs[v1] += 1;
+            g[d[u1]] = (u1, v1);
+            d[u1] += 1;
+            g[d[v1]] = (v1, u1);
+            d[v1] += 1;
         }
         for i in (1..=n + 1).rev() {
-            ofs[i] = ofs[i - 1];
+            d[i] = d[i - 1];
         }
-        ofs[0] = 0;
+        d[0] = 0;
+        let mut list = Vec::with_capacity(nh + 1);
+        for _ in 0..=nh {
+            list.push(LinkedList::new());
+        }
+        let mut bl = Vec::with_capacity(n + 1);
+        for _ in 0..=n {
+            bl.push(LinkedList::new());
+        }
         Self {
             n,
             nh,
-            ofs,
-            edges,
+            g,
+            d,
             mate: vec![0; n + 1],
-            potential: vec![1; n + 1],
-            label: vec![Self::K_FREE; n + 1],
-            link: vec![Edge { u: 0, v: 0 }; n + 1],
-            que: VecDeque::with_capacity(n),
-            dsu: DisjointSetUnion::new(n + 1),
-            list: LinkedList::new(nh + 1, m * 2),
-            blossom: LinkedList::new(n + 1, n + 1),
-            dsu_changelog: vec![(0, 0); n], // Preallocate size N
+            p: vec![1; n + 1],
+            pt: vec![Self::K_FREE; n + 1],
+            link: vec![(0, 0); n + 1],
+            q: VecDeque::with_capacity(n),
+            dsu: DSU::new(n + 1),
+            list,
+            bl,
+            dsu_changelog: vec![(0, 0); n],
             dsu_changelog_last: 0,
             dsu_changelog_size: 0,
-            stack: Vec::with_capacity(n),
+            stk: Vec::with_capacity(n),
             time_current: 0,
             time_augment: INF,
             contract_count: 0,
@@ -1198,16 +1138,18 @@ impl GabowMatching {
 
     fn initialize(&mut self) {
         self.mate.fill(0);
-        self.potential.fill(1);
-        self.label.fill(Self::K_FREE);
-        self.link.fill(Edge { u: 0, v: 0 });
-        for i in 0..=self.n {
-            self.dsu.par[i] = i;
+        self.p.fill(1);
+        self.pt.fill(Self::K_FREE);
+        self.link.fill((0, 0));
+        self.dsu.p.fill(-1);
+        for l in &mut self.list {
+            l.clear();
         }
-        self.list.clear();
-        self.blossom.clear();
-        self.que.clear();
-        self.stack.clear();
+        for b in &mut self.bl {
+            b.clear();
+        }
+        self.q.clear();
+        self.stk.clear();
     }
 
     fn reset_count(&mut self) {
@@ -1220,27 +1162,28 @@ impl GabowMatching {
     }
 
     fn clear(&mut self) {
-        self.que.clear();
+        self.q.clear();
         for u in 1..=self.n {
-            self.potential[u] = 1;
-            self.dsu.par[u] = u;
-            self.blossom.head[u] = -1;
+            self.p[u] = 1;
+            self.dsu.p[u] = -1;
+            self.bl[u].clear();
         }
         let limit = self.n / 2;
-        for t in self.time_current as usize..=limit {
-            if t < self.list.head.len() {
-                self.list.head[t] = -1;
+        let start = self.time_current as usize;
+        for t in start..=limit {
+            if t < self.list.len() {
+                self.list[t].clear();
             }
         }
     }
 
     fn grow(&mut self, x: usize, y: usize, z: usize) {
-        self.label[y] = Self::K_INNER;
-        self.potential[y] = self.time_current;
-        self.link[z] = Edge { u: x, v: y };
-        self.label[z] = self.label[x];
-        self.potential[z] = self.time_current + 1;
-        self.que.push_back(z);
+        self.pt[y] = Self::K_INNER;
+        self.p[y] = self.time_current;
+        self.link[z] = (x, y);
+        self.pt[z] = self.pt[x];
+        self.p[z] = self.time_current + 1;
+        self.q.push_back(z);
     }
 
     fn contract(&mut self, x: usize, y: usize) {
@@ -1248,50 +1191,49 @@ impl GabowMatching {
         let mut by = self.dsu.find(y);
         self.contract_count += 1;
         let h = -(self.contract_count) + Self::K_INNER;
-        self.label[self.mate[bx]] = h;
-        self.label[self.mate[by]] = h;
+        self.pt[self.mate[bx]] = h;
+        self.pt[self.mate[by]] = h;
         let mut lca;
         loop {
             if self.mate[by] != 0 {
                 std::mem::swap(&mut bx, &mut by);
             }
-            bx = self.dsu.find(self.link[bx].u);
+            bx = self.dsu.find(self.link[bx].0);
             lca = bx;
-            if self.label[self.mate[bx]] == h {
+            if self.pt[self.mate[bx]] == h {
                 break;
             }
-            self.label[self.mate[bx]] = h;
+            self.pt[self.mate[bx]] = h;
         }
-        for &v_start in &[self.dsu.par[x], self.dsu.par[y]] {
+        for &v_start in &[self.dsu.find(x), self.dsu.find(y)] {
             let mut bv = v_start;
             while bv != lca {
                 let mv = self.mate[bv];
-                self.link[mv] = Edge { u: x, v: y };
-                self.label[mv] = self.label[x];
-                self.potential[mv] =
-                    1 + (self.time_current - self.potential[mv]) + self.time_current;
-                self.que.push_back(mv);
-                self.dsu.par[bv] = lca;
+                self.link[mv] = (x, y);
+                self.pt[mv] = self.pt[x];
+                self.p[mv] = 1 + (self.time_current - self.p[mv]) + self.time_current;
+                self.q.push_back(mv);
+                self.dsu.p[bv] = lca as isize;
                 self.dsu_changelog[self.dsu_changelog_last] = (bv, lca);
                 self.dsu_changelog_last += 1;
-                self.dsu.par[mv] = lca;
+                self.dsu.p[mv] = lca as isize;
                 self.dsu_changelog[self.dsu_changelog_last] = (mv, lca);
                 self.dsu_changelog_last += 1;
-                bv = self.dsu.par[self.link[bv].u];
+                bv = self.dsu.find(self.link[bv].0);
             }
         }
     }
 
     fn find_augmenting_path(&mut self) -> bool {
-        while let Some(x) = self.que.pop_front() {
-            let lx = self.label[x];
-            let px = self.potential[x];
+        while let Some(x) = self.q.pop_front() {
+            let lx = self.pt[x];
+            let px = self.p[x];
             let mut bx = self.dsu.find(x);
-            for eid in self.ofs[x]..self.ofs[x + 1] {
-                let y = self.edges[eid].v;
-                let ly = self.label[y];
+            for eid in self.d[x]..self.d[x + 1] {
+                let y = self.g[eid].1;
+                let ly = self.pt[y];
                 if ly > 0 {
-                    let time_next = (px + self.potential[y]) >> 1;
+                    let time_next = (px + self.p[y]) >> 1;
                     if lx != ly {
                         if time_next == self.time_current {
                             return true;
@@ -1303,14 +1245,15 @@ impl GabowMatching {
                         }
                         if time_next == self.time_current {
                             self.contract(x, y);
+                            bx = self.dsu.find(x);
                         } else if (time_next as usize) <= self.nh {
-                            self.list.push(time_next as usize, eid);
+                            self.list[time_next as usize].push_front(eid);
                         }
                     }
                     if ly > 0
                         && lx == ly
                         && bx != self.dsu.find(y)
-                        && ((px + self.potential[y]) >> 1) == self.time_current
+                        && ((px + self.p[y]) >> 1) == self.time_current
                     {
                         bx = self.dsu.find(x);
                     }
@@ -1319,7 +1262,7 @@ impl GabowMatching {
                     if time_next == self.time_current {
                         self.grow(x, y, self.mate[y]);
                     } else if (time_next as usize) <= self.nh {
-                        self.list.push(time_next as usize, eid);
+                        self.list[time_next as usize].push_front(eid);
                     }
                 }
             }
@@ -1335,25 +1278,21 @@ impl GabowMatching {
             if self.time_current == time_lim {
                 break;
             }
+            let current_list = std::mem::take(&mut self.list[self.time_current as usize]);
             let mut updated = false;
-            let mut h = self.list.head[self.time_current as usize];
-            while h >= 0 {
-                let eid = h as usize;
-                let e = self.edges[eid];
-                let x = e.u;
-                let y = e.v;
-                h = self.list.next[eid];
-                let ly = self.label[y];
+            for eid in current_list {
+                let e = self.g[eid];
+                let (x, y) = e;
+                let ly = self.pt[y];
                 if ly > 0 {
-                    if self.potential[x] + self.potential[y] != (self.time_current << 1) {
+                    if self.p[x] + self.p[y] != (self.time_current << 1) {
                         continue;
                     }
                     if self.dsu.find(x) == self.dsu.find(y) {
                         continue;
                     }
-                    if self.label[x] != ly {
+                    if self.pt[x] != ly {
                         self.time_augment = self.time_current;
-                        self.list.head[self.time_current as usize] = -1;
                         return false;
                     }
                     self.contract(x, y);
@@ -1363,7 +1302,6 @@ impl GabowMatching {
                     updated = true;
                 }
             }
-            self.list.head[self.time_current as usize] = -1;
             if updated {
                 return false;
             }
@@ -1373,13 +1311,13 @@ impl GabowMatching {
     }
 
     fn do_edmonds_search(&mut self) -> bool {
-        self.label[0] = Self::K_FREE;
+        self.pt[0] = Self::K_FREE;
         for u in 1..=self.n {
             if self.mate[u] == 0 {
-                self.que.push_back(u);
-                self.label[u] = u as i64;
+                self.q.push_back(u);
+                self.pt[u] = u as i64;
             } else {
-                self.label[u] = Self::K_FREE;
+                self.pt[u] = Self::K_FREE;
             }
         }
         loop {
@@ -1395,10 +1333,10 @@ impl GabowMatching {
             }
         }
         for u in 1..=self.n {
-            if self.label[u] > 0 {
-                self.potential[u] -= self.time_current;
-            } else if self.label[u] < 0 {
-                self.potential[u] = 1 + (self.time_current - self.potential[u]);
+            if self.pt[u] > 0 {
+                self.p[u] -= self.time_current;
+            } else if self.pt[u] < 0 {
+                self.p[u] = 1 + (self.time_current - self.p[u]);
             }
         }
         true
@@ -1410,65 +1348,63 @@ impl GabowMatching {
         if self.mate[t] != v {
             return;
         }
-        if self.link[v].v == self.dsu.find(self.link[v].v) {
-            self.mate[t] = self.link[v].u;
+        if self.link[v].1 == self.dsu.find(self.link[v].1) {
+            self.mate[t] = self.link[v].0;
             self.rematch(self.mate[t], t);
         } else {
-            let x = self.link[v].u;
-            let y = self.link[v].v;
+            let (x, y) = self.link[v];
             self.rematch(x, y);
             self.rematch(y, x);
         }
     }
 
     fn dfs_augment(&mut self, x: usize, bx: usize) -> bool {
-        let px = self.potential[x];
-        let lx = self.label[bx];
-        for eid in self.ofs[x]..self.ofs[x + 1] {
-            let y = self.edges[eid].v;
-            if px + self.potential[y] != 0 {
+        let px = self.p[x];
+        let lx = self.pt[bx];
+        for eid in self.d[x]..self.d[x + 1] {
+            let y = self.g[eid].1;
+            if px + self.p[y] != 0 {
                 continue;
             }
             let by = self.dsu.find(y);
-            let ly = self.label[by];
+            let ly = self.pt[by];
             if ly > 0 {
                 if lx >= ly {
                     continue;
                 }
-                let stack_beg = self.stack.len();
+                let stack_beg = self.stk.len();
                 let mut bv = by;
                 while bv != bx {
                     let mv = self.mate[bv];
                     let bw = self.dsu.find(mv);
-                    self.stack.push(bw);
-                    self.link[bw] = Edge { u: x, v: y };
-                    self.dsu.par[bv] = bx;
-                    self.dsu.par[bw] = bx;
-                    bv = self.dsu.find(self.link[bv].u);
+                    self.stk.push(bw);
+                    self.link[bw] = (x, y);
+                    self.dsu.p[bv] = bx as isize;
+                    self.dsu.p[bw] = bx as isize;
+                    bv = self.dsu.find(self.link[bv].0);
                 }
                 let mut success = false;
-                while self.stack.len() > stack_beg {
-                    let bw = self.stack.pop().unwrap();
-                    let mut v = self.blossom.head[bw];
-                    while v >= 0 {
+                while self.stk.len() > stack_beg {
+                    let bw = self.stk.pop().unwrap();
+                    let children: Vec<usize> = self.bl[bw].iter().cloned().collect();
+                    for v in children {
                         if !success {
-                            if self.dfs_augment(v as usize, bx) {
+                            if self.dfs_augment(v, bx) {
                                 success = true;
                             }
                         }
-                        v = self.blossom.next[v as usize];
                     }
                     if success {
                         break;
                     }
                 }
                 if success {
-                    self.stack.truncate(stack_beg);
+                    self.stk.truncate(stack_beg);
                     return true;
                 }
-                self.stack.truncate(stack_beg);
+                self.stk.truncate(stack_beg);
             } else if ly == Self::K_FREE {
-                self.label[by] = Self::K_INNER;
+                self.pt[by] = Self::K_INNER;
                 let z = self.mate[by];
                 if z == 0 {
                     self.rematch(x, y);
@@ -1476,15 +1412,14 @@ impl GabowMatching {
                     return true;
                 }
                 let bz = self.dsu.find(z);
-                self.link[bz] = Edge { u: x, v: y };
-                self.label[bz] = self.outer_id;
+                self.link[bz] = (x, y);
+                self.pt[bz] = self.outer_id;
                 self.outer_id += 1;
-                let mut v = self.blossom.head[bz];
-                while v >= 0 {
-                    if self.dfs_augment(v as usize, bz) {
+                let children: Vec<usize> = self.bl[bz].iter().cloned().collect();
+                for v in children {
+                    if self.dfs_augment(v, bz) {
                         return true;
                     }
-                    v = self.blossom.next[v as usize];
                 }
             }
         }
@@ -1492,33 +1427,33 @@ impl GabowMatching {
     }
 
     fn find_maximal(&mut self) -> usize {
-        for u in 1..=self.n {
-            self.dsu.par[u] = u;
-        }
+        self.dsu.p.fill(-1);
         for i in 0..self.dsu_changelog_size {
             let (v, par) = self.dsu_changelog[i];
-            self.dsu.par[v] = par;
+            self.dsu.p[v] = par as isize;
         }
         for u in 1..=self.n {
-            self.label[u] = Self::K_FREE;
-            self.blossom.push(self.dsu.find(u), u);
+            self.pt[u] = Self::K_FREE;
+            self.bl[u].clear();
+        }
+        for u in 1..=self.n {
+            self.bl[self.dsu.find(u)].push_front(u);
         }
         let mut ret = 0;
         for u in 1..=self.n {
             if self.mate[u] == 0 {
                 let bu = self.dsu.find(u);
-                if self.label[bu] != Self::K_FREE {
+                if self.pt[bu] != Self::K_FREE {
                     continue;
                 }
-                self.label[bu] = self.outer_id;
+                self.pt[bu] = self.outer_id;
                 self.outer_id += 1;
-                let mut v = self.blossom.head[bu];
-                while v >= 0 {
-                    if self.dfs_augment(v as usize, bu) {
+                let children: Vec<usize> = self.bl[bu].iter().cloned().collect();
+                for v in children {
+                    if self.dfs_augment(v, bu) {
                         ret += 1;
                         break;
                     }
-                    v = self.blossom.next[v as usize];
                 }
             }
         }
@@ -1526,7 +1461,7 @@ impl GabowMatching {
     }
 }
 
-// TODO: O(m √n log ?) maximum matching
+// TODO: O(√n m) maximum matching
 // https://arxiv.org/pdf/1703.03998
 // https://judge.yosupo.jp/submission/51928
 
@@ -2067,7 +2002,7 @@ mod tests_p {
     fn test_empty_graph() {
         let n = 5;
         let edges = vec![];
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
 
         assert_eq!(size, 0);
@@ -2078,7 +2013,7 @@ mod tests_p {
     fn test_single_edge() {
         let n = 2;
         let edges = vec![(0, 1)];
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
         let res = matcher.edges();
 
@@ -2090,7 +2025,7 @@ mod tests_p {
         // 0-1 and 2-3 are separate
         let n = 4;
         let edges = vec![(0, 1), (2, 3)];
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
         let res = matcher.edges();
 
@@ -2103,7 +2038,7 @@ mod tests_p {
         // Maximum matching is (0,1) and (2,3) -> Size 2
         let n = 4;
         let edges = vec![(0, 1), (1, 2), (2, 3)];
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
         let res = matcher.edges();
 
@@ -2116,7 +2051,7 @@ mod tests_p {
         // Max matching is 1 (one node left out)
         let n = 3;
         let edges = vec![(0, 1), (1, 2), (2, 0)];
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
         let res = matcher.edges();
 
@@ -2139,7 +2074,7 @@ mod tests_p {
             (2, 3),
             (3, 1), // The blossom
         ];
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
         let res = matcher.edges();
 
@@ -2151,7 +2086,7 @@ mod tests_p {
         // K4 is fully connected. Max matching is N/2 = 2.
         let n = 4;
         let edges = vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
         let res = matcher.edges();
 
@@ -2168,7 +2103,7 @@ mod tests_p {
                 edges.push((i, j));
             }
         }
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
         let res = matcher.edges();
 
@@ -2201,7 +2136,7 @@ mod tests_p {
             (8, 5),
         ];
 
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
         let res = matcher.edges();
 
@@ -2214,7 +2149,7 @@ mod tests_p {
         // Max matching is 1 (0 connected to any leaf).
         let n = 5;
         let edges = vec![(0, 1), (0, 2), (0, 3), (0, 4)];
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         let size = matcher.calc();
         let res = matcher.edges();
 
@@ -2228,7 +2163,7 @@ mod tests_p {
         // We will just test that calling get_edges multiple times is consistent.
         let n = 4;
         let edges = vec![(0, 1), (2, 3)];
-        let mut matcher = GabowMatching::new(n, &edges);
+        let mut matcher = GabowBlossom::new(n, &edges);
         matcher.calc();
 
         let res1 = matcher.edges();

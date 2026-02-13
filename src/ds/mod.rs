@@ -2,7 +2,6 @@ pub mod bit_vec;
 pub mod dsu;
 pub mod first_one;
 pub mod heap;
-pub mod matroid;
 pub mod persistent;
 pub mod scan;
 pub mod score;

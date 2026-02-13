@@ -59,7 +59,7 @@
 - [ ] Minimum Cost b-flow
 - [x] Matching on Bipartite Graph
 - [x] Matching on General Graph
-- [ ] General Weighted Matching
+- [x] General Weighted Matching
 - [x] Edge Coloring of Bipartite Graph
 - [x] Assignment Problem
 - [x] Minimum Spanning Tree

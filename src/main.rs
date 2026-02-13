@@ -36,17 +36,17 @@ use rand::seq::SliceRandom;
 use std::cmp::{max, min};
 use std::time::Instant;
 
-use ashtl::grph::matching::blossom;
-
 fn main() {}
 
 // TODO ORDER:
-// weighted blossom
+// circulation rounding https://courses.csail.mit.edu/6.854/20/sample-projects/A-/Rounding_Flows_Kang_Payor.pdf https://arxiv.org/pdf/1507.08139
+// isolating cuts / steiner min cut
 // m √n blossom
-// matroid intersection
-// floor sum
+// ---------------------------------------------------------------------
 // O(log^2 n) dynamic connectivity https://loj.ac/s/2497274
-// ----------------------------------------------------------------------
+// dynamic rerooting tree dp
+// slope trick utils
+// mod linear shit
 // Persistent Range Affine Range Sum
 // Range Linear Add Range Min
 // Deque Operate All Composite
@@ -55,10 +55,7 @@ fn main() {}
 // min ham cycle
 // hafnian
 // faster mod ops
-// slope trick utils
 // st numbering
-// mod linear shit
-// dynamic rerooting tree dp
 // ----------------------------------------------------------------------
 // larsch
 // monge algos
@@ -84,6 +81,5 @@ fn main() {}
 // tutte polynomial
 // sum of 2 squares
 // sum of 3 squares
-// gomory hu proof
 // dyanmic wavelet matrix
 // whatever this is https://judge.yosupo.jp/submission/138316

@@ -1,5 +1,5 @@
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PLCTNode<T> {
+pub struct LCTNode<T> {
     pub v: T,
     pub p: usize,
     pub ch: [usize; 2],
@@ -8,27 +8,27 @@ pub struct PLCTNode<T> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PLCT<T, Push, Pull, Rev>
+pub struct LCT<T, Push, Pull, Rev>
 where
-    Pull: FnMut([usize; 3], &mut [PLCTNode<T>]),
-    Push: FnMut([usize; 3], &mut [PLCTNode<T>]),
-    Rev: FnMut(usize, &mut [PLCTNode<T>]),
+    Pull: FnMut([usize; 3], &mut [LCTNode<T>]),
+    Push: FnMut([usize; 3], &mut [LCTNode<T>]),
+    Rev: FnMut(usize, &mut [LCTNode<T>]),
 {
-    pub ns: Vec<PLCTNode<T>>,
+    pub ns: Vec<LCTNode<T>>,
     pub pull: Pull,
     pub push: Push,
     pub rev: Rev,
 }
 
-impl<T, Push, Pull, Rev> PLCT<T, Push, Pull, Rev>
+impl<T, Push, Pull, Rev> LCT<T, Push, Pull, Rev>
 where
-    Pull: FnMut([usize; 3], &mut [PLCTNode<T>]),
-    Push: FnMut([usize; 3], &mut [PLCTNode<T>]),
-    Rev: FnMut(usize, &mut [PLCTNode<T>]),
+    Pull: FnMut([usize; 3], &mut [LCTNode<T>]),
+    Push: FnMut([usize; 3], &mut [LCTNode<T>]),
+    Rev: FnMut(usize, &mut [LCTNode<T>]),
 {
     pub fn new(init: T, pull: Pull, push: Push, rev: Rev) -> Self {
         Self {
-            ns: vec![PLCTNode {
+            ns: vec![LCTNode {
                 v: init,
                 p: 0,
                 ch: [0; 2],
@@ -43,7 +43,7 @@ where
 
     pub fn with_capacity(capacity: usize, init: T, pull: Pull, push: Push, rev: Rev) -> Self {
         let mut nodes = Vec::with_capacity(capacity + 1);
-        nodes.push(PLCTNode {
+        nodes.push(LCTNode {
             v: init,
             p: 0,
             ch: [0; 2],
@@ -59,7 +59,7 @@ where
     }
 
     pub fn add_node(&mut self, v: T) -> usize {
-        self.ns.push(PLCTNode {
+        self.ns.push(LCTNode {
             v,
             p: 0,
             ch: [0, 0],
@@ -204,7 +204,7 @@ where
     pub fn update<R>(
         &mut self,
         mut u: usize,
-        mut f: impl FnMut(usize, [usize; 2], &mut [PLCTNode<T>]) -> R,
+        mut f: impl FnMut(usize, [usize; 2], &mut [LCTNode<T>]) -> R,
     ) -> R {
         u += 1;
         self.splay(u);
@@ -214,7 +214,7 @@ where
     pub fn query_root<R>(
         &mut self,
         mut u: usize,
-        mut f: impl FnMut(usize, [usize; 2], &mut [PLCTNode<T>]) -> R,
+        mut f: impl FnMut(usize, [usize; 2], &mut [LCTNode<T>]) -> R,
     ) -> R {
         u += 1;
         self.make_root(u);
@@ -225,7 +225,7 @@ where
         &mut self,
         mut u: usize,
         mut v: usize,
-        mut f: impl FnMut(usize, [usize; 2], usize, [usize; 2], &mut [PLCTNode<T>]) -> R,
+        mut f: impl FnMut(usize, [usize; 2], usize, [usize; 2], &mut [LCTNode<T>]) -> R,
     ) -> R {
         u += 1;
         v += 1;
