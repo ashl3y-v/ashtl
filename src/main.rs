@@ -39,11 +39,10 @@ use std::time::Instant;
 fn main() {}
 
 // TODO ORDER:
-// circulation rounding https://courses.csail.mit.edu/6.854/20/sample-projects/A-/Rounding_Flows_Kang_Payor.pdf https://arxiv.org/pdf/1507.08139
-// isolating cuts / steiner min cut
 // m √n blossom
 // ---------------------------------------------------------------------
 // O(log^2 n) dynamic connectivity https://loj.ac/s/2497274
+// fix circulation rounding https://courses.csail.mit.edu/6.854/20/sample-projects/A-/Rounding_Flows_Kang_Payor.pdf https://arxiv.org/pdf/1507.08139
 // dynamic rerooting tree dp
 // slope trick utils
 // mod linear shit

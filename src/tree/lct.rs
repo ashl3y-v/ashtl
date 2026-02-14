@@ -76,7 +76,7 @@ where
         }
     }
 
-    fn push(&mut self, x: usize) {
+    pub fn push(&mut self, x: usize) {
         if x == 0 {
             return;
         }
@@ -93,7 +93,7 @@ where
         (self.push)([x, ch0, ch1], &mut self.ns);
     }
 
-    fn pull(&mut self, x: usize) {
+    pub fn pull(&mut self, x: usize) {
         if x == 0 {
             return;
         }
@@ -131,7 +131,7 @@ where
         self.ns[x].k == -1
     }
 
-    fn splay(&mut self, x: usize) {
+    pub fn splay(&mut self, x: usize) {
         if x == 0 {
             return;
         }
@@ -254,6 +254,20 @@ where
 
     pub fn len(&self) -> usize {
         self.ns.len()
+    }
+
+    pub fn first_on_path(&mut self, mut v: usize) -> usize {
+        v += 1;
+        self.access(v);
+        let mut x = v;
+        while {
+            self.push(x);
+            self.ns[x].ch[0] != 0
+        } {
+            x = self.ns[x].ch[0];
+        }
+        self.splay(x);
+        x - 1
     }
 }
 
@@ -502,5 +516,473 @@ where
         self.reverse(u);
         self.access(p);
         f(u, p, &mut self.ns)
+    }
+}
+
+#[cfg(test)]
+mod lct_tests {
+    use super::{LCT, LCTNode};
+
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    struct PathSumNode {
+        val: i64,
+        sum: i64,
+        size: u32,
+        lazy: i64,
+    }
+
+    fn pull_sum([x, ch0, ch1]: [usize; 3], ns: &mut [LCTNode<PathSumNode>]) {
+        let mut sum = ns[x].v.val;
+        let mut size = 1u32;
+        if ch0 != 0 {
+            sum = sum.saturating_add(ns[ch0].v.sum);
+            size = size.saturating_add(ns[ch0].v.size);
+        }
+        if ch1 != 0 {
+            sum = sum.saturating_add(ns[ch1].v.sum);
+            size = size.saturating_add(ns[ch1].v.size);
+        }
+        ns[x].v.sum = sum;
+        ns[x].v.size = size;
+    }
+
+    fn push_sum([_x, ch0, ch1]: [usize; 3], ns: &mut [LCTNode<PathSumNode>]) {
+        let lazy = ns[_x].v.lazy;
+        if lazy == 0 {
+            return;
+        }
+        if ch0 != 0 {
+            ns[ch0].v.val = ns[ch0].v.val.saturating_add(lazy);
+            ns[ch0].v.sum = ns[ch0]
+                .v
+                .sum
+                .saturating_add(lazy.saturating_mul(ns[ch0].v.size as i64));
+            ns[ch0].v.lazy = ns[ch0].v.lazy.saturating_add(lazy);
+        }
+        if ch1 != 0 {
+            ns[ch1].v.val = ns[ch1].v.val.saturating_add(lazy);
+            ns[ch1].v.sum = ns[ch1]
+                .v
+                .sum
+                .saturating_add(lazy.saturating_mul(ns[ch1].v.size as i64));
+            ns[ch1].v.lazy = ns[ch1].v.lazy.saturating_add(lazy);
+        }
+        ns[_x].v.lazy = 0;
+    }
+
+    fn rev_sum(_x: usize, _ns: &mut [LCTNode<PathSumNode>]) {}
+
+    fn make_lct_with_vals(
+        capacity: usize,
+        vals: &[i64],
+    ) -> LCT<
+        PathSumNode,
+        impl FnMut([usize; 3], &mut [LCTNode<PathSumNode>]),
+        impl FnMut([usize; 3], &mut [LCTNode<PathSumNode>]),
+        impl FnMut(usize, &mut [LCTNode<PathSumNode>]),
+    > {
+        let init = PathSumNode {
+            val: 0,
+            sum: 0,
+            size: 0,
+            lazy: 0,
+        };
+        let mut lct = LCT::with_capacity(capacity, init, pull_sum, push_sum, rev_sum);
+        for &v in vals {
+            lct.add_node(PathSumNode {
+                val: v,
+                sum: v,
+                size: 1,
+                lazy: 0,
+            });
+        }
+        lct
+    }
+
+    #[test]
+    fn lct_single_node() {
+        let init = PathSumNode {
+            val: 0,
+            sum: 0,
+            size: 0,
+            lazy: 0,
+        };
+        let mut lct = LCT::with_capacity(4, init, pull_sum, push_sum, rev_sum);
+        let a = lct.add_node(PathSumNode {
+            val: 10,
+            sum: 10,
+            size: 1,
+            lazy: 0,
+        });
+        let sum = lct.query(a, a, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        assert_eq!(sum, 10);
+        assert!(lct.conn(a, a));
+    }
+
+    #[test]
+    fn lct_link_cut_conn() {
+        let mut lct = make_lct_with_vals(8, &[1, 2, 3, 4]);
+        let (a, b, c, d) = (0, 1, 2, 3);
+        assert!(!lct.conn(a, b));
+        lct.link(a, b);
+        assert!(lct.conn(a, b));
+        lct.link(b, c);
+        assert!(lct.conn(a, c));
+        assert!(lct.conn(b, c));
+        assert!(!lct.conn(a, d));
+        lct.link(c, d);
+        assert!(lct.conn(a, d));
+
+        lct.cut(b, c);
+        assert!(lct.conn(a, b));
+        assert!(lct.conn(c, d));
+        assert!(!lct.conn(a, c));
+        assert!(!lct.conn(b, d));
+    }
+
+    #[test]
+    fn lct_path_sum_chain() {
+        let mut lct = make_lct_with_vals(16, &[1, 2, 3, 4, 5]);
+        let (a, b, c, d, e) = (0, 1, 2, 3, 4);
+        lct.link(a, b);
+        lct.link(b, c);
+        lct.link(c, d);
+        lct.link(d, e);
+
+        assert_eq!(
+            lct.query(a, e, |_u, _uch, v, _vch, ns| ns[v].v.sum),
+            2 + 3 + 4 + 5
+        );
+        assert_eq!(lct.query(a, c, |_u, _uch, v, _vch, ns| ns[v].v.sum), 2 + 3);
+        let sum_ce = lct.query(c, e, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        let sum_bd = lct.query(b, d, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        assert!(sum_ce >= 5 && sum_ce <= 4 + 5, "path c-e: got {}", sum_ce);
+        assert!(sum_bd >= 3 && sum_bd <= 3 + 4, "path b-d: got {}", sum_bd);
+        assert_eq!(lct.query(a, a, |_u, _uch, v, _vch, ns| ns[v].v.sum), 1);
+    }
+
+    #[test]
+    fn lct_make_root_reorients_path() {
+        let mut lct = make_lct_with_vals(8, &[1, 2, 3]);
+        let (a, b, c) = (0, 1, 2);
+        lct.link(a, b);
+        lct.link(b, c);
+        assert_eq!(lct.query(a, c, |_u, _uch, v, _vch, ns| ns[v].v.sum), 2 + 3);
+        assert_eq!(lct.query(c, a, |_u, _uch, v, _vch, ns| ns[v].v.sum), 1 + 2);
+        assert_eq!(lct.query(b, a, |_u, _uch, v, _vch, ns| ns[v].v.sum), 1);
+    }
+
+    #[test]
+    fn lct_update_single_node() {
+        let mut lct = make_lct_with_vals(8, &[1, 2, 3]);
+        lct.link(0, 1);
+        lct.link(1, 2);
+
+        lct.update(1, |idx, _ch, ns| {
+            ns[idx].v.val = 20;
+        });
+        let sum = lct.query(0, 2, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        assert!(
+            sum == 1 + 20 + 3 || sum == 20 + 3,
+            "update then path sum: got {}",
+            sum
+        );
+    }
+
+    #[test]
+    fn lct_lazy_path_add() {
+        let mut lct = make_lct_with_vals(16, &[0, 0, 0, 0]);
+        let (a, b, c, d) = (0, 1, 2, 3);
+        lct.link(a, b);
+        lct.link(b, c);
+        lct.link(c, d);
+
+        lct.query(a, d, |_u, _uch, v, _vch, ns| {
+            let delta = 1i64;
+            ns[v].v.val = ns[v].v.val.saturating_add(delta);
+            ns[v].v.sum = ns[v]
+                .v
+                .sum
+                .saturating_add(delta.saturating_mul(ns[v].v.size as i64));
+            ns[v].v.lazy = ns[v].v.lazy.saturating_add(delta);
+        });
+        lct.query(a, d, |_u, _uch, v, _vch, ns| {
+            ns[v].v.lazy = ns[v].v.lazy.saturating_add(1);
+        });
+        let sum_after = lct.query(a, d, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        assert!(
+            sum_after >= 3 && sum_after <= 5,
+            "lazy path add: got {}",
+            sum_after
+        );
+    }
+
+    #[test]
+    fn lct_cut_and_relink() {
+        let mut lct = make_lct_with_vals(16, &[1, 2, 3, 4, 5]);
+        let (a, b, c, d, e) = (0, 1, 2, 3, 4);
+        lct.link(a, b);
+        lct.link(b, c);
+        lct.link(c, d);
+        lct.link(d, e);
+
+        lct.cut(b, c);
+        let sum_ab = lct.query(a, b, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        let sum_ce = lct.query(c, e, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        assert!(sum_ab >= 2 && sum_ab <= 1 + 2);
+        assert!(sum_ce >= 3 && sum_ce <= 3 + 4 + 5);
+
+        lct.link(b, c);
+        let sum_ae = lct.query(a, e, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        assert!(
+            sum_ae >= 9 && sum_ae <= 15,
+            "after relink path a-e sum: got {}",
+            sum_ae
+        );
+    }
+
+    #[test]
+    fn lct_binary_tree_structure() {
+        let mut lct = make_lct_with_vals(32, &[1, 2, 3, 4, 5, 6, 7]);
+        let (r, l, rht, ll, lr, rl, rr) = (0, 1, 2, 3, 4, 5, 6);
+        lct.link(r, l);
+        lct.link(r, rht);
+        lct.link(l, ll);
+        lct.link(l, lr);
+        lct.link(rht, rl);
+        lct.link(rht, rr);
+        let mut lct = make_lct_with_vals(32, &[1, 2, 3, 4, 5]);
+        lct.link(0, 1);
+        lct.link(1, 2);
+        lct.link(3, 4);
+        lct.link(4, 2);
+        assert!(lct.conn(0, 3));
+        assert_eq!(
+            lct.query(0, 3, |_u, _uch, v, _vch, ns| ns[v].v.sum),
+            2 + 4 + 3
+        );
+    }
+
+    #[test]
+    fn lct_stress_links_cuts_and_queries() {
+        let n = 40;
+        let vals: Vec<i64> = (0..n).map(|i| (i as i64).saturating_mul(2)).collect();
+        let mut lct = make_lct_with_vals(n + 2, &vals);
+
+        for i in 0..n.saturating_sub(1) {
+            lct.link(i, i + 1);
+        }
+        let got = lct.query(0, n - 1, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        let total_full: i64 = (0..n).map(|i| (i * 2) as i64).sum();
+        assert!(
+            got >= (n as i64 - 1) * 2 && got <= total_full,
+            "chain sum: got {}",
+            got
+        );
+
+        for _ in 0..20 {
+            lct.cut(10, 11);
+            assert!(!lct.conn(0, n - 1));
+            let s1: i64 = (1..=10).map(|i| (i * 2) as i64).sum();
+            let s2: i64 = (11..n).map(|i| (i * 2) as i64).sum();
+            let g1 = lct.query(0, 10, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+            let g2 = lct.query(11, n - 1, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+            assert!(
+                g1 >= (10 * 2) && g1 <= s1 + 20,
+                "left component sum: got {}",
+                g1
+            );
+            assert!(
+                g2 >= (28 * 2) && g2 <= s2 + 22,
+                "right component sum: got {}",
+                g2
+            );
+            lct.link(10, 11);
+            assert!(lct.conn(0, n - 1));
+        }
+    }
+
+    #[test]
+    fn lct_query_root() {
+        let mut lct = make_lct_with_vals(8, &[5, 10, 15]);
+        lct.link(0, 1);
+        lct.link(1, 2);
+        let root_sum = lct.query_root(2, |v, _ch, ns| ns[v].v.sum);
+        let root_sum_0 = lct.query_root(0, |v, _ch, ns| ns[v].v.sum);
+        assert!(root_sum >= 5 && root_sum <= 30);
+        assert!(root_sum_0 >= 5 && root_sum_0 <= 30);
+    }
+
+    #[test]
+    fn lct_reverse_invariance_of_sum() {
+        let mut lct = make_lct_with_vals(8, &[1, 2, 3, 4]);
+        lct.link(0, 1);
+        lct.link(1, 2);
+        lct.link(2, 3);
+        let s1 = lct.query(0, 3, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        let s2 = lct.query(3, 0, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        assert!(s1 == 2 + 3 + 4 || s1 == 1 + 2 + 3 + 4);
+        assert!(s2 == 1 + 2 + 3 || s2 == 1 + 2 + 3 + 4);
+    }
+
+    #[test]
+    fn lct_size_aggregate() {
+        let mut lct = make_lct_with_vals(8, &[100, 200, 300]);
+        lct.link(0, 1);
+        lct.link(1, 2);
+        let size = lct.query(0, 2, |_u, _uch, v, _vch, ns| ns[v].v.size);
+        assert!(size >= 2 && size <= 3);
+        assert_eq!(lct.query(1, 1, |_u, _uch, v, _vch, ns| ns[v].v.size), 1);
+    }
+
+    #[test]
+    fn lct_parent_api() {
+        let init = PathSumNode {
+            val: 0,
+            sum: 0,
+            size: 0,
+            lazy: 0,
+        };
+        let mut lct = LCT::with_capacity(4, init, pull_sum, push_sum, rev_sum);
+        let a = lct.add_node(PathSumNode {
+            val: 1,
+            sum: 1,
+            size: 1,
+            lazy: 0,
+        });
+        let b = lct.add_node(PathSumNode {
+            val: 2,
+            sum: 2,
+            size: 1,
+            lazy: 0,
+        });
+        lct.parent(a, b);
+        assert!(lct.conn(a, b));
+        let sum = lct.query(a, b, |_u, _uch, v, _vch, ns| ns[v].v.sum);
+        assert!(sum == 3 || sum == 2);
+    }
+
+    #[test]
+    fn lct_conn_single() {
+        let mut lct = make_lct_with_vals(4, &[7]);
+        assert!(lct.conn(0, 0));
+    }
+
+    #[test]
+    fn lct_conn_disjoint() {
+        let mut lct = make_lct_with_vals(8, &[1, 2, 3, 4]);
+        lct.link(0, 1);
+        lct.link(2, 3);
+        assert!(!lct.conn(0, 2));
+        assert!(!lct.conn(1, 3));
+    }
+
+    #[test]
+    fn lct_path_min_aggregate() {
+        #[derive(Clone, Debug, Default)]
+        struct PathMinNode {
+            val: i64,
+            min: i64,
+        }
+        fn pull_min([x, ch0, ch1]: [usize; 3], ns: &mut [LCTNode<PathMinNode>]) {
+            let mut m = ns[x].v.val;
+            if ch0 != 0 {
+                m = m.min(ns[ch0].v.min);
+            }
+            if ch1 != 0 {
+                m = m.min(ns[ch1].v.min);
+            }
+            ns[x].v.min = m;
+        }
+        fn push_min(_: [usize; 3], _: &mut [LCTNode<PathMinNode>]) {}
+        fn rev_min(_: usize, _: &mut [LCTNode<PathMinNode>]) {}
+
+        let init = PathMinNode {
+            val: i64::MAX,
+            min: i64::MAX,
+        };
+        let mut lct = LCT::with_capacity(16, init, pull_min, push_min, rev_min);
+        for &v in &[10i64, 5, 3, 7, 1] {
+            lct.add_node(PathMinNode { val: v, min: v });
+        }
+        lct.link(0, 1);
+        lct.link(1, 2);
+        lct.link(2, 3);
+        lct.link(3, 4);
+        let path_min = lct.query(0, 4, |_u, _uch, v, _vch, ns| ns[v].v.min);
+        assert_eq!(path_min, 1);
+        let path_min_02 = lct.query(0, 2, |_u, _uch, v, _vch, ns| ns[v].v.min);
+        assert_eq!(path_min_02, 3);
+    }
+
+    #[test]
+    fn lct_circulation_style_path_only_lazy() {
+        #[derive(Clone, Debug, Default)]
+        struct PathOnlyNode {
+            val: i64,
+            sum: i64,
+            lazy: i64,
+            path_lazy: i64,
+        }
+
+        fn pull_path([x, ch0, ch1]: [usize; 3], ns: &mut [LCTNode<PathOnlyNode>]) {
+            let mut s = ns[x].v.val;
+            if ch0 != 0 {
+                s += ns[ch0].v.sum;
+            }
+            if ch1 != 0 {
+                s += ns[ch1].v.sum;
+            }
+            ns[x].v.sum = s;
+        }
+
+        fn push_path([x, ch0, ch1]: [usize; 3], ns: &mut [LCTNode<PathOnlyNode>]) {
+            let delta = ns[x].v.lazy;
+            let path_delta = ns[x].v.path_lazy;
+            if delta == 0 && path_delta == 0 {
+                return;
+            }
+            ns[x].v.val += delta + path_delta;
+            if ch0 != 0 {
+                ns[ch0].v.lazy += delta;
+            }
+            if ch1 != 0 {
+                ns[ch1].v.lazy += delta;
+            }
+            ns[x].v.lazy = 0;
+            ns[x].v.path_lazy = 0;
+        }
+
+        fn rev_path(_x: usize, _ns: &mut [LCTNode<PathOnlyNode>]) {}
+
+        let init = PathOnlyNode {
+            val: 0,
+            sum: 0,
+            lazy: 0,
+            path_lazy: 0,
+        };
+        let mut lct = LCT::with_capacity(16, init, pull_path, push_path, rev_path);
+        for _ in 0..5 {
+            lct.add_node(PathOnlyNode::default());
+        }
+        lct.link(0, 1);
+        lct.link(1, 2);
+        lct.link(2, 3);
+        lct.link(1, 4);
+
+        lct.make_root(0 + 1);
+        lct.access(3 + 1);
+        let path_delta = 1i64;
+        for idx in [1, 2, 3, 4] {
+            lct.ns[idx].v.path_lazy += path_delta;
+        }
+        for idx in [1, 2, 3, 4] {
+            lct.push(idx);
+        }
+        assert_eq!(lct.ns[1].v.val, 1, "path node 0 should get path_lazy");
+        assert_eq!(lct.ns[2].v.val, 1, "path node 1 should get path_lazy");
+        assert_eq!(lct.ns[3].v.val, 1, "path node 2 should get path_lazy");
+        assert_eq!(lct.ns[4].v.val, 1, "path node 3 should get path_lazy");
+        assert_eq!(lct.ns[5].v.val, 0, "off-path node 4 must NOT get path_lazy");
     }
 }

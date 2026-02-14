@@ -24,7 +24,6 @@ pub struct PushRelabel<F> {
 }
 
 impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
-    #[inline]
     pub fn new(n: usize) -> Self {
         Self {
             n,
@@ -37,7 +36,6 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
         }
     }
 
-    #[inline]
     pub fn add_edge(&mut self, s: usize, t: usize, c: F, rc: F) -> &mut Self {
         if s == t {
             return self;
@@ -76,7 +74,6 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
         self
     }
 
-    #[inline]
     fn relabel(&mut self, u: usize, hi: usize) -> usize {
         let n = self.n;
         let mut nh = usize::MAX;
@@ -150,6 +147,7 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
         }
     }
 
+    #[inline]
     pub fn left_of_min_cut(&self, a: usize) -> bool {
         self.h[a] >= self.n
     }
@@ -167,7 +165,6 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
             .collect()
     }
 
-    #[inline]
     pub fn reset(&mut self) -> &mut Self {
         self.ec.fill(F::default());
         self.cur.fill(0);
@@ -184,7 +181,6 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
         self
     }
 
-    #[inline]
     pub fn full_reset(&mut self) -> &mut Self {
         self.g.iter_mut().for_each(Vec::clear);
         self.ec.fill(F::default());
@@ -536,6 +532,146 @@ impl CostScaling {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct DinitzEdge {
+    to: usize,
+    rev: usize,
+    c: i64,
+    oc: i64,
+}
+
+impl DinitzEdge {
+    #[inline]
+    pub fn flow(&self) -> i64 {
+        (self.oc - self.c).max(0)
+    }
+}
+
+pub struct Dinitz {
+    n: usize,
+    g: Vec<Vec<DinitzEdge>>,
+    lvl: Vec<i32>,
+    cur: Vec<usize>,
+    q: Vec<usize>,
+}
+
+impl Dinitz {
+    pub fn new(n: usize) -> Self {
+        Self {
+            n,
+            g: vec![Vec::new(); n],
+            lvl: vec![0; n],
+            cur: vec![0; n],
+            q: vec![0; n],
+        }
+    }
+
+    pub fn add_edge(&mut self, a: usize, b: usize, cap: i64, rcap: i64) -> &mut Self {
+        if a == b || a >= self.n || b >= self.n {
+            return self;
+        }
+        let rev_b = self.g[b].len();
+        let rev_a = self.g[a].len();
+        self.g[a].push(DinitzEdge {
+            to: b,
+            rev: rev_b,
+            c: cap,
+            oc: cap,
+        });
+        self.g[b].push(DinitzEdge {
+            to: a,
+            rev: rev_a,
+            c: rcap,
+            oc: rcap,
+        });
+        self
+    }
+
+    fn bfs(&mut self, s: usize, t: usize, lim: i64) -> bool {
+        self.lvl.fill(0);
+        self.cur.fill(0);
+        self.lvl[s] = 1;
+        self.q[0] = s;
+        let mut qi = 0;
+        let mut qe = 1;
+        while qi < qe && self.lvl[t] == 0 {
+            let v = self.q[qi];
+            qi += 1;
+            for e in &self.g[v] {
+                if self.lvl[e.to] == 0 && e.c >= lim {
+                    self.lvl[e.to] = self.lvl[v] + 1;
+                    self.q[qe] = e.to;
+                    qe += 1;
+                }
+            }
+        }
+        self.lvl[t] != 0
+    }
+
+    fn dfs(&mut self, v: usize, t: usize, flow: i64) -> i64 {
+        if v == t || flow == 0 {
+            return flow;
+        }
+        while self.cur[v] < self.g[v].len() {
+            let e = self.g[v][self.cur[v]];
+            if self.lvl[e.to] == self.lvl[v] + 1 {
+                let pushed = self.dfs(e.to, t, flow.min(e.c));
+                if pushed > 0 {
+                    self.g[v][self.cur[v]].c -= pushed;
+                    let rev = self.g[v][self.cur[v]].rev;
+                    self.g[e.to][rev].c += pushed;
+                    return pushed;
+                }
+            }
+            self.cur[v] += 1;
+        }
+        0
+    }
+
+    /// O(n m log U)
+    /// O(min(m^1/2, n^2/3) m) if U = 1
+    pub fn calc(&mut self, s: usize, t: usize) -> i64 {
+        if s == t {
+            return 0;
+        }
+        let mut max_cap = 0;
+        for es in &self.g {
+            for e in es {
+                if e.c > max_cap {
+                    max_cap = e.c;
+                }
+            }
+        }
+        if max_cap == 0 {
+            return 0;
+        }
+        let mut lim = 1;
+        while lim <= max_cap {
+            lim <<= 1;
+        }
+        lim >>= 1;
+        let mut total = 0;
+        while lim > 0 {
+            while self.bfs(s, t, lim) {
+                loop {
+                    let pushed = self.dfs(s, t, i64::MAX);
+                    if pushed == 0 {
+                        break;
+                    }
+                    total += pushed;
+                }
+            }
+            lim >>= 1;
+        }
+        total
+    }
+
+    #[inline]
+    pub fn left_of_min_cut(&self, a: usize) -> bool {
+        a < self.n && self.lvl[a] != 0
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CapacityScalingEdge {
     to: usize,
@@ -582,7 +718,6 @@ impl CapacityScaling {
         });
     }
 
-    #[inline(always)]
     fn reduced_cost(&self, u: usize, edge: &CapacityScalingEdge) -> i64 {
         edge.cost + self.p[u] - self.p[edge.to]
     }
@@ -726,6 +861,97 @@ impl CapacityScaling {
             cost += edge_flow * e_orig.cost;
         }
         (flow, cost, flows)
+    }
+}
+
+#[cfg(test)]
+mod dinic_tests {
+    use super::{Dinitz, PushRelabel};
+
+    fn add_dinic_edges(d: &mut Dinitz, edges: &[(usize, usize, i64)]) {
+        for &(a, b, cap) in edges {
+            d.add_edge(a, b, cap, 0);
+        }
+    }
+
+    fn add_pr_edges(pr: &mut PushRelabel<i64>, edges: &[(usize, usize, i64)]) {
+        for &(a, b, cap) in edges {
+            pr.add_edge(a, b, cap, 0);
+        }
+    }
+
+    #[test]
+    fn dinic_single_edge() {
+        let mut d = Dinitz::new(2);
+        d.add_edge(0, 1, 10, 0);
+        assert_eq!(d.calc(0, 1), 10);
+    }
+
+    #[test]
+    fn dinic_path_bottleneck() {
+        // 0 -> 1 -> 2 -> 3, caps 5, 3, 7 => flow 3
+        let mut d = Dinitz::new(4);
+        add_dinic_edges(&mut d, &[(0, 1, 5), (1, 2, 3), (2, 3, 7)]);
+        assert_eq!(d.calc(0, 3), 3);
+    }
+
+    #[test]
+    fn dinic_disconnected() {
+        let mut d = Dinitz::new(4);
+        add_dinic_edges(&mut d, &[(0, 1, 1), (2, 3, 1)]);
+        assert_eq!(d.calc(0, 3), 0);
+    }
+
+    #[test]
+    fn dinic_same_source_sink() {
+        let mut d = Dinitz::new(2);
+        d.add_edge(0, 1, 10, 0);
+        assert_eq!(d.calc(0, 0), 0);
+        assert_eq!(d.calc(1, 1), 0);
+    }
+
+    #[test]
+    fn dinic_two_paths() {
+        // s=0, t=3. Paths 0->1->3 and 0->2->3 with caps 2 and 3 => flow 5
+        let mut d = Dinitz::new(4);
+        add_dinic_edges(&mut d, &[(0, 1, 2), (1, 3, 2), (0, 2, 3), (2, 3, 3)]);
+        assert_eq!(d.calc(0, 3), 5);
+    }
+
+    #[test]
+    fn dinic_matches_push_relabel() {
+        let edges = &[(0, 1, 10), (0, 2, 5), (1, 2, 15), (1, 3, 10), (2, 3, 10)];
+        let n = 4;
+        let mut d = Dinitz::new(n);
+        add_dinic_edges(&mut d, edges);
+        let flow_dinic = d.calc(0, 3);
+
+        let mut pr = PushRelabel::<i64>::new(n);
+        add_pr_edges(&mut pr, edges);
+        let flow_pr = pr.calc(0, 3);
+
+        assert_eq!(flow_dinic, flow_pr, "Dinic and PushRelabel must agree");
+        assert_eq!(flow_dinic, 15);
+    }
+
+    #[test]
+    fn dinic_left_of_min_cut() {
+        // 0 -> 1 -> 2, cap 1. After calc(0,2), flow is 1. Source 0 is left of min cut; sink 2 is not.
+        // (Exact cut side depends on last BFS; we only require s is left, t is not.)
+        let mut d = Dinitz::new(3);
+        add_dinic_edges(&mut d, &[(0, 1, 1), (1, 2, 1)]);
+        assert_eq!(d.calc(0, 2), 1);
+        assert!(d.left_of_min_cut(0), "source must be left of min cut");
+        assert!(!d.left_of_min_cut(2), "sink must be right of min cut");
+    }
+
+    #[test]
+    fn dinic_flow_on_edge() {
+        let mut d = Dinitz::new(2);
+        d.add_edge(0, 1, 7, 0);
+        assert_eq!(d.calc(0, 1), 7);
+        assert_eq!(d.g[0][0].flow(), 7);
+        assert_eq!(d.g[1][0].flow(), 0);
     }
 }
 

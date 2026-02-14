@@ -1,7 +1,9 @@
 pub mod bridges;
 pub mod cc;
+pub mod circulation;
 pub mod clique;
 pub mod color;
+pub mod cut;
 pub mod dominator;
 pub mod dynamic_conn;
 pub mod eulerian;
@@ -9,7 +11,6 @@ pub mod flow;
 pub mod format;
 pub mod hamiltonian;
 pub mod matching;
-pub mod min_cut;
 pub mod planar;
 pub mod sat2;
 pub mod shortest;

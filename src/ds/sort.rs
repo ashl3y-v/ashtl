@@ -1,5 +1,4 @@
 use crate::ds::bit_vec::BitVec;
-use rand::Rng;
 
 /// counting sort O(n + k) time O(k) space
 /// k must be a strict upper bound
