@@ -252,8 +252,8 @@ impl<F: Copy + Default + PartialOrd + AddAssign + SubAssign> PushRelabel<F> {
 pub struct CostScalingInputEdge {
     pub from: usize,
     pub to: usize,
-    pub b: i64,
-    pub c: i64,
+    pub l: i64,
+    pub r: i64,
     pub cost: i64,
 }
 
@@ -294,12 +294,12 @@ impl CostScaling {
         }
     }
 
-    pub fn add_edge(&mut self, u: usize, v: usize, cost: i64, c: i64, b: i64) {
+    pub fn add_edge(&mut self, u: usize, v: usize, l: i64, r: i64, cost: i64) {
         self.input_edges.push(CostScalingInputEdge {
             from: u,
             to: v,
-            b,
-            c,
+            l,
+            r,
             cost,
         });
     }
@@ -332,9 +332,9 @@ impl CostScaling {
         }
         let mut current_d = self.d.clone();
         for (i, e) in self.input_edges.iter().enumerate() {
-            self.init_excess[e.to] += e.c;
-            self.init_excess[e.from] -= e.b;
-            self.init_cost += e.cost * (e.c + e.b);
+            self.init_excess[e.to] += e.r;
+            self.init_excess[e.from] -= e.l;
+            self.init_cost += e.cost * (e.r + e.l);
             let from_idx = current_d[e.from];
             let to_idx = current_d[e.to];
             self.edge_mp[i] = from_idx;
@@ -343,7 +343,7 @@ impl CostScaling {
             self.g[from_idx] = CostScalingEdge {
                 to: e.to,
                 rev: to_idx,
-                c: e.c - e.b,
+                c: e.r - e.l,
                 cost: e.cost,
             };
             self.g[to_idx] = CostScalingEdge {
@@ -362,11 +362,11 @@ impl CostScaling {
         let mut total_demand = 0;
         let mut node_imbalance = vec![0; self.n];
         for e in &self.input_edges {
-            node_imbalance[e.from] += e.b;
-            node_imbalance[e.to] -= e.b;
+            node_imbalance[e.from] += e.l;
+            node_imbalance[e.to] -= e.l;
         }
         for e in &self.input_edges {
-            pr.add_edge(e.from, e.to, e.c - e.b, 0);
+            pr.add_edge(e.from, e.to, e.r - e.l, 0);
         }
         for i in 0..self.n {
             if node_imbalance[i] > 0 {
@@ -406,15 +406,15 @@ impl CostScaling {
         let mut bridge_cap = 0;
         for e in &self.input_edges {
             if e.from == s {
-                bridge_cap += e.c;
+                bridge_cap += e.r;
             }
         }
         bridge_cap = bridge_cap.max(1);
-        let mut max_c = 1;
+        let mut max_cost = 1;
         for e in &self.input_edges {
-            max_c = max_c.max(e.cost.abs());
+            max_cost = max_cost.max(e.cost.abs());
         }
-        let bridge_cost = -(max_c * self.n as i64).max(1);
+        let bridge_cost = -(max_cost * self.n as i64).max(1);
         self.add_edge(t, s, bridge_cost, bridge_cap, 0);
         let (feasible, total_cost) = self.mcc();
         if !feasible {
@@ -427,7 +427,7 @@ impl CostScaling {
             let idx = self.edge_mp[i];
             let residual_cap = self.g[idx].c;
             let e = self.input_edges[i];
-            let f = (e.c - e.b) - residual_cap;
+            let f = (e.r - e.l) - residual_cap;
             flows.push(f);
         }
         let bridge_idx = self.edge_mp[m];
@@ -629,7 +629,8 @@ impl Dinitz {
     }
 
     /// O(n m log U)
-    /// O(min(m^1/2, n^2/3) m) if U = 1
+    /// O(min(m^1/2, n^2/3) m) if unit
+    /// O(√n m) if incoming or outcoming edges are unique and unit
     pub fn calc(&mut self, s: usize, t: usize) -> i64 {
         if s == t {
             return 0;

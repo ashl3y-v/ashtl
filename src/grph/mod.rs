@@ -10,6 +10,7 @@ pub mod eulerian;
 pub mod flow;
 pub mod format;
 pub mod hamiltonian;
+pub mod ldd;
 pub mod matching;
 pub mod planar;
 pub mod sat2;

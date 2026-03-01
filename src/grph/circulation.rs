@@ -66,7 +66,7 @@ pub fn round_circulation(n: usize, edges: &mut [CirculationRoundEdge]) {
         let mut min_bwd = ns[x].v.min_bwd;
         let mut min_bwd_node = ns[x].v.min_bwd_node;
         if ns[x].v.has_edge {
-            let flow_eff = ns[x].v.flow + ns[x].v.lazy;
+            let flow_eff = ns[x].v.flow * ns[x].v.lazy;
             let af = avail_fwd(flow_eff);
             let ab = avail_bwd(flow_eff);
             if af < min_fwd {
@@ -135,14 +135,13 @@ pub fn round_circulation(n: usize, edges: &mut [CirculationRoundEdge]) {
         }
         ns[x].v.cost_sum = -ns[x].v.cost_sum;
         std::mem::swap(&mut ns[x].v.min_fwd, &mut ns[x].v.min_bwd);
+
         std::mem::swap(&mut ns[x].v.min_fwd_node, &mut ns[x].v.min_bwd_node);
     }
     if n == 0 || edges.is_empty() {
         return;
     }
     let m = edges.len();
-    let initial: Vec<f64> = edges.iter().map(|e| e.flow).collect();
-    let floor_ceil: Vec<(f64, f64)> = initial.iter().map(|&f| (f.floor(), f.ceil())).collect();
     let init = CircLCTNode::default();
     let mut lct = LCT::with_capacity(n + m, init, circ_lct_pull, circ_lct_push, circ_lct_rev);
     for i in 0..n {
@@ -237,7 +236,7 @@ pub fn round_circulation(n: usize, edges: &mut [CirculationRoundEdge]) {
         let other = parent_of(&lct, remove_node).unwrap_or(u);
         lct.make_root(remove_node + 1);
         lct.access(other + 1);
-        lct.push(remove_node);
+        lct.push(remove_node + 1);
         let flow_on_edge = lct.ns[remove_node + 1].v.flow;
         let ei = lct.ns[remove_node + 1].v.edge_index;
         let from = remove_node;
@@ -257,8 +256,7 @@ pub fn round_circulation(n: usize, edges: &mut [CirculationRoundEdge]) {
                 let flow = lct.ns[i].v.flow;
                 let from = lct.ns[i].v.vertex_id;
                 let raw = if edges[ei].from == from { flow } else { -flow };
-                let (lo, hi) = floor_ceil[ei];
-                edges[ei].flow = raw.clamp(lo, hi);
+                edges[ei].flow = raw;
             }
         }
     }

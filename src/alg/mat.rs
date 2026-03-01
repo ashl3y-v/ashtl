@@ -697,6 +697,141 @@ impl<const M: u64> Mat<M> {
         }
     }
 
+    #[inline]
+    fn submatrix(src: &Self, row: usize, rows: usize, col: usize, cols: usize) -> Self {
+        let mut elems = Vec::with_capacity(rows * cols);
+        for i in 0..rows {
+            let start = (row + i) * src.m + col;
+            elems.extend_from_slice(&src.elems[start..start + cols]);
+        }
+        Self::from_vec(rows, cols, elems)
+    }
+
+    #[inline]
+    fn add_mat(a: &Self, b: &Self) -> Self {
+        debug_assert_eq!(a.n, b.n);
+        debug_assert_eq!(a.m, b.m);
+        let mut elems = Vec::with_capacity(a.n * a.m);
+        elems.extend(a.elements().zip(b.elements()).map(|(x, y)| {
+            let mut v = (*x + *y) % M as E;
+            if (M as E) >> 1 < v {
+                v -= M as E;
+            }
+            v
+        }));
+        Self::from_vec(a.n, a.m, elems)
+    }
+
+    #[inline]
+    fn sub_mat(a: &Self, b: &Self) -> Self {
+        debug_assert_eq!(a.n, b.n);
+        debug_assert_eq!(a.m, b.m);
+        let mut elems = Vec::with_capacity(a.n * a.m);
+        elems.extend(a.elements().zip(b.elements()).map(|(x, y)| {
+            let mut v = (*x - *y) % M as E;
+            if (M as E) >> 1 < v {
+                v -= M as E;
+            }
+            v
+        }));
+        Self::from_vec(a.n, a.m, elems)
+    }
+
+    fn strassen_rec(a: &Self, b: &Self, threshold: usize) -> Self {
+        debug_assert_eq!(a.n, a.m);
+        debug_assert_eq!(b.n, b.m);
+        debug_assert_eq!(a.n, b.n);
+        let n = a.n;
+        if n <= threshold {
+            return a * b;
+        }
+        let k = n / 2;
+        let a11 = Self::submatrix(a, 0, k, 0, k);
+        let a12 = Self::submatrix(a, 0, k, k, k);
+        let a21 = Self::submatrix(a, k, k, 0, k);
+        let a22 = Self::submatrix(a, k, k, k, k);
+        let b11 = Self::submatrix(b, 0, k, 0, k);
+        let b12 = Self::submatrix(b, 0, k, k, k);
+        let b21 = Self::submatrix(b, k, k, 0, k);
+        let b22 = Self::submatrix(b, k, k, k, k);
+        let a22p = {
+            let tmp = Self::sub_mat(&a12, &a21);
+            Self::add_mat(&tmp, &a22)
+        };
+        let b22p = {
+            let tmp = Self::sub_mat(&b12, &b21);
+            Self::add_mat(&tmp, &b22)
+        };
+        let t1 = Self::add_mat(&a21, &a22p);
+        let t2 = Self::sub_mat(&a22p, &a12);
+        let t3 = Self::sub_mat(&a22p, &a11);
+        let t4 = Self::sub_mat(&b22p, &b11);
+        let t5 = Self::add_mat(&b21, &b22p);
+        let t6 = Self::sub_mat(&b22p, &b12);
+        let m1 = Self::strassen_rec(&a11, &b11, threshold);
+        let m2 = Self::strassen_rec(&a12, &b21, threshold);
+        let m3 = Self::strassen_rec(&a21, &t4, threshold);
+        let m4 = Self::strassen_rec(&a22p, &b22p, threshold);
+        let m5 = Self::strassen_rec(&t1, &t5, threshold);
+        let m6 = Self::strassen_rec(&t2, &t6, threshold);
+        let m7 = Self::strassen_rec(&t3, &b12, threshold);
+        let c11 = Self::add_mat(&m1, &m2);
+        let mut c12 = Self::sub_mat(&m5, &m7);
+        let mut c21 = Self::add_mat(&m3, &m6);
+        let c22 = {
+            let mut tmp = Self::add_mat(&m5, &m6);
+            tmp -= m2;
+            tmp -= m4;
+            tmp
+        };
+        c12.elements_mut()
+            .zip(c22.elements())
+            .for_each(|(x, y)| *x -= *y);
+        c21.elements_mut()
+            .zip(c22.elements())
+            .for_each(|(x, y)| *x = *y - *x);
+        let mut c = Self::from_elem(n, n, 0);
+        for i in 0..k {
+            c[i][0..k].copy_from_slice(&c11[i]);
+            c[i][k..n].copy_from_slice(&c12[i]);
+        }
+        for i in 0..k {
+            c[k + i][0..k].copy_from_slice(&c21[i]);
+            c[k + i][k..n].copy_from_slice(&c22[i]);
+        }
+        c
+    }
+
+    pub fn strassen(a: &Self, b: &Self) -> Self {
+        debug_assert_eq!(a.m, b.n);
+        let n = a.n;
+        let k = a.m;
+        let m = b.m;
+        if n == 0 || k == 0 || m == 0 {
+            return Self::from_elem(n, m, 0);
+        }
+        const STRASSEN_THRESHOLD: usize = 64;
+        let max_dim = n.max(k).max(m);
+        if max_dim <= STRASSEN_THRESHOLD {
+            return a * b;
+        }
+        let size = max_dim.next_power_of_two();
+        let mut a_pad = Self::from_elem(size, size, 0);
+        let mut b_pad = Self::from_elem(size, size, 0);
+        for i in 0..n {
+            a_pad[i][0..k].copy_from_slice(&a[i][0..k]);
+        }
+        for i in 0..k {
+            b_pad[i][0..m].copy_from_slice(&b[i][0..m]);
+        }
+        let c_pad = Self::strassen_rec(&a_pad, &b_pad, STRASSEN_THRESHOLD);
+        let mut c = Self::from_elem(n, m, 0);
+        for i in 0..n {
+            c[i][0..m].copy_from_slice(&c_pad[i][0..m]);
+        }
+        c
+    }
+
     /// O(n^3)
     pub fn charp(mut self) -> FPS<M> {
         let n = self.n;
@@ -1090,5 +1225,67 @@ mod tests {
         prod.pos_normalize();
         let id = Mat::<M>::eye(10, 10);
         assert_eq!(prod, id);
+    }
+
+    #[test]
+    fn strassen_correctness() {
+        let mut rng = rand::rng();
+
+        let dims = [
+            (1usize, 1usize, 1usize),
+            (2, 2, 2),
+            (3, 4, 5),
+            (5, 7, 6),
+            (8, 8, 8),
+            (16, 16, 16),
+        ];
+
+        for (n, k, m) in dims {
+            let a = Mat::<M>::from_fn(n, k, |_| rng.random_range(0..M as E));
+            let b = Mat::<M>::from_fn(k, m, |_| rng.random_range(0..M as E));
+
+            let naive = &a * &b;
+            let strassen = Mat::<M>::strassen(&a, &b);
+
+            assert_eq!(
+                naive, strassen,
+                "Strassen result must match classical multiplication for dimensions ({n}, {k}, {m})"
+            );
+        }
+    }
+
+    #[test]
+    fn strassen_large_performance() {
+        use std::time::Instant;
+
+        let n = 1000usize;
+        let mut rng = rand::rng();
+        let a = Mat::<M>::from_fn(n, n, |_| rng.random_range(0..M as E));
+        let b = Mat::<M>::from_fn(n, n, |_| rng.random_range(0..M as E));
+
+        let start = Instant::now();
+        let naive = &a * &b;
+        let t_naive = start.elapsed();
+
+        let start = Instant::now();
+        let strassen = Mat::<M>::strassen(&a, &b);
+        let t_strassen = start.elapsed();
+
+        assert_eq!(naive, strassen, "Results must match for large matrices");
+
+        eprintln!(
+            "naive: {:?}, strassen: {:?} (n = {})",
+            t_naive, t_strassen, n
+        );
+
+        if !cfg!(debug_assertions) {
+            // In release mode, we expect Strassen to be noticeably faster on large matrices.
+            assert!(
+                t_strassen < t_naive,
+                "Strassen multiplication should be faster than classical multiplication (naive: {:?}, strassen: {:?})",
+                t_naive,
+                t_strassen
+            );
+        }
     }
 }
